@@ -45,6 +45,20 @@ npm test
 
 `DEV_LOGIN=1` shows a developer sign-in button (ignored in production builds). `PAYMENT_MODE=mock` auto-confirms payments, `RUNNER_MODE=mock` simulates SinoBee runs so the whole budget → top-up → completion → download flow can be exercised.
 
+## One command: `npm run swarm`
+
+Runs the whole stack on **http://localhost:10023**: generates the Prisma clients, applies migrations, seeds the official skills, builds the site when needed, then starts the web server and the task worker together (prefixed logs, Ctrl-C stops both).
+
+```bash
+npm run swarm                 # production build + worker on :10023
+npm run swarm -- --dev        # next dev (hot reload, DEV_LOGIN works) + worker
+npm run swarm -- --build      # force a fresh build
+npm run swarm -- --no-worker  # web only
+SWARM_PORT=12345 npm run swarm
+```
+
+If `PUBLIC_ORIGIN` points to localhost on another port (e.g. the `:3000` default in `.env.example`), swarm moves it to the swarm port so Sign in with CAFECA keeps matching; a public origin such as `https://sinobee.ai` behind a reverse proxy is left unchanged.
+
 ## Database: PostgreSQL or SQLite
 
 | `DATABASE_URL` | Database | Schema / migrations |

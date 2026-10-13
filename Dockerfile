@@ -6,7 +6,7 @@ RUN npm ci --no-audit --no-fund
 
 FROM deps AS build
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 NEXT_OUTPUT=standalone
 RUN npm run db:generate && npx next build
 
 # ── web ──
