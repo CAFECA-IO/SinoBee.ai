@@ -1,0 +1,415 @@
+// SinoBee.ai data model
+// Money is stored in TWDC (CAFECA stablecoin, 6 decimals) as Decimal(20,6).
+// Raw provider costs (USD) are kept separately so the 1.5x markup is auditable.
+//
+// This is the PostgreSQL schema (used when DATABASE_URL is set).
+// prisma/sqlite/schema.prisma is GENERATED from it (npm run db:sqlite-schema) for the SQLite fallback;
+// keep the model portable: no scalar lists, no provider-specific features beyond @db.* (stripped for SQLite).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── Accounts ─────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  /// CAFECA identity contract address (lowercase) — the stable user id
+  account       String    @unique
+  handle        String?
+  /// Skill Hub publisher id (e.g. "cafeca"), [a-z0-9-]{2,39}
+  publisher     String?   @unique
+  displayName   String?
+  kycLevel      Int?
+  publisherVerified Boolean @default(false)
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  lastLoginAt   DateTime  @default(now())
+
+  sessions      Session[]
+  apiTokens     ApiToken[]
+  skills        Skill[]
+  ratings       SkillRating[]
+  comments      Comment[]
+  tasks         Task[]
+  taskVotes     TaskVote[]
+  payments      Payment[]
+  subscriptions Subscription[]
+  notifications Notification[]
+  container     UserContainer?
+  evaluations   EvaluationReport[]
+  reviewedVersions SkillVersion[] @relation("reviewer")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// CAFECA signing channel id granted at sign-in (keys live in the browser)
+  channelId   String?
+  channelExpiresAt DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// One-time sign-in nonces (bound to a browser via the `sb_bind` cookie)
+model AuthNonce {
+  nonce     String   @id
+  bind      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  /// post-mode (QR) result waiting to be picked up by the polling browser
+  userId    String?
+  response  Json?
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+/// Bearer tokens for `sinobee skills publish` (Hub API v1)
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  prefix     String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+}
+
+// ───────────────────────── Skill Hub ─────────────────────────
+
+enum ReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum ScanVerdict {
+  CLEAN
+  WARNING
+  DANGEROUS
+}
+
+model Skill {
+  id           String   @id @default(cuid())
+  publisherId  String
+  publisher    User     @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  name         String
+  description  String
+  license      String?
+  downloads    Int      @default(0)
+  ratingAvg    Float    @default(0)
+  ratingCount  Int      @default(0)
+  latestVersion String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  versions     SkillVersion[]
+  ratings      SkillRating[]
+  tags         SkillTag[]
+
+  @@unique([publisherId, name])
+  @@index([downloads])
+}
+
+model SkillVersion {
+  id           String       @id @default(cuid())
+  skillId      String
+  skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  version      String
+  /// "sha256:<hex>" — SinoBee content hash (sorted path \0 bytes \0 ...)
+  contentHash  String
+  /// storage key of the .tar.gz bundle
+  bundleKey    String
+  bundleSize   Int
+  manifest     Json
+  skillMd      String
+  files        Json
+  /// base64 ed25519 signature of contentHash (set when approved)
+  signature    String?
+  status       ReviewStatus @default(PENDING_REVIEW)
+  scanVerdict  ScanVerdict  @default(CLEAN)
+  scanFindings Json         @default("[]")
+  reviewNote   String?
+  reviewerId   String?
+  reviewer     User?        @relation("reviewer", fields: [reviewerId], references: [id])
+  reviewedAt   DateTime?
+  publishedAt  DateTime     @default(now())
+  downloads    Int          @default(0)
+
+  tasks        Task[]
+  evaluations  EvaluationReport[]
+
+  @@unique([skillId, version])
+  @@index([contentHash])
+}
+
+model SkillTag {
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  tag     String
+
+  @@id([skillId, tag])
+  @@index([tag])
+}
+
+model SkillRating {
+  skillId   String
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stars     Int
+  updatedAt DateTime @updatedAt
+
+  @@id([skillId, userId])
+}
+
+model Revocation {
+  contentHash String   @id
+  reason      String
+  createdAt   DateTime @default(now())
+}
+
+enum CommentTarget {
+  SKILL
+  TASK
+  EVALUATION
+}
+
+model Comment {
+  id         String        @id @default(cuid())
+  targetType CommentTarget
+  targetId   String
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId   String?
+  parent     Comment?      @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[]     @relation("thread")
+  body       String
+  deletedAt  DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@index([targetType, targetId, createdAt])
+}
+
+// ───────────────────────── Commissioned tasks ─────────────────────────
+
+enum TaskKind {
+  TASK
+  EVALUATION
+}
+
+enum TaskStatus {
+  AWAITING_PAYMENT
+  QUEUED
+  RUNNING
+  NEEDS_FUNDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Task {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind          TaskKind   @default(TASK)
+  title         String
+  prompt        String
+  model         String
+  skillVersionId String?
+  skillVersion  SkillVersion? @relation(fields: [skillVersionId], references: [id])
+  isPublic      Boolean    @default(false)
+  status        TaskStatus @default(AWAITING_PAYMENT)
+
+  /// total TWDC funded (initial + top-ups)
+  budget        Decimal    @default(0) @db.Decimal(20, 6)
+  /// TWDC charged so far (= 1.5 x raw costs converted at usdTwdRate)
+  charged       Decimal    @default(0) @db.Decimal(20, 6)
+  usdTwdRate    Decimal    @default(32) @db.Decimal(12, 6)
+  /// raw provider costs in USD
+  tokenCostUsd  Decimal    @default(0) @db.Decimal(20, 8)
+  vmCostUsd     Decimal    @default(0) @db.Decimal(20, 8)
+  s3CostUsd     Decimal    @default(0) @db.Decimal(20, 8)
+  inputTokens   BigInt     @default(0)
+  outputTokens  BigInt     @default(0)
+  vmSeconds     Int        @default(0)
+
+  /// evaluation fields (kind = EVALUATION)
+  evalMethod    String?
+  evalCriteria  String?
+
+  summary       String?
+  error         String?
+  containerName String?
+  workerId      String?
+  heartbeatAt   DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  /// set when budget is exhausted; auto-closes after the retention window
+  fundingRequestedAt DateTime?
+  /// results download deadline (7 days for non-subscribers)
+  resultsExpireAt DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  artifacts     Artifact[]
+  events        TaskEvent[]
+  votes         TaskVote[]
+  payments      Payment[]
+  report        EvaluationReport?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([isPublic, createdAt])
+}
+
+model TaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model Artifact {
+  id         String    @id @default(cuid())
+  taskId     String
+  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  key        String
+  filename   String
+  sizeBytes  BigInt
+  sha256     String
+  partial    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  deletedAt  DateTime?
+}
+
+model TaskVote {
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// +1 good, -1 bad
+  value     Int
+  updatedAt DateTime @updatedAt
+
+  @@id([taskId, userId])
+}
+
+/// Per-user isolated docker container (+ volume)
+model UserContainer {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  containerName String   @unique
+  volumeName    String
+  status        String   @default("created")
+  lastActiveAt  DateTime @default(now())
+  /// removed by the cleanup job after this time (7 days after last task for non-subscribers)
+  expiresAt     DateTime?
+}
+
+// ───────────────────────── Evaluations ─────────────────────────
+
+model EvaluationReport {
+  id             String        @id @default(cuid())
+  taskId         String        @unique
+  task           Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requesterId    String
+  requester      User          @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  skillVersionId String?
+  skillVersion   SkillVersion? @relation(fields: [skillVersionId], references: [id])
+  model          String
+  method         String
+  methodDetail   String
+  /// step-by-step transcript of the evaluation
+  process        String
+  /// { score: 0-100, metrics: {name: number}, verdict, summary }
+  result         Json
+  score          Float?
+  evaluatedAt    DateTime      @default(now())
+
+  @@index([model])
+  @@index([skillVersionId])
+}
+
+// ───────────────────────── Payments & subscriptions ─────────────────────────
+
+enum PaymentPurpose {
+  TASK_BUDGET
+  TASK_TOPUP
+  SUBSCRIPTION
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String?
+  task        Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  purpose     PaymentPurpose
+  amount      Decimal        @db.Decimal(20, 6)
+  /// amount in token base units (string, to avoid precision loss)
+  amountBase  String
+  token       String
+  recipient   String
+  status      PaymentStatus  @default(PENDING)
+  txHash      String?        @unique
+  error       String?
+  meta        Json?
+  createdAt   DateTime       @default(now())
+  confirmedAt DateTime?
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      String
+  startsAt  DateTime
+  endsAt    DateTime
+  paymentId String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId, endsAt])
+}
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  title      String
+  body       String
+  link       String?
+  data       Json?
+  readAt     DateTime?
+  /// delivery to CAFECA (null = not delivered / not configured)
+  cafecaDeliveredAt DateTime?
+  cafecaError String?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}

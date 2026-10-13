@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+.env
+.env.local
+src/generated
+data/
+*.tsbuildinfo
+next-env.d.ts

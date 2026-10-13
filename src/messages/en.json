@@ -1,0 +1,550 @@
+{
+  "meta": {
+    "title": "SinoBee.ai — the open-source AI swarm that works on your computer",
+    "description": "Official SinoBee website: download & install, the Skill Hub, commission AI tasks in the cloud, and public model & skill evaluations."
+  },
+  "nav": {
+    "download": "Download",
+    "skills": "Skill Hub",
+    "tasks": "Commissions",
+    "benchmarks": "Benchmarks",
+    "pricing": "Pricing",
+    "login": "Sign in with CAFECA",
+    "logout": "Sign out",
+    "account": "Account",
+    "myTasks": "My commissions",
+    "notifications": "Notifications",
+    "admin": "Hub review",
+    "loginShort": "Sign in"
+  },
+  "footer": {
+    "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",
+    "product": "Product",
+    "resources": "Resources",
+    "hubApi": "Skill Hub API"
+  },
+  "home": {
+    "badge": "Open source · MIT · any major cloud model or local models",
+    "title1": "Describe the result you want.",
+    "title2": "SinoBee gets it done.",
+    "lead": "SinoBee searches the web, reads files, writes code, runs commands and operates the browser, mouse and keyboard, then delivers tables, charts and files. Risky actions ask you first, you rate the results, and it remembers and gets better over time.",
+    "ctaInstall": "Download for free",
+    "ctaCommission": "Commission a cloud run",
+    "shotAlt": "SinoBee explaining a GitHub project with a table and a flow chart",
+    "statSkills": "Hub skills",
+    "statTasks": "Completed commissions",
+    "statReports": "Public evaluation reports",
+    "featuresTitle": "One assistant that finishes the job",
+    "featuresLead": "More than chat: SinoBee has tools, memory, skills — and brakes.",
+    "f": {
+      "research": {
+        "title": "Research",
+        "body": "Reads web pages, news, documents and GitHub projects, cross-checks sources and cites them."
+      },
+      "data": {
+        "title": "Data analysis",
+        "body": "Analyzes CSV, Excel, logs and database exports and produces charts and reports."
+      },
+      "files": {
+        "title": "File management",
+        "body": "Sorts, renames, converts and batch-processes files — never overwriting a file with the same name."
+      },
+      "approval": {
+        "title": "Asks before risky actions",
+        "body": "Deleting files, installing software, admin rights or force-pushing need your approval. Modes: confirm, auto, readonly."
+      },
+      "browser": {
+        "title": "Browser & desktop",
+        "body": "A real Chromium with saved logins; Docker mode adds a virtual desktop you can watch and take over."
+      },
+      "memory": {
+        "title": "Memory & feedback",
+        "body": "Thumbs up/down update long-term memory and skills; you can view and delete memories."
+      },
+      "skills": {
+        "title": "Skills",
+        "body": "Reusable workflows following the Agent Skills standard. Create with /learn; install from the Hub, GitHub or a folder, with trust levels."
+      },
+      "usage": {
+        "title": "Usage & budgets",
+        "body": "Every call logs tokens and cost; set daily and monthly budgets with an alert at 80%."
+      },
+      "models": {
+        "title": "Any model",
+        "body": "OpenAI, Anthropic, Gemini and more — or free local open models through Ollama, no API key needed."
+      }
+    },
+    "casesTitle": "What it can do for you",
+    "cases": {
+      "0": {
+        "title": "Research: explain a GitHub project",
+        "body": "Reads the README and code, summarizes it into a table and an architecture diagram."
+      },
+      "1": {
+        "title": "Data: from CSV to charts",
+        "body": "Cleans data, computes metrics, draws charts and writes conclusions."
+      },
+      "2": {
+        "title": "Tidy your Downloads folder",
+        "body": "Files by type, consistent names — and shows you the plan before touching anything."
+      }
+    },
+    "casesNote": "Screenshots from the SinoBee project docs, using demo data.",
+    "pillars": {
+      "hub": {
+        "title": "Skill Hub",
+        "body": "Submit, download, rate and discuss skills. Reviewed versions are signed with ed25519 and verified by SinoBee on install.",
+        "cta": "Browse skills"
+      },
+      "commission": {
+        "title": "Commission AI tasks",
+        "body": "No machine or no time to set it up? Fund a task and the platform runs SinoBee in your own Docker container, then notifies you through CAFECA.",
+        "cta": "Commission a task"
+      },
+      "bench": {
+        "title": "Model & skill evaluations",
+        "body": "Anyone can commission an AI evaluation. Every report discloses time, requester, skill, model, method, process and result.",
+        "cta": "See the leaderboard"
+      }
+    },
+    "popularSkills": "Popular skills",
+    "viewAll": "All skills"
+  },
+  "download": {
+    "title": "Download & install SinoBee",
+    "lead": "Docker is the one-line recommended setup; you can also install it natively to control your own desktop.",
+    "github": "Go to GitHub",
+    "zip": "Download source ZIP",
+    "toc": {
+      "requirements": "Requirements",
+      "docker": "Docker (recommended)",
+      "local-models": "Local models",
+      "pip": "Without Docker",
+      "first-run": "First run",
+      "cli": "CLI & Skill Hub",
+      "troubleshooting": "Troubleshooting"
+    },
+    "req": {
+      "docker": {
+        "title": "Docker",
+        "body": "Windows, macOS or Linux — just Docker Desktop or Docker Engine."
+      },
+      "python": {
+        "title": "Python 3.10+",
+        "body": "For the native install; on macOS and Windows SinoBee can control the real desktop."
+      },
+      "local": {
+        "title": "Local models (optional)",
+        "body": "On Apple Silicon install Ollama natively; with an NVIDIA GPU use the bundled Ollama container."
+      }
+    },
+    "dockerLead": "Install Docker first, then clone and start SinoBee with one command:",
+    "dockerOpen": "Open http://localhost:8000 — setup opens automatically the first time.",
+    "cloudTitle": "Cloud API",
+    "cloudBody": "Pick a provider and model in Settings, paste the API key, click “Test connection” and save. Keys stay on the server, only the last four characters are shown, and nothing is written to .env.",
+    "startWithKeysTitle": "Pass the model and key at start-up",
+    "localLead": "No API bills and your data stays home: run open models locally, free and keyless.",
+    "localMac": "On a Mac install and open Ollama first (uses the Metal GPU), then start SinoBee — it connects to host.docker.internal:11434 automatically:",
+    "localGpu": "With an NVIDIA GPU add the GPU compose file:",
+    "pipLead": "Requires Python 3.10 or later:",
+    "pipMacNote": "On macOS grant the terminal Accessibility and Screen Recording in System Settings → Privacy & Security. On a physical machine keep the approval mode on confirm.",
+    "firstRun": {
+      "0": "Choose a model source: a cloud API (paste a key) or a local model (download and select one).",
+      "1": "Describe the result in plain words — the more specific the better, e.g. “make it a table”, “save as report.md”.",
+      "2": "Risky actions show an approval card: allow, deny, or switch to read-only.",
+      "3": "Rate results with thumbs up/down; SinoBee updates its memory and skills and does better next time."
+    },
+    "cliHub": "SinoBee ships with a Skill Hub client. To trust this Hub’s review signatures, pin its public key in your config:",
+    "trouble": {
+      "0": {
+        "q": "Result shows “Error”",
+        "a": "The result card explains the cause and a fix; expand “Technical details” for the raw message. Usually an invalid key, a wrong model name or exhausted quota."
+      },
+      "1": {
+        "q": "Local model “service not running”",
+        "a": "Install and open Ollama, or run docker compose --profile local-llm up -d, then click “Re-detect”."
+      },
+      "2": {
+        "q": "Local model is slow",
+        "a": "Pick a smaller model labelled “GPU-accelerated”; on a Mac install Ollama natively instead of in a container."
+      },
+      "3": {
+        "q": "Local model can’t operate the computer",
+        "a": "Pick a model labelled “tools”."
+      },
+      "4": {
+        "q": "Nothing changed after updating",
+        "a": "git pull && docker compose up -d --build, then hard-refresh the browser; your data lives in Docker volumes and is kept."
+      }
+    }
+  },
+  "auth": {
+    "title": "Sign in with CAFECA",
+    "lead": "Use the Passkey in your CAFECA wallet — no password. Signing in opens a signing channel; every later payment or signature is confirmed by you in CAFECA.",
+    "statement": "Sign in to SinoBee.ai to manage skills, commissions and evaluations",
+    "popup": "Sign in with CAFECA (popup)",
+    "redirect": "Sign in with a full-page redirect",
+    "qr": "Scan a QR code with your phone",
+    "qrHint": "Scan with a phone signed in to CAFECA; this page signs in after you confirm on the phone.",
+    "dev": "Developer sign-in (DEV_LOGIN)",
+    "errDenied": "You declined the sign-in in CAFECA.",
+    "errPopup": "The browser blocked the popup. Allow popups or use the redirect option.",
+    "errClosed": "The sign-in window was closed.",
+    "privacy": "SinoBee.ai only receives your CAFECA identity address, handle and verification level; real-name data is never requested by default."
+  },
+  "status": {
+    "AWAITING_PAYMENT": "Awaiting payment",
+    "QUEUED": "Queued",
+    "RUNNING": "Running",
+    "NEEDS_FUNDING": "Needs funding",
+    "COMPLETED": "Completed",
+    "FAILED": "Failed",
+    "CANCELLED": "Cancelled",
+    "PENDING_REVIEW": "Pending review",
+    "APPROVED": "Reviewed",
+    "REJECTED": "Rejected",
+    "REVOKED": "Revoked"
+  },
+  "comments": {
+    "title": "Discussion",
+    "empty": "No comments yet — start the conversation.",
+    "loginToComment": "Sign in to comment.",
+    "placeholder": "Share your thoughts, questions or experience…",
+    "replyPlaceholder": "Reply…",
+    "submit": "Post comment",
+    "reply": "Reply",
+    "delete": "Delete",
+    "deleted": "This comment was deleted",
+    "confirmDelete": "Delete this comment?"
+  },
+  "skills": {
+    "lead": "Submit, download, rate and discuss SinoBee skills. Every skill follows the Agent Skills standard and works with other compatible agents.",
+    "submit": "Submit a skill",
+    "search": "Search skill names or descriptions",
+    "searchBtn": "Search",
+    "sortPopular": "Most downloaded",
+    "sortRating": "Top rated",
+    "sortNew": "Newest",
+    "verifiedOnly": "Verified publishers only",
+    "empty": "No matching skills.",
+    "cliTitle": "Use it straight from SinoBee",
+    "cliBody": "SinoBee has a built-in Hub client: search, install, update and publish skills, with content hash, signature and revocation checks."
+  },
+  "skill": {
+    "trustVerified": "Verified",
+    "trustCommunity": "Community",
+    "by": "by",
+    "scan": "Security scan",
+    "versions": "Versions",
+    "version": "Version",
+    "status": "Status",
+    "published": "Published",
+    "contentHash": "Content hash",
+    "signature": "Signature",
+    "evaluations": "Evaluation reports",
+    "commissionEval": "Commission an evaluation",
+    "noEvaluations": "No evaluation reports for this skill yet.",
+    "install": "Install",
+    "download": "Download bundle",
+    "useInTask": "Commission a task with this skill",
+    "rate": "Rate",
+    "loginToRate": "Sign in to rate.",
+    "details": "Details",
+    "files": "Files"
+  },
+  "submit": {
+    "title": "Submit a skill",
+    "lead": "Upload a SKILL.md or the .tar.gz produced by sinobee skills export. Published versions are immutable — publish a new version or revoke.",
+    "publisherFirst": "Choose a publisher id first",
+    "publisherHelp": "Your publisher id appears in install commands (hub:<publisher>/<skill>) and cannot change after you publish.",
+    "publishingAs": "Publishing as",
+    "drop": "Choose SKILL.md or .tar.gz",
+    "dropHint": "≤ 20 MB, ≤ 500 files, no symlinks",
+    "upload": "Upload and submit for review",
+    "uploading": "Uploading…",
+    "submitted": "Submitted for review (downloadable at the “community” trust level until reviewed)",
+    "rejected": "The automatic security scan marked it dangerous — not listed",
+    "view": "View skill page",
+    "formatTitle": "SKILL.md format",
+    "formatBody": "Frontmatter allows only name, description, license, compatibility, allowed-tools and metadata; name must equal the folder name, and the Hub requires metadata.version (quoted semver).",
+    "cliTitle": "Publish from the CLI",
+    "cliBody": "Create a Hub token in your account, then:",
+    "tokenLink": "Create a token",
+    "reviewTitle": "Review process",
+    "review": {
+      "0": "Automatic checks: Agent Skills spec validation, content hash, security scan (prompt injection, credentials, invisible characters, dangerous scripts).",
+      "1": "Versions the scan marks dangerous are not listed; others are downloadable at the “community” trust level.",
+      "2": "After human review the Hub signs the content hash with ed25519 and marks it reviewed.",
+      "3": "Verified publisher + reviewed + valid signature → SinoBee installs it as “verified”."
+    }
+  },
+  "admin": {
+    "title": "Skill Hub review",
+    "pending": "Pending",
+    "approved": "Listed",
+    "empty": "Nothing here.",
+    "noKey": "HUB_SIGNING_KEY is not set, so approved versions cannot be signed. Run npm run hub:keygen.",
+    "note": "Review note (optional)",
+    "approve": "Approve & sign",
+    "reject": "Reject",
+    "revoke": "Revoke",
+    "confirmRevoke": "Revoking adds the content hash to the revocation list; SinoBee clients block it after syncing. Continue?",
+    "verifyPublisher": "Mark publisher verified",
+    "verifiedPublisher": "Verified publisher"
+  },
+  "hubApi": {
+    "lead": "The sinobee.ai Skill Hub protocol v1, compatible with the SinoBee client (sinobee skills search / install / publish / sync-revocations).",
+    "trustTitle": "Client verification",
+    "trust": {
+      "0": "Download the bundle (≤ 20 MB, ≤ 500 files; path traversal, symlinks and device files are rejected).",
+      "1": "Validate against the Agent Skills spec; compute the content hash and compare with the Hub’s sha256 — abort on mismatch.",
+      "2": "Verify the signature (ed25519 over the content_hash string) with the pinned public keys.",
+      "3": "Abort if the Hub scan says dangerous; run a local security scan as well.",
+      "4": "Verified publisher, reviewed version and valid signature → verified; otherwise community."
+    },
+    "exampleTitle": "Examples"
+  },
+  "tasks": {
+    "title": "Commissions",
+    "lead": "Fund a task and SinoBee completes it in the cloud. Public commissions appear here; anyone can rate and discuss the results.",
+    "new": "Commission a task",
+    "public": "Public",
+    "mine": "Mine",
+    "private": "Private",
+    "evaluation": "Evaluation",
+    "emptyPublic": "No public commissions yet.",
+    "emptyMine": "You have not commissioned anything yet.",
+    "newTitle": "Commission a task",
+    "newLead": "The platform runs SinoBee in a Docker container dedicated to you. You pay 1.5× the actual model token, AWS VM rental and AWS S3 costs. If the budget runs out before the task is done, the current results are packaged and CAFECA asks you to add funds or close the task.",
+    "steps": {
+      "0": "Describe the task, pick a model and a budget",
+      "1": "Pay the budget in TWDC with CAFECA",
+      "2": "Runs in your own Docker container",
+      "3": "Notified via CAFECA — download within 7 days"
+    }
+  },
+  "taskForm": {
+    "title": "Title",
+    "titlePh": "e.g. Taiwan EV market report for Q3 2026",
+    "evalTitlePh": "e.g. web-research skill accuracy on Chinese news fact-checking",
+    "prompt": "Task description",
+    "promptPh": "Describe the result and the deliverable in plain words, e.g. “summarize as a table and save as report.xlsx”.",
+    "promptHint": "Be specific: sources, deliverable format, success criteria. Nobody can answer questions during the run; SinoBee states its assumptions in SUMMARY.md.",
+    "evalPrompt": "What to evaluate, in which scenario",
+    "evalPromptPh": "Which capability, in what situation? e.g. verify 10 Chinese news stories and cite the original sources.",
+    "method": "Evaluation method",
+    "methods": {
+      "benchmark-suite": "Benchmark suite (fixed, reproducible test set)",
+      "rubric": "Rubric (score each criterion)",
+      "a-b-comparison": "A/B comparison (against a baseline)"
+    },
+    "criteria": "Criteria & test cases",
+    "criteriaPh": "One case or criterion per line, e.g.\n1. Finds the original source (30 pts)\n2. Correct verdict (50 pts)\n3. Complete citations (20 pts)",
+    "model": "Model",
+    "useSkill": "Use skill",
+    "public": "Make this commission public",
+    "publicHint": "Anyone can see the description, summary, ratings and comments (only you can download the result files).",
+    "evalPublic": "Evaluation reports are always public: time, requester, skill, model, method, process and result.",
+    "estimate": "Cost estimate",
+    "estMinutes": "Expected run time (minutes)",
+    "estTokens": "Expected input tokens",
+    "est": {
+      "tokens": "Model tokens",
+      "vm": "AWS VM",
+      "s3": "AWS S3"
+    },
+    "estTotal": "Estimated total",
+    "estNote": "Raw cost × {markup} at 1 USD = {rate} TWDC. You pay actual usage, never more than your budget.",
+    "budget": "Budget",
+    "budgetHint": "Minimum {min} TWDC. When the budget runs out the task pauses and asks you to add funds; results are kept {days} days after completion (longer for subscribers).",
+    "submit": "Pay {amount} TWDC and submit",
+    "paying": "Waiting for CAFECA…",
+    "payTitle": "SinoBee.ai commission budget {amount} TWDC"
+  },
+  "pay": {
+    "transport": "Confirm on",
+    "popup": "Popup (this device)",
+    "relay": "CAFECA on my phone",
+    "waiting": "Confirm the payment in CAFECA…",
+    "relayHint": "Sent to your CAFECA — confirm on your phone (or scan the QR code).",
+    "noChannel": "This session has no signing channel, so it cannot pay. Sign in again and allow the signing channel.",
+    "rejected": "You declined the payment in CAFECA.",
+    "relogin": "Sign in again"
+  },
+  "task": {
+    "back": "← Back to commissions",
+    "by": "Requested by",
+    "private": "Private",
+    "needsFundingTitle": "Budget used up — the task is not finished",
+    "needsFundingBody": "The current results are packaged (download on the right). Add funds to continue where it stopped, or close the task and keep the results. Without an answer it closes automatically after {days} days.",
+    "viewReport": "View the evaluation report",
+    "prompt": "Task description",
+    "criteria": "Criteria",
+    "summary": "Result summary",
+    "log": "Activity",
+    "noEvents": "Nothing yet.",
+    "rateResult": "Is this result good?",
+    "loginToRate": "Sign in to rate.",
+    "billing": "Cost",
+    "cost": {
+      "tokens": "Model tokens",
+      "vm": "AWS VM rental",
+      "s3": "AWS S3"
+    },
+    "charged": "Charged",
+    "budget": "Budget",
+    "rateNote": "TWDC, raw cost × 1.5 at 1 USD = {rate} TWDC (locked when the commission was created).",
+    "results": "Results",
+    "noResults": "Downloads appear here when the run finishes.",
+    "partial": "Partial",
+    "download": "Download results",
+    "expired": "The download window has ended and the file was deleted.",
+    "expiresIn": "Time left to download",
+    "retentionNote": "For non-subscribers, containers and results are kept only {days} days after a task finishes — download early.",
+    "publicNote": "This commission is public. Only the requester can download the result files.",
+    "payBudget": "Pay the budget",
+    "topUp": "Add funds",
+    "payNow": "Pay {amount} TWDC",
+    "addFunds": "Add {amount} TWDC",
+    "payDesc": "SinoBee.ai commission funds {amount} TWDC",
+    "close": "Close and keep current results",
+    "cancel": "Cancel commission",
+    "confirmClose": "The task will not continue; current results stay downloadable. Close it?",
+    "confirmCancel": "Cancel this unpaid commission?"
+  },
+  "bench": {
+    "title": "Model & skill benchmarks",
+    "lead": "Every evaluation is run by SinoBee and published in full: time, requester, skill, model, method, process and result. Anyone can commission an AI evaluation.",
+    "commission": "Commission an evaluation",
+    "models": "Model leaderboard",
+    "model": "Model",
+    "overall": "Overall",
+    "reports": "reports",
+    "method": {
+      "benchmark-suite": "Benchmark",
+      "rubric": "Rubric",
+      "a-b-comparison": "A/B"
+    },
+    "modelsNote": "Scores average the reports evaluating models without a skill (0–100). {n} models are available for commissions.",
+    "skills": "Skill evaluations",
+    "recent": "Latest reports",
+    "empty": "No evaluation reports yet — be the first to commission one.",
+    "how": {
+      "0": {
+        "title": "Commission",
+        "body": "Choose the model (and skill), the method and criteria, and fund it."
+      },
+      "1": {
+        "title": "Run",
+        "body": "SinoBee runs the evaluation in an isolated container and records every step."
+      },
+      "2": {
+        "title": "Publish",
+        "body": "The report is public here and on the skill page for anyone to read and discuss."
+      }
+    },
+    "newTitle": "Commission an evaluation",
+    "newLead": "An evaluation is a commission too: 1.5× the actual token, VM and S3 cost. The report is published on the benchmarks and skill pages."
+  },
+  "report": {
+    "back": "← Back to benchmarks",
+    "label": "Evaluation report",
+    "methodTitle": "Method",
+    "process": "Process",
+    "result": "Result",
+    "case": "Case",
+    "passed": "Passed",
+    "score": "Score",
+    "notes": "Notes",
+    "time": "Evaluated at",
+    "requester": "Requested by",
+    "skill": "Skill",
+    "noSkill": "None (model only)",
+    "model": "Model",
+    "method": "Method",
+    "viewTask": "View the commission"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "lead": "Commissions are billed on actual usage — no monthly fee, no minimum. A subscription extends how long containers and results are kept.",
+    "formula": "How we charge",
+    "charge": "Charge",
+    "tokens": "Model tokens",
+    "vm": "AWS VM rental",
+    "s3": "AWS S3",
+    "formulaNote": "Paid in TWDC (CAFECA’s TWD stablecoin). USD costs convert at 1 USD = {rate} TWDC, locked when a commission is created.",
+    "tokensBody": "SinoBee records tokens and cost for every model call (vendor list prices, cache discounts included).",
+    "vmBody": "Per second while running: ${price}/hour ({cpus} vCPU / {mem} GB RAM per task).",
+    "s3Body": "Result storage: ${gb} per GB-month, prorated by retention; ${put} per 1,000 writes and ${get} per 1,000 reads.",
+    "modelTable": "Model prices (per 1M tokens)",
+    "model": "Model",
+    "listIn": "List input USD",
+    "listOut": "List output USD",
+    "ourIn": "Input TWDC",
+    "ourOut": "Output TWDC",
+    "modelNote": "List prices are vendor reference values; billing uses SinoBee’s recorded cost (with cache discounts) × 1.5.",
+    "free": "Without subscription",
+    "freeA": "Your own Docker container, kept {days} days after a task finishes.",
+    "freeB": "Results downloadable for {days} days after completion, then deleted for good.",
+    "freeC": "Pay for actual usage; the run pauses and asks you before exceeding the budget.",
+    "sub": "Subscription",
+    "days": "days",
+    "subA": "Your container is kept while subscribed (memory, skills and browser logins persist).",
+    "subB": "Results kept {days} days.",
+    "subC": "Commission pricing stays the same.",
+    "subscribe": "Subscribe",
+    "budgetTitle": "Budgets and top-ups",
+    "budget": {
+      "0": "You set a budget and pay with CAFECA when you submit; cost is metered every 15 seconds and the charge never exceeds the budget.",
+      "1": "If the budget runs out first, the platform packages the current results and CAFECA asks you to add funds or close the task.",
+      "2": "After a top-up the run continues where it stopped, in the same container and session.",
+      "3": "Without a top-up or close within the download window, the task closes automatically."
+    }
+  },
+  "account": {
+    "title": "Account",
+    "profile": "CAFECA identity",
+    "cafecaAccount": "Identity address",
+    "handle": "Handle",
+    "kyc": "Verification level",
+    "channel": "Signing channel",
+    "channelOpen": "Open (payments enabled)",
+    "channelClosed": "Not open — sign in again before paying",
+    "publisher": "Skill Hub publisher id",
+    "publisherHelp": "2–39 lowercase letters, digits or hyphens, e.g. cafeca. Cannot change after you publish.",
+    "save": "Save",
+    "subscription": "Subscription",
+    "subActive": "Active",
+    "until": "until",
+    "subNone": "Not subscribed: containers and results are kept only {days} days after a task finishes.",
+    "subscribe": "Subscribe for {days} days ({price} TWDC)",
+    "extend": "Extend {days} days ({price} TWDC)",
+    "subPayTitle": "SinoBee.ai subscription, {days} days",
+    "tokens": "Hub API tokens",
+    "tokensHelp": "For sinobee skills publish (sinobee keys set sinobee-hub).",
+    "newToken": "Create token",
+    "tokenOnce": "This token is shown only once:",
+    "lastUsed": "last used",
+    "revoke": "Revoke",
+    "mySkills": "My skills",
+    "noSkills": "No skills published yet.",
+    "payments": "Payments",
+    "noPayments": "No payments yet.",
+    "purpose": {
+      "TASK_BUDGET": "Commission budget",
+      "TASK_TOPUP": "Top-up",
+      "SUBSCRIPTION": "Subscription"
+    },
+    "pstatus": {
+      "PENDING": "Pending",
+      "CONFIRMED": "Confirmed",
+      "FAILED": "Failed"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "lead": "Task completions, budget requests, skill reviews and comments — also pushed through CAFECA.",
+    "empty": "No notifications.",
+    "markAll": "Mark all read"
+  }
+}
