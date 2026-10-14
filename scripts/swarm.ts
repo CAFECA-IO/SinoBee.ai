@@ -4,17 +4,24 @@
  *   2. seed the official skills (idempotent)
  *   3. build the site if needed (production mode)
  *   4. start the web server on :10023 and the task worker, with prefixed logs
+ *   0. Boltchain: fill the BOLT_* settings in .env (new site wallet + master key on first run) and
+ *      start a local node in docker (`sinobee-boltchain`, RPC on 127.0.0.1:8545 with --rpc-storage)
  *
  * Options:
  *   npm run swarm -- --dev        next dev instead of a production build (hot reload, DEV_LOGIN works)
  *   npm run swarm -- --build      force a fresh production build
  *   npm run swarm -- --no-worker  web only
+ *   npm run swarm -- --no-boltchain   do not start the Boltchain node (storage stays local/S3)
+ *   npm run swarm -- --rebuild-node   rebuild the Boltchain node image
+ *   BOLT_RPC_URL=https://…   use that node instead of starting one; BOLT_NODE_RPC_PORT, BOLTCHAIN_REF
+ *   BOLT_NODE_KEEP=1         leave the node running when the swarm stops
  *   SWARM_PORT=12345 npm run swarm
  */
 import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { boltchainEnv, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = new Set(process.argv.slice(2));
@@ -34,7 +41,7 @@ else {
   }
 }
 
-const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m" } as const;
+const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", bolt: "\x1b[32m" } as const;
 const log = (who: keyof typeof color, line: string) => console.log(`${color[who]}[${who}]\x1b[0m ${line}`);
 
 function pipe(who: keyof typeof color, p: ChildProcess) {
@@ -59,12 +66,37 @@ function run(who: keyof typeof color, cmd: string, argv: string[], env: Record<s
 }
 
 const children: ChildProcess[] = [];
+let nodeStarted = false;
+
+/** Boltchain settings + local node (see scripts/boltchain-node.ts) */
+async function boltchain() {
+  const blog = (l: string) => log("bolt", l);
+  const rpcPort = Number(process.env.BOLT_NODE_RPC_PORT || 8545);
+  const env = boltchainEnv(root, rpcPort, blog);
+  Object.assign(process.env, env);
+  const url = env.BOLT_RPC_URL;
+  const addr = siteAddress(env.BOLT_WALLET_KEY ?? "");
+  if (!isLocalRpc(url)) {
+    blog(`using the Boltchain node at ${url}`);
+    await waitForNode(url, addr, blog, 15_000);
+    return;
+  }
+  if (!dockerAvailable()) {
+    blog("docker is not available: Boltchain storage is off for this run (objects stay in local/S3 storage)");
+    delete process.env.BOLT_RPC_URL;
+    return;
+  }
+  await startNode(root, Number(new URL(url).port || rpcPort), blog, { rebuild: args.has("--rebuild-node") });
+  nodeStarted = true;
+  await waitForNode(url, addr, blog);
+}
 let stopping = false;
 function stopAll(code = 0) {
   if (stopping) return;
   stopping = true;
   log("swarm", "stopping…");
   for (const c of children) c.kill("SIGTERM");
+  if (nodeStarted && process.env.BOLT_NODE_KEEP !== "1") stopNode((l) => log("bolt", l));
   setTimeout(() => process.exit(code), 3000).unref();
 }
 process.on("SIGINT", () => stopAll(0));
@@ -82,6 +114,14 @@ function start(who: "web" | "worker", cmd: string, argv: string[], env: Record<s
 }
 
 async function main() {
+  if (!args.has("--no-boltchain")) {
+    try {
+      await boltchain();
+    } catch (e) {
+      log("bolt", `Boltchain node not started: ${e instanceof Error ? e.message : e} — storage stays local/S3 for this run`);
+      delete process.env.BOLT_RPC_URL;
+    }
+  }
   const db = /^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "") ? "PostgreSQL" : `SQLite (${process.env.SQLITE_PATH || "./data/sinobee.db"})`;
   log("swarm", `database: ${db}`);
 

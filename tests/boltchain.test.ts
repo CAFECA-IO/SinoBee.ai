@@ -216,3 +216,23 @@ test("audit re-stores an object whose deal ended early; low balance notifies adm
   assert.equal(await db.notification.count({ where: { userId: admin.id, type: "storage.low_balance" } }), 1);
   delete process.env.BOLT_LOW_BALANCE_WEI;
 });
+
+test("objects stored before Boltchain are migrated; skill versions get a certificate", async () => {
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const key = "skills/old/pkg/1.0.0.tar.gz";
+  mkdirSync(path.join(dir, "storage", "skills/old/pkg"), { recursive: true });
+  writeFileSync(path.join(dir, "storage", key), "old bundle");
+  assert.equal(await storage.registerExisting(key, { contentType: "application/gzip" }), "queued");
+  assert.equal(await storage.registerExisting(key), "tracked");
+  assert.equal(await storage.registerExisting("skills/none/x.tar.gz"), "missing");
+  await keeper.storePending(20);
+  assert.equal((await db.storageObject.findUniqueOrThrow({ where: { key } })).status, "STORED");
+
+  const u = await db.user.create({ data: { account: "0x" + "7".repeat(40), publisher: "old" } });
+  const sk = await db.skill.create({ data: { publisherId: u.id, name: "pkg", description: "d" } });
+  const v = await db.skillVersion.create({ data: { skillId: sk.id, version: "1.0.0", contentHash: "sha256:x", bundleKey: key, bundleSize: 10, manifest: {}, skillMd: "# md", files: {} } });
+  await keeper.requestAnchor("skill-version", v.id, [certs.hashFile(Buffer.from("old bundle")), certs.hashFile(Buffer.from("# md"))]);
+  await keeper.anchorPending(20);
+  const after = await db.skillVersion.findUniqueOrThrow({ where: { id: v.id } });
+  assert.match(after.anchorCode ?? "", /^[0-9A-HJKMNP-TV-Z]{16}$/);
+});

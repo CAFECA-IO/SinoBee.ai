@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { certUrl, formatCode } from "@/lib/boltchain/certificates";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
@@ -128,6 +129,7 @@ export default async function SkillPage({ params, searchParams }: P) {
                     <th className="p-3">{t("published")}</th>
                     <th className="p-3">{t("contentHash")}</th>
                     <th className="p-3">{t("signature")}</th>
+                    <th className="p-3">{t("anchor")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,6 +144,7 @@ export default async function SkillPage({ params, searchParams }: P) {
                       <td className="p-3 text-muted"><LocalDate value={v.publishedAt} withTime={false} /></td>
                       <td className="max-w-[180px] truncate p-3 font-mono text-xs text-muted" title={v.contentHash}>{v.contentHash}</td>
                       <td className="p-3 text-xs">{v.signature ? <span className="text-ok">ed25519 ✓</span> : <span className="text-muted">—</span>}</td>
+                      <td className="p-3 font-mono text-xs">{v.anchorCode ? <a className="text-accent" href={certUrl(v.anchorCode)} target="_blank" rel="noopener" title={t("anchorHelp")}>{formatCode(v.anchorCode)}</a> : <span className="text-muted">—</span>}</td>
                     </tr>
                   ))}
                 </tbody>

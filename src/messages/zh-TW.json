@@ -252,7 +252,9 @@
     "rate": "評分",
     "loginToRate": "登入後即可評分。",
     "details": "詳細資訊",
-    "files": "檔案"
+    "files": "檔案",
+    "anchor": "Boltchain 存證",
+    "anchorHelp": "技能包與 SKILL.md 的雜湊已在 Boltchain 存證，點開可由第三方驗證"
   },
   "submit": {
     "title": "提交技能",

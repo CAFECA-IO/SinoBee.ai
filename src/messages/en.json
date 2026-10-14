@@ -252,7 +252,9 @@
     "rate": "Rate",
     "loginToRate": "Sign in to rate.",
     "details": "Details",
-    "files": "Files"
+    "files": "Files",
+    "anchor": "Boltchain certificate",
+    "anchorHelp": "The bundle and SKILL.md hashes are notarized on Boltchain; open to verify independently"
   },
   "submit": {
     "title": "Submit a skill",

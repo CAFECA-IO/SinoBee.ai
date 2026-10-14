@@ -178,3 +178,27 @@ export async function deleteObject(key: string, opts: { retainDays?: number } = 
     data: { status: "DELETED", recipientKey: null, deletedAt: new Date(), mirrored: false, nextTryAt: new Date(), attempts: 0, deleteAfter: null },
   });
 }
+
+/**
+ * Records an object that is already in the mirror (stored before Boltchain was enabled) so the keeper
+ * moves it to Boltchain. Returns false when it is already tracked or missing from the mirror.
+ */
+export async function registerExisting(key: string, opts: { contentType?: string; keepUntil?: Date | null } = {}): Promise<"queued" | "tracked" | "missing"> {
+  safeKey(key);
+  if (await db.storageObject.findUnique({ where: { key }, select: { key: true } })) return "tracked";
+  let body: Buffer;
+  try {
+    body = await mirrorGet(key);
+  } catch {
+    return "missing";
+  }
+  const kind = kindOf(key);
+  await db.storageObject.create({
+    data: {
+      key, kind, size: BigInt(body.length), sha256: createHash("sha256").update(body).digest("hex"), keccak: keccak256(body),
+      contentType: opts.contentType ?? "application/octet-stream", status: "PENDING", mirrored: true,
+      wantReplicas: POLICY[kind]?.replicas ?? null, keepUntil: opts.keepUntil ?? null,
+    },
+  });
+  return "queued";
+}

@@ -54,8 +54,32 @@ npm run swarm                 # production build + worker on :10023
 npm run swarm -- --dev        # next dev (hot reload, DEV_LOGIN works) + worker
 npm run swarm -- --build      # force a fresh build
 npm run swarm -- --no-worker  # web only
+npm run swarm -- --no-boltchain   # do not start the Boltchain node
+npm run swarm -- --rebuild-node   # rebuild the Boltchain node image
 SWARM_PORT=12345 npm run swarm
 ```
+
+**Boltchain node.** Before the site starts, swarm prepares Boltchain storage:
+
+1. **Settings.** It fills in the `BOLT_*` settings in `.env`, creating the file from `.env.example` if needed. Values you already set are never overwritten. On the first run it adds:
+   - `BOLT_RPC_URL=http://127.0.0.1:8545` and `BOLT_CHAIN_ID=8018`;
+   - a new site wallet (`BOLT_WALLET_KEY`) and a master key (`BOLT_MASTER_KEY`). `.env` is then set to mode 600; **back it up**.
+   - the testnet Certificates contract (`BOLT_CERTIFICATES`).
+2. **Node.** It builds the node image `docker/boltchain`. The image is built from source (Luphia/Boltchain at `BOLTCHAIN_REF`), so the first build takes about 10–20 minutes.
+3. **Container.** It starts the image as the `sinobee-boltchain` container:
+   - JSON-RPC with `--rpc-storage` is published on 127.0.0.1 only;
+   - P2P runs on port 8017;
+   - chain data lives in the `sinobee-boltchain-data` volume.
+
+   A new node starts from the latest testnet epoch snapshot instead of syncing from genesis.
+4. **Wallet check.** Once the node answers, swarm logs the chain height and the site wallet's balance. The testnet has no faucet, so send BOLT to that address. Until then, objects stay in the local/S3 mirror and move to Boltchain once the wallet can pay.
+
+Other options:
+- A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
+- Without docker, the site runs with Boltchain storage off.
+- The node stops with swarm; set `BOLT_NODE_KEEP=1` to keep it running.
+
+Objects stored before Boltchain was turned on can be moved later: `npm run storage-migrate -- --anchor-skills --run`.
 
 If `PUBLIC_ORIGIN` points to localhost on another port (e.g. the `:3000` default in `.env.example`), swarm moves it to the swarm port so Sign in with CAFECA keeps matching; a public origin such as `https://sinobee.ai` behind a reverse proxy is left unchanged.
 
@@ -157,7 +181,7 @@ When `BOLT_RPC_URL`, `BOLT_WALLET_KEY` and `BOLT_MASTER_KEY` are set (see `.env.
 3. **Read**: reads use the local/S3 mirror and fall back to `bolt_getBlocks`. Every block is checked against its CID, and the result against its sha256.
 4. **Delete**: deleting an object destroys its key (crypto-shred). The deal is then cancelled, closed, and the refunds withdrawn.
 5. **Renew**: deals are extended before they end — never past an object's keep-until date. Policies by kind: shares keep 2 copies until they expire; replaced vault versions keep their deal 7 days; versions of public tools are kept 90 days after deletion. An hourly audit compares the database with the chain and re-stores objects whose deal ended early; admins are notified when the wallet runs low (`BOLT_LOW_BALANCE_WEI`).
-6. **Notarize**: if `BOLT_CERTIFICATES` is set, tool versions and shares are notarized with the Certificates contract (ADR 0016). The page shows the certificate code, which links to `<explorer>/cert/<code>`.
+6. **Notarize**: if `BOLT_CERTIFICATES` is set, skill versions (bundle + SKILL.md), tool versions and shares are notarized with the Certificates contract (ADR 0016). The page shows the certificate code, which links to `<explorer>/cert/<code>`.
 7. **Monitor**: Admin → Boltchain storage shows the wallet, its balance, object counts and errors.
 
 Tests run against `tests/helpers/stub-boltchain.ts`. It is a JSON-RPC stand-in that follows `SwarmStorage.sol` and `Certificates.sol`, so the tests need no chain.

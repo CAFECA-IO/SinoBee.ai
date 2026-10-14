@@ -204,6 +204,8 @@ model SkillVersion {
   files        Json
   /// base64 ed25519 signature of contentHash (set when approved)
   signature    String?
+  /// Boltchain certificate code: the bundle and SKILL.md hashes, notarized at publish
+  anchorCode   String?
   status       ReviewStatus @default(PENDING_REVIEW)
   scanVerdict  ScanVerdict  @default(CLEAN)
   scanFindings Json         @default("[]")

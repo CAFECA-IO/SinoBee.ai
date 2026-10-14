@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { HttpError } from "@/lib/errors";
 import { putObject } from "@/lib/storage";
+import { requestAnchor } from "@/lib/boltchain/keeper";
+import { hashFile } from "@/lib/boltchain/certificates";
 import { config } from "@/lib/config";
 import { notify } from "@/lib/notify";
 import { BundleError, buildBundle, contentHash, fileManifest, readUpload } from "./bundle";
@@ -94,6 +96,8 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
       reviewNote: rejected ? "automatic scan marked this version dangerous" : null,
     },
   });
+  // the bundle and its SKILL.md are notarized on Boltchain (Certificates) for third-party verification
+  if (!rejected) await requestAnchor("skill-version", sv.id, [hashFile(bundle), hashFile(md)]);
   return { id: `${user.publisher}/${fm.name}`, version: sv.version, status: rejected ? "rejected" : "pending_review", content_hash: hash, findings: scan.findings };
 }
 

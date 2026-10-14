@@ -1,5 +1,6 @@
 import type { Skill, SkillTag, SkillVersion, User } from "@/generated/prisma/client";
 import { bundleUrl } from "./service";
+import { certUrl } from "../boltchain/certificates";
 
 export const LISTED = { status: { in: ["PENDING_REVIEW", "APPROVED"] as ("PENDING_REVIEW" | "APPROVED")[] }, scanVerdict: { not: "DANGEROUS" as const } };
 
@@ -18,6 +19,8 @@ export function versionJson(publisher: string, name: string, v: SkillVersion) {
     published_at: v.publishedAt.toISOString(),
     size: v.bundleSize,
     scan: { verdict: v.scanVerdict.toLowerCase(), findings },
+    // Boltchain certificate over the bundle and SKILL.md (null until notarized)
+    anchor: v.anchorCode ? { code: v.anchorCode, url: certUrl(v.anchorCode) } : null,
   };
 }
 
