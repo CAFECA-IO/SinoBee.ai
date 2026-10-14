@@ -77,12 +77,27 @@ export async function downloadUrl(key: string, filename: string): Promise<string
 
 const kindOf = (key: string) => key.split("/")[0] || "object";
 
-export async function putObject(key: string, body: Buffer, contentType = "application/octet-stream") {
+/**
+ * Storage policy by kind (plan: 儲存方案 → 物件):
+ *  - shares:  2 copies, kept until the share expires
+ *  - vault:   3 copies; a replaced version's deal keeps running 7 days before it is cancelled
+ *  - tools:   3 copies; versions that were public are kept 90 days after the tool is deleted
+ *  - others (skill bundles, task results): 3 copies, renewed while they exist
+ */
+export const POLICY: Record<string, { replicas?: number; oldVersionDays?: number }> = {
+  shares: { replicas: 2 },
+  vault: { oldVersionDays: 7 },
+};
+
+export type PutOptions = { keepUntil?: Date | null };
+
+export async function putObject(key: string, body: Buffer, contentType = "application/octet-stream", opts: PutOptions = {}) {
   safeKey(key);
   await mirrorPut(key, body, contentType);
   if (!config.boltchain.enabled) return;
+  const kind = kindOf(key);
   const data = {
-    kind: kindOf(key),
+    kind,
     size: BigInt(body.length),
     sha256: createHash("sha256").update(body).digest("hex"),
     keccak: keccak256(body),
@@ -93,26 +108,39 @@ export async function putObject(key: string, body: Buffer, contentType = "applic
     attempts: 0,
     nextTryAt: new Date(),
     deletedAt: null,
+    deleteAfter: null,
+    wantReplicas: POLICY[kind]?.replicas ?? null,
+    keepUntil: opts.keepUntil ?? null,
   };
   const prev = await db.storageObject.findUnique({ where: { key } });
-  // an overwritten object gets a new deal; the old one is cancelled by the keeper
-  if (prev?.dealId && prev.status === "STORED" && prev.sha256 !== data.sha256) await queueCancel(prev.dealId);
+  // an overwritten object gets a new deal; the old one is cancelled by the keeper (after the kind's grace period)
+  if (prev?.dealId != null && prev.status === "STORED" && prev.dealState === "active" && prev.sha256 !== data.sha256)
+    await queueCancel(prev.dealId, POLICY[kind]?.oldVersionDays ?? 0);
   if (prev?.sha256 === data.sha256 && prev.status === "STORED") {
-    await db.storageObject.update({ where: { key }, data: { mirrored: true } });
+    await db.storageObject.update({ where: { key }, data: { mirrored: true, keepUntil: data.keepUntil, deleteAfter: null } });
     return;
   }
   await db.storageObject.upsert({
     where: { key },
     create: { key, ...data },
-    update: { ...data, envelopeCid: null, dealRoot: null, dealId: null, blocks: null, dealSize: null, replicas: null, endEpoch: null, paidWei: null, txHash: null, recipientKey: null },
+    update: { ...data, envelopeCid: null, dealRoot: null, dealId: null, dealState: "none", blocks: null, dealSize: null, replicas: null, endEpoch: null, paidWei: null, txHash: null, recipientKey: null },
   });
 }
 
 /** cancelled deals are tracked as tombstone rows so the keeper can cancel and later close them */
-async function queueCancel(dealId: bigint) {
+export async function queueCancel(dealId: bigint, afterDays = 0) {
   await db.storageObject.create({
-    data: { key: `_cancel/${dealId}`, kind: "_cancel", size: 0n, sha256: "", keccak: "", status: "DELETED", dealId, dealState: "active", deletedAt: new Date(), mirrored: false },
+    data: {
+      key: `_cancel/${dealId}`, kind: "_cancel", size: 0n, sha256: "", keccak: "", status: "DELETED", dealId, dealState: "active",
+      deletedAt: new Date(), mirrored: false, nextTryAt: new Date(Date.now() + afterDays * 86400_000),
+    },
   }).catch(() => undefined);
+}
+
+/** Changes how long objects under `prefix` are kept (e.g. a share's new expiry) */
+export async function setKeepUntil(prefix: string, keepUntil: Date | null) {
+  if (!config.boltchain.enabled) return;
+  await db.storageObject.updateMany({ where: { key: { startsWith: prefix }, status: { in: ["PENDING", "STORED"] } }, data: { keepUntil } });
 }
 
 export async function getObject(key: string): Promise<Buffer> {
@@ -131,13 +159,22 @@ export async function getObject(key: string): Promise<Buffer> {
   }
 }
 
-export async function deleteObject(key: string) {
+/**
+ * Deletes an object. Default: the mirror copy is removed and the object key destroyed at once
+ * (crypto-shred), then the keeper cancels the deal. `retainDays`: the object stays readable and stored
+ * until then (the keeper shreds it afterwards).
+ */
+export async function deleteObject(key: string, opts: { retainDays?: number } = {}) {
   safeKey(key);
+  if (opts.retainDays && config.boltchain.enabled) {
+    const n = await db.storageObject.updateMany({ where: { key, status: { in: ["PENDING", "STORED"] } }, data: { deleteAfter: new Date(Date.now() + opts.retainDays * 86400_000) } });
+    if (n.count) return;
+  }
   await mirrorDelete(key);
   if (!config.boltchain.enabled) return;
   // crypto-shred: without recipientKey the sealed copies on Boltchain can never be opened again
   await db.storageObject.updateMany({
     where: { key, status: { not: "DELETED" } },
-    data: { status: "DELETED", recipientKey: null, deletedAt: new Date(), mirrored: false, nextTryAt: new Date(), attempts: 0 },
+    data: { status: "DELETED", recipientKey: null, deletedAt: new Date(), mirrored: false, nextTryAt: new Date(), attempts: 0, deleteAfter: null },
   });
 }

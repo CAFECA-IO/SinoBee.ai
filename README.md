@@ -139,12 +139,13 @@ skills:
 - **Tools** (`/api/v1/tools`, pages `/tools`): database browsers registered from SinoBee as `TOOL.json` (`sinobee.tool/v1`).
   - Credentials are rejected by the schema and a scanner.
   - Private versions are only visible to the owner; public versions are reviewed (Admin → Tool reviews). A tool that goes public never exposes its private versions.
-- **Vault** (`/api/v1/vault/*`): end-to-end encrypted.
+- **Vault** (`/api/v1/vault/*`): end-to-end encrypted. Each signed-in SinoBee also holds its own sealed copy of the vault key (`/api/v1/vault/devices`), so the passphrase is only needed once per machine or never (approve a new machine from an old one). Signing a device out deletes its copy.
   - The server stores an X25519 public key, the private key wrapped with a scrypt-derived key, and sealed packs (ephemeral X25519 + HKDF + AES-GCM).
   - Everything is encrypted in SinoBee; the server cannot read it.
 - **Shares** (`/api/v1/shares`, page `/s/<id>`, list `/shares`):
   - SinoBee redacts and previews before upload.
   - Visibility: `LINK`, `LOGIN` (optionally limited to specific CAFECA accounts, by address or @handle), or `PUBLIC`.
+  - Multipart upload with attachments (25 MB each, 100 MB per share); default expiry 30 days; the server refuses conversations that still contain obvious secrets. Viewers can import a share into their own SinoBee ("Continue in my SinoBee").
   - Owners can change the visibility, set expiry, and revoke a share. Viewers can report a share; admins handle reports with a takedown.
 
 ### Boltchain storage and notarization
@@ -155,7 +156,7 @@ When `BOLT_RPC_URL`, `BOLT_WALLET_KEY` and `BOLT_MASTER_KEY` are set (see `.env.
 2. **Store**: the keeper lists the blocks in a deal index (dag-cbor, byte-identical to `bolt-ipld`). It hands the blocks to the site's own node with `bolt_hostBlocks` (the node must run with `--rpc-storage`), then pays `SwarmStorage.createDeal` from the site wallet. The website absorbs the storage fees.
 3. **Read**: reads use the local/S3 mirror and fall back to `bolt_getBlocks`. Every block is checked against its CID, and the result against its sha256.
 4. **Delete**: deleting an object destroys its key (crypto-shred). The deal is then cancelled, closed, and the refunds withdrawn.
-5. **Renew**: deals are extended before they end.
+5. **Renew**: deals are extended before they end — never past an object's keep-until date. Policies by kind: shares keep 2 copies until they expire; replaced vault versions keep their deal 7 days; versions of public tools are kept 90 days after deletion. An hourly audit compares the database with the chain and re-stores objects whose deal ended early; admins are notified when the wallet runs low (`BOLT_LOW_BALANCE_WEI`).
 6. **Notarize**: if `BOLT_CERTIFICATES` is set, tool versions and shares are notarized with the Certificates contract (ADR 0016). The page shows the certificate code, which links to `<explorer>/cert/<code>`.
 7. **Monitor**: Admin → Boltchain storage shows the wallet, its balance, object counts and errors.
 

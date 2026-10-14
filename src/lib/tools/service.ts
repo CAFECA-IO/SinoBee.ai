@@ -119,6 +119,24 @@ export async function deleteTool(user: User, name: string) {
   const t = await db.tool.findUnique({ where: { ownerId_name: { ownerId: user.id, name } }, include: { versions: true } });
   if (!t) throw new HttpError(404, "not found");
   const { deleteObject } = await import("../storage");
-  for (const v of t.versions) if (v.objectKey) await deleteObject(v.objectKey);
+  // private definitions are shredded at once; versions that were public stay stored 90 days (installs may reference them)
+  for (const v of t.versions) if (v.objectKey) await deleteObject(v.objectKey, v.public ? { retainDays: 90 } : {});
   await db.tool.delete({ where: { id: t.id } });
+}
+
+/** 1–5 stars from a user who can see the tool (not its owner) */
+export async function rateTool(user: User, toolId: string, stars: number) {
+  const t = await db.tool.findUnique({ where: { id: toolId }, include: { versions: { where: { status: "APPROVED", public: true }, take: 1 } } });
+  if (!t || t.visibility !== "PUBLIC" || !t.versions.length) throw new HttpError(404, "not found");
+  if (t.ownerId === user.id) throw new HttpError(400, "you cannot rate your own tool");
+  await db.toolRating.upsert({ where: { toolId_userId: { toolId, userId: user.id } }, create: { toolId, userId: user.id, stars }, update: { stars } });
+  const agg = await db.toolRating.aggregate({ where: { toolId }, _avg: { stars: true }, _count: { stars: true } });
+  return db.tool.update({ where: { id: toolId }, data: { ratingAvg: agg._avg.stars ?? 0, ratingCount: agg._count.stars } });
+}
+
+/** Admin takedown after a report: the tool leaves the directory; its public versions are revoked */
+export async function takedownTool(toolId: string) {
+  const t = await db.tool.update({ where: { id: toolId }, data: { visibility: "PRIVATE" } });
+  await db.toolVersion.updateMany({ where: { toolId, public: true }, data: { status: "REVOKED" } });
+  return t;
 }

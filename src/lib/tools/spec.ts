@@ -39,6 +39,10 @@ export const toolManifest = z
     tables: z.array(table).max(500).optional(),
     /** saved read-only queries */
     queries: z.array(z.object({ title: z.string().max(120), sql: z.string().max(4000) })).max(50).optional(),
+    /** notes on tables / columns: {"schema.table": "…", "schema.table.column": "…"} */
+    notes: z.record(z.string().max(300), z.string().max(1000)).optional(),
+    /** SKILL.md telling an agent how to use this database (Agent Skills format) */
+    skill: z.string().max(20000).optional(),
     /** vault pack holding this tool's connection settings + credentials (private tools only) */
     vaultPack: z.string().regex(/^[a-z0-9:_-]{1,80}$/).optional(),
   })

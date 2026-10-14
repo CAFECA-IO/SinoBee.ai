@@ -54,7 +54,7 @@ export function ShareOwnerActions({ id, visibility, accounts }: { id: string; vi
   );
 }
 
-export function ShareReport({ id }: { id: string }) {
+export function ShareReport({ id, targetType = "share" }: { id: string; targetType?: "share" | "tool" }) {
   const t = useTranslations("share");
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -63,14 +63,14 @@ export function ShareReport({ id }: { id: string }) {
   return (
     <div className="text-center">
       {!open ? (
-        <button className="text-xs text-muted underline" onClick={() => setOpen(true)}>{t("report")}</button>
+        <button className="text-xs text-muted underline" onClick={() => setOpen(true)}>{t(targetType === "tool" ? "reportTool" : "report")}</button>
       ) : (
         <div className="card mx-auto max-w-md space-y-2 p-4 text-left text-sm">
           <textarea className="input h-20" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("reportReason")} />
           <button
             className="btn-ghost"
             onClick={async () => {
-              const r = await fetch(`/api/shares/${id}/report`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }) });
+              const r = await fetch(`/api/reports`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetType, targetId: id, reason }) });
               if (r.ok) setDone(true);
             }}
           >
@@ -79,5 +79,34 @@ export function ShareReport({ id }: { id: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Import this share into the viewer's own SinoBee as a new conversation */
+export function ContinueInSinoBee({ url }: { url: string }) {
+  const t = useTranslations("share");
+  const [port, setPort] = useState("8000");
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="card space-y-3 p-5 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="h3">{t("continue")}</h2>
+          <p className="text-xs text-muted">{t("continueHelp")}</p>
+        </div>
+        <a className="btn-primary" href={`http://localhost:${port}/?import=${encodeURIComponent(url)}`} target="_blank" rel="noopener">
+          {t("continueBtn")}
+        </a>
+      </div>
+      <button className="text-xs text-muted underline" onClick={() => setOpen(!open)}>{t("continueMore")}</button>
+      {open && (
+        <div className="space-y-2 text-xs">
+          <label className="flex items-center gap-2">
+            {t("port")} <input className="input w-24" value={port} onChange={(e) => setPort(e.target.value.replace(/\D/g, "").slice(0, 5))} />
+          </label>
+          <pre className="codeblock whitespace-pre-wrap">sinobee share import {url}</pre>
+        </div>
+      )}
+    </section>
   );
 }

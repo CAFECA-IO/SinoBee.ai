@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { handle, json } from "@/lib/http";
 import { requireAdmin } from "@/lib/auth";
 import { revokeShare } from "@/lib/shares/service";
+import { takedownTool } from "@/lib/tools/service";
 import { notify } from "@/lib/notify";
 
 /** Resolve a report: take the share down (crypto-shred) or dismiss */
@@ -15,6 +16,10 @@ export const POST = handle(async (req: Request) => {
     const s = await revokeShare(r.targetId, admin, "takedown");
     await notify(s.ownerId, { type: "share.takedown", title: `Your share “${s.title}” was taken down`, body: r.reason, link: "/account#shares" }).catch(() => undefined);
   }
-  await db.report.update({ where: { id: reportId }, data: { resolvedAt: new Date() } });
+  if (takedown && r.targetType === "tool") {
+    const t = await takedownTool(r.targetId);
+    await notify(t.ownerId, { type: "tool.takedown", title: `Your tool ${t.name} was removed from the directory`, body: r.reason, link: "/account#tools" }).catch(() => undefined);
+  }
+  await db.report.updateMany({ where: { targetType: r.targetType, targetId: r.targetId, resolvedAt: null }, data: { resolvedAt: new Date() } });
   return json({ ok: true });
 });

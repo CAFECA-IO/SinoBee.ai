@@ -309,7 +309,8 @@
       "certificates": "Certificates 合約",
       "objects": "物件",
       "anchors": "存證",
-      "errors": "最近的錯誤"
+      "errors": "最近的錯誤",
+      "low": "錢包餘額偏低：新物件會先留在鏡像儲存，補足 BOLT 後才會上鏈。"
     },
     "takedown": "下架",
     "dismiss": "不處理",
@@ -656,7 +657,10 @@
     "delete": "刪除工具",
     "confirmDelete": "刪除這個工具和所有版本？已在 Boltchain 的副本會被銷毀金鑰並取消保存。",
     "publicHelp": "公開前會經過審核；公開工具不能引用私人保險箱。",
-    "privateHelp": "改為私人後，其他人將看不到這個工具。"
+    "privateHelp": "改為私人後，其他人將看不到這個工具。",
+    "ratings": "{n} 則評分",
+    "noRatings": "還沒有評分",
+    "notes": "資料表與欄位說明"
   },
   "share": {
     "unavailable": "無法檢視這個分享",
@@ -688,7 +692,9 @@
       "privatekey": "私鑰",
       "password": "密碼欄位",
       "path": "本機路徑",
-      "email": "電子郵件"
+      "email": "電子郵件",
+      "host": "主機名稱／內網 IP",
+      "custom": "自訂字詞"
     },
     "user": "使用者",
     "tools": "使用了 {n} 個工具",
@@ -711,6 +717,12 @@
     "listTitle": "公開的對話",
     "listLead": "使用者從 SinoBee 公開分享的對話。",
     "listEmpty": "還沒有公開的對話。",
-    "msgs": "{n} 則訊息"
+    "msgs": "{n} 則訊息",
+    "continue": "在我的 SinoBee 繼續",
+    "continueHelp": "把這段對話匯入你的 SinoBee，成為新的對話後繼續問。需要在這台電腦上執行 SinoBee。",
+    "continueBtn": "在 SinoBee 開啟",
+    "continueMore": "其他方式",
+    "port": "SinoBee 的連接埠",
+    "reportTool": "檢舉這個工具"
   }
 }

@@ -18,8 +18,8 @@ export const DEFAULT_SCOPES: Scope[] = [...SCOPES];
 
 const CODE_TTL_S = 900;
 const INTERVAL_S = 5;
-/** device tokens expire after a year of existence; any use within the window keeps the device listed */
-const TOKEN_TTL_DAYS = 365;
+/** device tokens are valid for 90 days (sign in again afterwards); revocable at any time */
+const TOKEN_TTL_DAYS = 90;
 /** no 0/O/1/I/L/U to avoid misreading */
 const ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
 
@@ -34,8 +34,14 @@ export function parseScopes(s: string | undefined | null): Scope[] {
   return [...new Set(out)] as Scope[];
 }
 
-export async function startDeviceAuth(input: { deviceName: string; platform?: string | null; scope?: string | null; ip?: string | null }) {
+/** per IP: at most this many sign-in requests per 10 minutes */
+const RATE_PER_10MIN = 10;
+
+export async function startDeviceAuth(input: { deviceName: string; platform?: string | null; scope?: string | null; ip?: string | null; publicKey?: string | null }) {
   const scopes = parseScopes(input.scope);
+  if (input.ip && (await db.deviceAuth.count({ where: { ip: input.ip.slice(0, 64), createdAt: { gt: new Date(Date.now() - 600_000) } } })) >= RATE_PER_10MIN)
+    throw new HttpError(429, "too many sign-in requests, try again in a few minutes");
+  if (input.publicKey && Buffer.from(input.publicKey, "base64").length !== 32) throw new HttpError(400, "publicKey must be a 32-byte X25519 key (base64)");
   const deviceCode = randomToken(32);
   let userCode = "";
   for (let i = 0; i < 5; i++) {
@@ -50,6 +56,7 @@ export async function startDeviceAuth(input: { deviceName: string; platform?: st
       deviceName: input.deviceName.slice(0, 80),
       platform: input.platform?.slice(0, 80) ?? null,
       ip: input.ip?.slice(0, 64) ?? null,
+      publicKey: input.publicKey ?? null,
       interval: INTERVAL_S,
       expiresAt: new Date(Date.now() + CODE_TTL_S * 1000),
     },
@@ -103,7 +110,7 @@ export async function pollDeviceToken(deviceCode: string): Promise<TokenResult> 
   const claimed = await db.deviceAuth.updateMany({ where: { id: a.id, status: "APPROVED" }, data: { status: "CONSUMED" } });
   if (claimed.count !== 1 || !a.userId) return { ok: false, error: "invalid_grant" };
   const user = await db.user.findUniqueOrThrow({ where: { id: a.userId } });
-  const device = await db.device.create({ data: { userId: user.id, name: a.deviceName, platform: a.platform } });
+  const device = await db.device.create({ data: { userId: user.id, name: a.deviceName, platform: a.platform, publicKey: a.publicKey } });
   const token = `sbh_${randomToken(30)}`;
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 86400_000);
   await db.apiToken.create({
@@ -131,5 +138,7 @@ export async function revokeDevice(userId: string, deviceId: string) {
   await db.$transaction([
     db.device.update({ where: { id: d.id }, data: { revokedAt: now } }),
     db.apiToken.updateMany({ where: { deviceId: d.id, revokedAt: null }, data: { revokedAt: now } }),
+    // its copy of the vault key goes too
+    db.vaultDeviceKey.deleteMany({ where: { deviceId: d.id } }),
   ]);
 }

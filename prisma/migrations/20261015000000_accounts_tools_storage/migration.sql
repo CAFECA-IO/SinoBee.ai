@@ -21,6 +21,7 @@ CREATE TABLE "Device" (
     "userId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "platform" TEXT,
+    "publicKey" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "revokedAt" TIMESTAMP(3),
@@ -36,6 +37,7 @@ CREATE TABLE "DeviceAuth" (
     "scopes" TEXT NOT NULL,
     "deviceName" TEXT NOT NULL,
     "platform" TEXT,
+    "publicKey" TEXT,
     "ip" TEXT,
     "status" "DeviceAuthStatus" NOT NULL DEFAULT 'PENDING',
     "userId" TEXT,
@@ -58,6 +60,8 @@ CREATE TABLE "Tool" (
     "visibility" "ToolVisibility" NOT NULL DEFAULT 'PRIVATE',
     "latestVersion" TEXT,
     "installs" INTEGER NOT NULL DEFAULT 0,
+    "ratingAvg" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "ratingCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -85,6 +89,16 @@ CREATE TABLE "ToolVersion" (
 );
 
 -- CreateTable
+CREATE TABLE "ToolRating" (
+    "toolId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "stars" INTEGER NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ToolRating_pkey" PRIMARY KEY ("toolId","userId")
+);
+
+-- CreateTable
 CREATE TABLE "VaultKey" (
     "userId" TEXT NOT NULL,
     "publicKey" TEXT NOT NULL,
@@ -93,6 +107,16 @@ CREATE TABLE "VaultKey" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "VaultKey_pkey" PRIMARY KEY ("userId")
+);
+
+-- CreateTable
+CREATE TABLE "VaultDeviceKey" (
+    "deviceId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "wrapped" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "VaultDeviceKey_pkey" PRIMARY KEY ("deviceId")
 );
 
 -- CreateTable
@@ -185,6 +209,10 @@ CREATE TABLE "StorageObject" (
     "txHash" TEXT,
     "recipientKey" TEXT,
     "mirrored" BOOLEAN NOT NULL DEFAULT true,
+    "wantReplicas" INTEGER,
+    "keepUntil" TIMESTAMP(3),
+    "deleteAfter" TIMESTAMP(3),
+    "lastAuditAt" TIMESTAMP(3),
     "error" TEXT,
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "nextTryAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -232,6 +260,9 @@ CREATE UNIQUE INDEX "Tool_ownerId_name_key" ON "Tool"("ownerId", "name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ToolVersion_toolId_version_key" ON "ToolVersion"("toolId", "version");
+
+-- CreateIndex
+CREATE INDEX "VaultDeviceKey_userId_idx" ON "VaultDeviceKey"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "VaultPack_userId_name_key" ON "VaultPack"("userId", "name");
@@ -285,7 +316,16 @@ ALTER TABLE "ToolVersion" ADD CONSTRAINT "ToolVersion_toolId_fkey" FOREIGN KEY (
 ALTER TABLE "ToolVersion" ADD CONSTRAINT "ToolVersion_reviewerId_fkey" FOREIGN KEY ("reviewerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "ToolRating" ADD CONSTRAINT "ToolRating_toolId_fkey" FOREIGN KEY ("toolId") REFERENCES "Tool"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ToolRating" ADD CONSTRAINT "ToolRating_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "VaultKey" ADD CONSTRAINT "VaultKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "VaultDeviceKey" ADD CONSTRAINT "VaultDeviceKey_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "Device"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "VaultPack" ADD CONSTRAINT "VaultPack_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -73,10 +73,26 @@ test("expiry and revoke (crypto-shred of every object)", async () => {
 });
 
 test("size and shape limits", async () => {
-  await assert.rejects(sh.createShare(owner, body({ files: [{ name: "big.bin", data: Buffer.alloc(5 * 1024 * 1024).toString("base64") }] })), /too large/);
+  await assert.rejects(sh.createShare(owner, body({ files: [] }), [{ name: "big.bin", mime: "application/octet-stream", bytes: Buffer.alloc(26 * 1024 * 1024) }]), /larger than 25 MB/);
+  const many = Array.from({ length: 5 }, (_, i) => ({ name: `p${i}.bin`, mime: "application/octet-stream", bytes: Buffer.alloc(21 * 1024 * 1024) }));
+  await assert.rejects(sh.createShare(owner, body({ files: [] }), many), /attachments too large/);
+  const vid = await sh.createShare(owner, body({ files: [] }), [{ name: "clip.mp4", mime: "video/mp4", bytes: Buffer.alloc(3 * 1024 * 1024) }]);
+  assert.equal((await db.shareFile.findFirstOrThrow({ where: { shareId: vid.id } })).mime, "video/mp4");
   await assert.rejects(sh.createShare(owner, body({ messages: [] })));
   const s = await sh.createShare(owner, body({ files: [{ name: "../../x.html", mime: "text/html", data: "PGgxPg==" }] }));
   const f = (await db.shareFile.findMany({ where: { shareId: s.id } }))[0];
   assert.equal(f.mime, "application/octet-stream", "active content is never served as such");
   assert.equal(f.name, ".._.._x.html");
+});
+
+test("default 30-day expiry, never-expiring on request, and the server-side secret scan", async () => {
+  const s = await sh.createShare(owner, body());
+  const days = (s.expiresAt!.getTime() - Date.now()) / 86400_000;
+  assert.ok(days > 29.9 && days <= 30);
+  assert.equal((await sh.createShare(owner, body({ expiresInDays: null }))).expiresAt, null);
+  await assert.rejects(sh.createShare(owner, body({ messages: [{ role: "user", text: "key sk-ant-abcdefghijklmnopqrstuvwxyz012345" }] })), /API key/);
+  await assert.rejects(sh.createShare(owner, body({ messages: [{ role: "user", text: "postgres://demo:hunter22@db/shop" }] })), /connection string/);
+  await sh.createShare(owner, body({ messages: [{ role: "user", text: "postgres://demo:••••@db/shop" }] }));
+  const sk = await sh.createShare(owner, body({ skills: ["sales-report"] }));
+  assert.deepEqual((await sh.readDoc(sk.objectKey)).skills, ["sales-report"]);
 });

@@ -53,7 +53,8 @@ model User {
   vaultPacks       VaultPack[]
   shares           ConversationShare[]
   reports          Report[]
-  reviewedTools    ToolVersion[]       @relation("toolReviewer")
+  reviewedTools ToolVersion[] @relation("toolReviewer")
+  toolRatings   ToolRating[]
 }
 
 model Session {
@@ -111,11 +112,14 @@ model Device {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name       String
   platform   String?
+  /// X25519 public key of this install; the vault key is wrapped to it so the user need not retype the passphrase
+  publicKey  String?
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   revokedAt  DateTime?
 
-  tokens ApiToken[]
+  tokens     ApiToken[]
+  vaultKey   VaultDeviceKey?
 
   @@index([userId])
 }
@@ -135,6 +139,8 @@ model DeviceAuth {
   scopes         String
   deviceName     String
   platform       String?
+  /// X25519 public key the device will use for its vault key
+  publicKey      String?
   ip             String?
   status         DeviceAuthStatus @default(PENDING)
   userId         String?
@@ -492,10 +498,13 @@ model Tool {
   visibility    ToolVisibility @default(PRIVATE)
   latestVersion String?
   installs      Int            @default(0)
+  ratingAvg     Float          @default(0)
+  ratingCount   Int            @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  versions ToolVersion[]
+  versions      ToolVersion[]
+  ratings       ToolRating[]
 
   @@unique([ownerId, name])
   @@index([visibility, updatedAt])
@@ -526,6 +535,17 @@ model ToolVersion {
   @@unique([toolId, version])
 }
 
+model ToolRating {
+  toolId    String
+  tool      Tool     @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stars     Int
+  updatedAt DateTime @updatedAt
+
+  @@id([toolId, userId])
+}
+
 // ───────────────────────── End-to-end encrypted vault ─────────────────────────
 
 /// Wrapped vault key: the user's X25519 private key encrypted with a key derived (scrypt) from their passphrase.
@@ -541,6 +561,18 @@ model VaultKey {
 }
 
 /// An encrypted blob (e.g. private tool connection settings + secrets) only the owner can open
+/// The vault private key sealed to one device's X25519 key (deleted when the device is signed out)
+model VaultDeviceKey {
+  deviceId  String   @id
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  userId    String
+  /// sealed envelope {v, epk, iv, ct}
+  wrapped   String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model VaultPack {
   id        String   @id @default(cuid())
   userId    String
@@ -670,6 +702,13 @@ model StorageObject {
   recipientKey String?
   /// keep the mirror copy (local/S3) for fast reads
   mirrored     Boolean       @default(true)
+  /// copies wanted (policy by kind; shares 2, others 3)
+  wantReplicas Int?
+  /// stop renewing after this time (e.g. a share's expiry); the deal is sized to end then
+  keepUntil    DateTime?
+  /// deleted, but the key is kept and the deal runs until then (public tools: 90 days after takedown)
+  deleteAfter  DateTime?
+  lastAuditAt  DateTime?
   error        String?
   attempts     Int           @default(0)
   nextTryAt    DateTime      @default(now())

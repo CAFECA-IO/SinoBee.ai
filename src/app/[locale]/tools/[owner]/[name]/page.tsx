@@ -9,6 +9,11 @@ import { CopyCode } from "@/components/copy-code";
 import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 import { ToolOwnerActions } from "@/components/tool-owner-actions";
+import { RateSkill } from "@/components/rate-skill";
+import { Stars } from "@/components/stars";
+import { Markdown } from "@/components/markdown";
+import { ShareReport } from "@/components/share-actions";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +39,12 @@ export default async function ToolPage({ params }: { params: Promise<{ locale: s
       </div>
       <h1 className="h1">{m.title}</h1>
       <p className="font-mono text-sm text-muted">{owner}/{tool.name}@{v.version} · <LocalDate value={v.publishedAt} /></p>
+      {tool.visibility === "PUBLIC" && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Stars value={tool.ratingAvg} /> <span className="text-muted">{tool.ratingCount ? `${tool.ratingAvg.toFixed(1)} · ${t("ratings", { n: tool.ratingCount })}` : t("noRatings")}</span>
+          {me && !isOwner && <RateSkill skillId={tool.id} url={`/api/tools/${tool.id}/rate`} mine={(await db.toolRating.findUnique({ where: { toolId_userId: { toolId: tool.id, userId: me.id } } }))?.stars ?? 0} />}
+        </div>
+      )}
       {m.description && <p className="whitespace-pre-wrap">{m.description}</p>}
 
       <section className="card space-y-3 p-6">
@@ -82,6 +93,24 @@ export default async function ToolPage({ params }: { params: Promise<{ locale: s
         </section>
       )}
 
+      {m.notes && Object.keys(m.notes).length > 0 && (
+        <section className="card space-y-2 p-6 text-sm">
+          <h2 className="h3">{t("notes")}</h2>
+          {Object.entries(m.notes).map(([k, v]) => (
+            <div key={k} className="grid gap-1 sm:grid-cols-[220px_1fr]"><span className="font-mono text-xs">{k}</span><span>{v}</span></div>
+          ))}
+        </section>
+      )}
+
+      {m.skill && (
+        <section className="card space-y-2 p-6">
+          <details>
+            <summary className="h3 cursor-pointer">SKILL.md</summary>
+            <div className="mt-3"><Markdown>{m.skill.replace(/^---[\s\S]*?---\n/, "")}</Markdown></div>
+          </details>
+        </section>
+      )}
+
       <section className="card space-y-2 p-6 text-sm">
         <h2 className="h3">{t("integrity")}</h2>
         <div className="break-all font-mono text-xs">{v.contentHash}</div>
@@ -95,6 +124,7 @@ export default async function ToolPage({ params }: { params: Promise<{ locale: s
       </section>
 
       {isOwner && <ToolOwnerActions name={tool.name} visibility={tool.visibility} />}
+      {!isOwner && me && tool.visibility === "PUBLIC" && <ShareReport id={tool.id} targetType="tool" />}
     </div>
   );
 }

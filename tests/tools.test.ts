@@ -97,3 +97,39 @@ test("deleting a tool removes every version", async () => {
   await svc.deleteTool(alice, "shop-db");
   assert.equal(await db.toolVersion.count(), 0);
 });
+
+test("vault device keys: per-device copies, removed when the device signs out", async () => {
+  const vaultLib = await import("../src/lib/vault");
+  const flow = await import("../src/lib/device-flow");
+  const u = await db.user.create({ data: { account: "0x" + "9".repeat(40), handle: "vic" } });
+  const pk = Buffer.alloc(32, 3).toString("base64");
+  const d1 = await db.device.create({ data: { userId: u.id, name: "laptop", publicKey: pk } });
+  const d2 = await db.device.create({ data: { userId: u.id, name: "old" } });
+  const env = JSON.stringify({ v: 1, epk: "ZQ==", iv: "aQ==", ct: "Yw==" });
+  await assert.rejects(vaultLib.setDeviceKey(u.id, d1.id, env), /vault key first/);
+  await vaultLib.setVaultKey(u.id, { publicKey: Buffer.alloc(32, 1).toString("base64"), wrapped: { v: 1, kdf: { alg: "scrypt", n: 32768, r: 8, p: 1, salt: "cw==" }, iv: "aQ==", ct: "Yw==" } });
+  await vaultLib.setDeviceKey(u.id, d1.id, env);
+  await assert.rejects(vaultLib.setDeviceKey(u.id, d2.id, env), /no key/);
+  await assert.rejects(vaultLib.setDeviceKey(alice.id, d1.id, env), /not found|vault key first/);
+  await assert.rejects(vaultLib.setDeviceKey(u.id, d1.id, '{"plain":"x"}'), /sealed envelope/);
+  assert.equal(await vaultLib.deviceWrapped(d1.id), env);
+  const list = await vaultLib.vaultDevices(u.id, d1.id);
+  assert.deepEqual(list.map((x) => [x.name, x.hasKey, x.current]).sort(), [["laptop", true, true], ["old", false, false]]);
+  await flow.revokeDevice(u.id, d1.id);
+  assert.equal(await vaultLib.deviceWrapped(d1.id), null);
+});
+
+test("ratings and reports for public tools; takedown hides the tool", async () => {
+  await svc.publishTool(bob, { ...manifest({ name: "pub-tool", version: "1.0.0" }) }, "PUBLIC");
+  const tool = await db.tool.findFirstOrThrow({ where: { name: "pub-tool" } });
+  await assert.rejects(svc.rateTool(alice, tool.id, 5), /not found/, "not rateable before review");
+  await svc.reviewTool(admin, (await db.toolVersion.findFirstOrThrow({ where: { toolId: tool.id } })).id, true);
+  await svc.rateTool(alice, tool.id, 5);
+  const t2 = await svc.rateTool(admin, tool.id, 2);
+  assert.equal(t2.ratingCount, 2);
+  assert.equal(t2.ratingAvg, 3.5);
+  await assert.rejects(svc.rateTool(bob, tool.id, 5), /own tool/);
+  await svc.takedownTool(tool.id);
+  await assert.rejects(svc.findTool(alice, "bob", "pub-tool"), /not found/);
+  assert.equal((await svc.findTool(bob, "bob", "pub-tool")).isOwner, true);
+});

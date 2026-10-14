@@ -8,7 +8,8 @@ import { certUrl, formatCode } from "@/lib/boltchain/certificates";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
 import { MermaidBlocks } from "@/components/mermaid-blocks";
-import { ShareOwnerActions, ShareReport } from "@/components/share-actions";
+import { ContinueInSinoBee, ShareOwnerActions, ShareReport } from "@/components/share-actions";
+import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,12 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
   if (!isOwner) await db.conversationShare.update({ where: { id }, data: { views: { increment: 1 } } });
   const doc = await readDoc(share.objectKey);
   const fileUrl = (fid: string) => `/api/shares/${id}/files/${fid}`;
-  const fix = (text: string) => text.replace(/\]\(files\/(\d+)\)/g, (_m, fid) => `](${fileUrl(fid)})`);
+  const media = new Map(doc.files.filter((f) => /^(video|audio)\//.test(f.mime)).map((f) => [f.id, f]));
+  // images render inline; videos and audio play in the attachments section (markdown cannot embed them safely)
+  const fix = (text: string) =>
+    text
+      .replace(/!\[([^\]]*)\]\(files\/(\d+)\)/g, (m0, alt, fid) => (media.has(fid) ? `[▶ ${alt || media.get(fid)!.name}](#file-${fid})` : m0))
+      .replace(/\]\(files\/(\d+)\)/g, (_m, fid) => `](${fileUrl(fid)})`);
   const access_ = isOwner ? await db.shareAccess.findMany({ where: { shareId: id } }) : [];
   return (
     <div className="container-x max-w-4xl space-y-6 py-10">
@@ -52,6 +58,7 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="chip">{t(`vis.${share.visibility}`)}{share.restricted ? ` · ${t("restricted")}` : ""}</span>
           {doc.model && <span className="chip font-mono">{doc.model}</span>}
+          {(doc.skills ?? []).map((k) => <span key={k} className="chip font-mono">skill: {k}</span>)}
           <span className="text-muted">{t("views", { n: share.views })}</span>
         </div>
         <h1 className="h1">{share.title}</h1>
@@ -88,16 +95,22 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
       </MermaidBlocks>
 
       {doc.files.length > 0 && (
-        <section className="card space-y-2 p-5 text-sm">
+        <section className="card space-y-3 p-5 text-sm">
           <h2 className="h3">{t("files")}</h2>
           {doc.files.map((f) => (
-            <a key={f.id} href={fileUrl(f.id)} className="flex justify-between text-accent">
-              <span>{f.name}</span>
-              <span className="text-xs text-muted">{Math.ceil(f.size / 1024)} KiB</span>
-            </a>
+            <div key={f.id} id={`file-${f.id}`} className="space-y-2">
+              {f.mime.startsWith("video/") && <video src={fileUrl(f.id)} controls preload="metadata" className="w-full max-w-2xl rounded-lg" />}
+              {f.mime.startsWith("audio/") && <audio src={fileUrl(f.id)} controls className="w-full max-w-md" />}
+              <a href={fileUrl(f.id)} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-accent hover:border-accent">
+                <span className="truncate">📎 {f.name}</span>
+                <span className="shrink-0 text-xs text-muted">{f.size >= 1048576 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.ceil(f.size / 1024)} KiB`}</span>
+              </a>
+            </div>
           ))}
         </section>
       )}
+
+      <ContinueInSinoBee url={`${config.origin}/s/${id}`} />
 
       <section className="card space-y-2 p-5 text-sm">
         <h2 className="h3">{t("integrity")}</h2>

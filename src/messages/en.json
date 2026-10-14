@@ -309,7 +309,8 @@
       "certificates": "Certificates contract",
       "objects": "Objects",
       "anchors": "Anchors",
-      "errors": "Recent errors"
+      "errors": "Recent errors",
+      "low": "The wallet is running low: new objects stay in the mirror until BOLT is topped up."
     },
     "takedown": "Take down",
     "dismiss": "Dismiss",
@@ -656,7 +657,10 @@
     "delete": "Delete tool",
     "confirmDelete": "Delete this tool and all its versions? Copies on Boltchain have their keys destroyed and storage cancelled.",
     "publicHelp": "Public tools are reviewed first and cannot reference a private vault.",
-    "privateHelp": "Once private, other people can no longer see this tool."
+    "privateHelp": "Once private, other people can no longer see this tool.",
+    "ratings": "{n} ratings",
+    "noRatings": "No ratings yet",
+    "notes": "Table and column notes"
   },
   "share": {
     "unavailable": "This share is not available",
@@ -688,7 +692,9 @@
       "privatekey": "private keys",
       "password": "password fields",
       "path": "local paths",
-      "email": "email addresses"
+      "email": "email addresses",
+      "host": "host names / internal IPs",
+      "custom": "custom words"
     },
     "user": "User",
     "tools": "used {n} tools",
@@ -711,6 +717,12 @@
     "listTitle": "Public conversations",
     "listLead": "Conversations people shared publicly from SinoBee.",
     "listEmpty": "No public conversations yet.",
-    "msgs": "{n} messages"
+    "msgs": "{n} messages",
+    "continue": "Continue in my SinoBee",
+    "continueHelp": "Import this conversation into your SinoBee as a new chat and keep going. SinoBee must be running on this computer.",
+    "continueBtn": "Open in SinoBee",
+    "continueMore": "Other ways",
+    "port": "SinoBee port",
+    "reportTool": "Report this tool"
   }
 }

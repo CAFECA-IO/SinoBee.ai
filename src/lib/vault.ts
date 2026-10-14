@@ -40,6 +40,7 @@ export async function setVaultKey(userId: string, body: z.infer<typeof vaultKeyB
   if (prev && prev.publicKey !== body.publicKey) {
     for (const p of await db.vaultPack.findMany({ where: { userId } })) await deleteObject(p.objectKey);
     await db.vaultPack.deleteMany({ where: { userId } });
+    await db.vaultDeviceKey.deleteMany({ where: { userId } });
   }
   // same public key → only the wrapping changed (new passphrase)
   return db.vaultKey.upsert({ where: { userId }, create: { userId, publicKey: body.publicKey, wrapped: body.wrapped }, update: { publicKey: body.publicKey, wrapped: body.wrapped } });
@@ -86,4 +87,41 @@ export async function deletePack(userId: string, name: string) {
   await deleteObject(p.objectKey);
   await db.vaultPack.delete({ where: { id: p.id } });
   return true;
+}
+
+// ---------- device keys: the vault private key sealed to each signed-in SinoBee ----------
+
+const envelope = z.object({ v: z.literal(1), epk: b64, iv: b64, ct: b64 }).strict();
+
+export async function vaultDevices(userId: string, currentDeviceId?: string | null) {
+  const devices = await db.device.findMany({ where: { userId, revokedAt: null }, include: { vaultKey: { select: { createdAt: true } } }, orderBy: { lastSeenAt: "desc" } });
+  return devices.map((d) => ({
+    id: d.id, name: d.name, platform: d.platform, publicKey: d.publicKey, hasKey: !!d.vaultKey, current: d.id === currentDeviceId,
+    lastSeenAt: d.lastSeenAt.toISOString(),
+  }));
+}
+
+/** Store the vault key sealed to `deviceId` (sent by a device that has the vault unlocked) */
+export async function setDeviceKey(userId: string, deviceId: string, wrapped: string) {
+  let env: unknown;
+  try {
+    env = JSON.parse(wrapped);
+  } catch {
+    throw new HttpError(400, "wrapped must be a sealed envelope");
+  }
+  if (!envelope.safeParse(env).success) throw new HttpError(400, "wrapped must be a sealed envelope {v:1, epk, iv, ct}");
+  const d = await db.device.findFirst({ where: { id: deviceId, userId, revokedAt: null } });
+  if (!d) throw new HttpError(404, "device not found");
+  if (!d.publicKey) throw new HttpError(409, "this device has no key — sign in again from that SinoBee");
+  if (!(await getVaultKey(userId))) throw new HttpError(409, "set up the vault key first");
+  return db.vaultDeviceKey.upsert({ where: { deviceId }, create: { deviceId, userId, wrapped }, update: { wrapped } });
+}
+
+export async function deleteDeviceKey(userId: string, deviceId: string) {
+  return (await db.vaultDeviceKey.deleteMany({ where: { deviceId, userId } })).count > 0;
+}
+
+export async function deviceWrapped(deviceId: string | null | undefined) {
+  if (!deviceId) return null;
+  return (await db.vaultDeviceKey.findUnique({ where: { deviceId } }))?.wrapped ?? null;
 }

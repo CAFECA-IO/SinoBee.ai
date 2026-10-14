@@ -69,3 +69,16 @@ test("expired tokens are rejected", async () => {
   await db.apiToken.updateMany({ where: { prefix: r.body.access_token.slice(0, 10) }, data: { expiresAt: new Date(Date.now() - 1) } });
   assert.equal(await bearerAuth(req(r.body.access_token)), null);
 });
+
+test("sign-in requests are rate limited per IP and keep the device key", async () => {
+  const pk = Buffer.alloc(32, 5).toString("base64");
+  for (let i = 0; i < 10; i++) await flow.startDeviceAuth({ deviceName: "r", ip: "203.0.113.9", publicKey: pk });
+  await assert.rejects(flow.startDeviceAuth({ deviceName: "r", ip: "203.0.113.9" }), /too many/);
+  await flow.startDeviceAuth({ deviceName: "r", ip: "203.0.113.10" });
+  await assert.rejects(flow.startDeviceAuth({ deviceName: "r", publicKey: "short" }), /32-byte/);
+  const s = await flow.startDeviceAuth({ deviceName: "k", ip: "198.51.100.1", publicKey: pk });
+  await flow.decideDeviceAuth(user.id, s.user_code, true);
+  const r = (await flow.pollDeviceToken(s.device_code)) as unknown as { body: { device_id: string; expires_in: number } };
+  assert.equal(r.body.expires_in, 90 * 86400);
+  assert.equal((await db.device.findUniqueOrThrow({ where: { id: r.body.device_id } })).publicKey, pk);
+});

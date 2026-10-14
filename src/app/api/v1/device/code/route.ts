@@ -12,10 +12,11 @@ export const POST = handle(async (req: Request) => {
       device_name: z.string().trim().min(1).max(80).default("SinoBee"),
       platform: z.string().trim().max(80).optional(),
       scope: z.string().max(200).optional(),
+      public_key: z.string().max(64).optional(),
     })
     .parse(raw);
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  return json(await startDeviceAuth({ deviceName: body.device_name, platform: body.platform, scope: body.scope, ip }), {
+  return json(await startDeviceAuth({ deviceName: body.device_name, platform: body.platform, scope: body.scope, ip, publicKey: body.public_key }), {
     headers: { "cache-control": "no-store" },
   });
 });

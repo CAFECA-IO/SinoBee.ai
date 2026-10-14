@@ -154,3 +154,65 @@ test("content hashes are notarized with Certificates and verifiable by code", as
   // idempotent per target
   assert.equal((await keeper.requestAnchor("tool-version", "tv1", files))!.id, a!.id);
 });
+
+test("policies: shares keep 2 copies only until they expire; expired objects are shredded", async () => {
+  const until = new Date(Date.now() + 10 * 3600_000);
+  await storage.putObject("shares/p1/share.json", Buffer.from("{}"), "application/json", { keepUntil: until });
+  await keeper.storePending();
+  const o = await db.storageObject.findUniqueOrThrow({ where: { key: "shares/p1/share.json" } });
+  assert.equal(o.replicas, 2);
+  const d = node.deals[Number(o.dealId)];
+  assert.equal(d.end - d.start, 11n, "10 h at 1 h per epoch, +1");
+  // renewing never goes past keep-until
+  node.epoch = d.end - 2n;
+  await keeper.renewDeals();
+  assert.equal(node.deals[Number(o.dealId)].end, d.end);
+  await db.storageObject.update({ where: { key: o.key }, data: { keepUntil: new Date(Date.now() - 1000) } });
+  await keeper.expireObjects();
+  const e = await db.storageObject.findUniqueOrThrow({ where: { key: o.key } });
+  assert.equal(e.status, "DELETED");
+  assert.equal(e.recipientKey, null);
+});
+
+test("policies: retention keeps a deleted object readable until its date; vault versions cancel after 7 days", async () => {
+  await storage.putObject("tools/u/t/1.0.0.json", Buffer.from('{"a":1}'));
+  await keeper.storePending();
+  await storage.deleteObject("tools/u/t/1.0.0.json", { retainDays: 90 });
+  let o = await db.storageObject.findUniqueOrThrow({ where: { key: "tools/u/t/1.0.0.json" } });
+  assert.equal(o.status, "STORED");
+  assert.ok(o.deleteAfter && o.deleteAfter.getTime() > Date.now() + 89 * 86400_000);
+  assert.equal((await storage.getObject(o.key)).toString(), '{"a":1}');
+  await db.storageObject.update({ where: { key: o.key }, data: { deleteAfter: new Date(Date.now() - 1) } });
+  await keeper.expireObjects();
+  o = await db.storageObject.findUniqueOrThrow({ where: { key: o.key } });
+  assert.equal(o.status, "DELETED");
+
+  await storage.putObject("vault/u2/db_x", Buffer.from("v1"));
+  await keeper.storePending();
+  const v1 = (await db.storageObject.findUniqueOrThrow({ where: { key: "vault/u2/db_x" } })).dealId!;
+  await storage.putObject("vault/u2/db_x", Buffer.from("v2"));
+  const tomb = await db.storageObject.findUniqueOrThrow({ where: { key: `_cancel/${v1}` } });
+  assert.ok(tomb.nextTryAt.getTime() > Date.now() + 6.9 * 86400_000, "old vault version kept 7 days");
+  await keeper.cancelDeleted();
+  assert.equal((await db.storageObject.findUniqueOrThrow({ where: { key: `_cancel/${v1}` } })).dealState, "active");
+});
+
+test("audit re-stores an object whose deal ended early; low balance notifies admins once a day", async () => {
+  await storage.putObject("artifacts/t9/out.txt", Buffer.from("result"));
+  await keeper.storePending();
+  const o = await db.storageObject.findUniqueOrThrow({ where: { key: "artifacts/t9/out.txt" } });
+  node.deals[Number(o.dealId)].closed = true;
+  await keeper.auditDeals(50);
+  const a = await db.storageObject.findUniqueOrThrow({ where: { key: o.key } });
+  assert.equal(a.status, "PENDING");
+  assert.match(a.error ?? "", /ended unexpectedly/);
+  await keeper.storePending();
+  assert.equal((await db.storageObject.findUniqueOrThrow({ where: { key: o.key } })).status, "STORED");
+
+  const admin = await db.user.create({ data: { account: "0x" + "f".repeat(40), isAdmin: true } });
+  process.env.BOLT_LOW_BALANCE_WEI = (10n ** 30n).toString();
+  await keeper.checkBalance();
+  await keeper.checkBalance();
+  assert.equal(await db.notification.count({ where: { userId: admin.id, type: "storage.low_balance" } }), 1);
+  delete process.env.BOLT_LOW_BALANCE_WEI;
+});

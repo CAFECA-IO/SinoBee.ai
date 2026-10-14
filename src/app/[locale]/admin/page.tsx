@@ -128,6 +128,7 @@ async function StorageStatus() {
         <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
           <span className="text-muted">{t("st.enabled")}</span><span>{s.enabled ? "✓" : t("st.off")}</span>
           {"wallet" in s && (<><span className="text-muted">{t("st.wallet")}</span><span className="break-all font-mono">{s.wallet}</span><span className="text-muted">{t("st.balance")}</span><span className="font-mono">{bolt(s.balance)} BOLT</span><span className="text-muted">epoch</span><span className="font-mono">{s.epoch}</span></>)}
+          {"low" in s && s.low && (<><span className="text-muted">⚠</span><span className="text-warn">{t("st.low")}</span></>)}
           {"error" in s && (<><span className="text-muted">{t("st.error")}</span><span className="text-err">{s.error}</span></>)}
           <span className="text-muted">{t("st.certificates")}</span><span className="break-all font-mono">{s.certificates ?? "—"}</span>
         </div>
@@ -165,7 +166,7 @@ async function Reports() {
         <div key={r.id} className="card space-y-2 p-5 text-sm">
           <div className="flex flex-wrap items-center gap-3">
             <span className="chip">{r.targetType}</span>
-            {r.targetType === "share" ? <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link> : <span className="font-mono">{r.targetId}</span>}
+            {r.targetType === "share" ? <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link> : <ToolLink id={r.targetId} />}
             <span className="text-xs text-muted">@{r.reporter.handle ?? r.reporter.account} · <LocalDate value={r.createdAt} /></span>
           </div>
           <p>{r.reason}</p>
@@ -174,4 +175,10 @@ async function Reports() {
       ))}
     </div>
   );
+}
+
+async function ToolLink({ id }: { id: string }) {
+  const t = await db.tool.findUnique({ where: { id }, include: { owner: true } });
+  if (!t) return <span className="font-mono">{id}</span>;
+  return <Link href={`/tools/${t.owner.publisher ?? t.owner.account}/${t.name}`} className="font-mono text-accent">{t.owner.publisher}/{t.name}</Link>;
 }

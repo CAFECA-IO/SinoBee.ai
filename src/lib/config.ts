@@ -101,6 +101,14 @@ export const config = {
     get epochs() {
       return num(process.env.BOLT_DEAL_EPOCHS, 720);
     },
+    /** seconds per epoch, to turn "keep until" dates into epochs (testnet: 600 blocks ≈ 1 h under PoS) */
+    get epochSeconds() {
+      return num(process.env.BOLT_EPOCH_SECONDS, 3600);
+    },
+    /** alert admins when the site wallet holds less than this (wei); default 10 BOLT */
+    get lowBalanceWei() {
+      return process.env.BOLT_LOW_BALANCE_WEI || "10000000000000000000";
+    },
     /** renew when fewer than this many epochs remain */
     get renewBelow() {
       return num(process.env.BOLT_RENEW_BELOW_EPOCHS, 48);

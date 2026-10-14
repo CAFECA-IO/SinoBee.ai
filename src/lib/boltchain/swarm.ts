@@ -15,7 +15,7 @@ export const perEpoch = (price: bigint, size: bigint) => (price * ((size + (1n <
 export type Quote = { replicas: number; price: bigint; epochs: bigint; cost: bigint; offers: number };
 
 /** Copies and price from the open offers: the n-th cheapest minimum price, so n providers can be drawn. */
-export async function quote(size: bigint, epochs = BigInt(config.boltchain.epochs)): Promise<Quote> {
+export async function quote(size: bigint, epochs = BigInt(config.boltchain.epochs), want = config.boltchain.replicas): Promise<Quote> {
   const pc = publicClient();
   const mib = (size + (1n << 20n) - 1n) >> 20n;
   const ids = await pc.readContract({ address: SWARM, abi: swarmAbi, functionName: "offerList" });
@@ -29,7 +29,7 @@ export async function quote(size: bigint, epochs = BigInt(config.boltchain.epoch
   const cap = config.boltchain.maxPriceWei ? BigInt(config.boltchain.maxPriceWei) : null;
   const affordable = cap === null ? prices : prices.filter((p) => p <= cap);
   if (!affordable.length) throw new Error("every storage offer is above BOLT_MAX_PRICE_WEI");
-  const replicas = Math.max(1, Math.min(affordable.length, config.boltchain.replicas));
+  const replicas = Math.max(1, Math.min(affordable.length, want));
   const price = affordable[replicas - 1];
   const e = epochs > MAX_DEAL_EPOCHS ? MAX_DEAL_EPOCHS : epochs < 1n ? 1n : epochs;
   return { replicas, price, epochs: e, cost: perEpoch(price, size) * BigInt(replicas) * e, offers: prices.length };
@@ -68,11 +68,19 @@ export async function getBlocks(cids: string[], deal?: bigint): Promise<Uint8Arr
 export type DealResult = { dealId: bigint; root: string; blocks: number; size: bigint; replicas: number; endEpoch: bigint; paid: bigint; txHash: Hex };
 
 /** Lists `blocks` in a deal index with entry point `entry`, hosts everything and pays the deal */
-export async function createDeal(blocks: Block[], entry: string): Promise<DealResult> {
+export type DealOptions = { replicas?: number; epochs?: bigint };
+
+/** epochs needed to keep something until `until` (at least 1), from the chain's epoch length */
+export function epochsUntil(until: Date): bigint {
+  const secs = Math.max(0, (until.getTime() - Date.now()) / 1000);
+  return BigInt(Math.max(1, Math.ceil(secs / config.boltchain.epochSeconds) + 1));
+}
+
+export async function createDeal(blocks: Block[], entry: string, opts: DealOptions = {}): Promise<DealResult> {
   const idx = buildDealIndex(blocks.map((b) => ({ cid: b.cid, size: b.bytes.length })), entry);
   await hostBlocks(idx.root, [...blocks, ...idx.indexBlocks]);
   const size = BigInt(idx.dealSize);
-  const q = await quote(size);
+  const q = await quote(size, opts.epochs ?? BigInt(config.boltchain.epochs), opts.replicas ?? config.boltchain.replicas);
   const wc = walletClient();
   const pc = publicClient();
   const args = [toHex(cidToBytes(idx.root)), BigInt(idx.count), size, q.replicas, q.epochs, q.price] as const;
@@ -94,10 +102,10 @@ export async function createDeal(blocks: Block[], entry: string): Promise<DealRe
 }
 
 /** Seals `data` for a fresh key pair and stores it. Returns the deal and the secret key (wrap it!). */
-export async function storeSealed(data: Uint8Array, name: string, mime: string) {
+export async function storeSealed(data: Uint8Array, name: string, mime: string, opts: DealOptions = {}) {
   const kp = vault.keyPair();
   const s = vault.seal(data, name, mime, kp.publicKey);
-  const deal = await createDeal([...s.shards, s.manifest, s.envelope], s.envelope.cid);
+  const deal = await createDeal([...s.shards, s.manifest, s.envelope], s.envelope.cid, opts);
   return { ...deal, envelope: s.envelope.cid, secretKey: kp.secretKey };
 }
 
@@ -113,6 +121,12 @@ export async function readSealed(dealRoot: string, dealId: bigint, secretKey: Ui
   const m = vault.openManifest(envelope, mblock, contentKey);
   const shards = await getBlocks(m.shards, dealId);
   return vault.recover(m, contentKey, shards);
+}
+
+/** Open copies of a deal */
+export async function openSlots(id: bigint): Promise<number> {
+  const [, , , open] = await publicClient().readContract({ address: SWARM, abi: swarmAbi, functionName: "dealSlots", args: [id] });
+  return open.filter(Boolean).length;
 }
 
 export async function dealInfo(id: bigint) {

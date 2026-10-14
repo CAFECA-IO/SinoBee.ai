@@ -16,8 +16,13 @@ import type { User } from "@/generated/prisma/client";
  *   PUBLIC — anyone, listed on /shares
  * Revoking deletes the objects: their keys are destroyed (crypto-shred) and the deals cancelled.
  */
+/** the conversation itself (JSON) */
 export const MAX_SHARE_BYTES = 5 * 1024 * 1024;
-const MAX_FILES = 20;
+/** attachments: 25 MB each, 100 MB per share (plan: 對話分享) */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+const MAX_FILES = 40;
+export const DEFAULT_DAYS = 30;
 
 const tool = z.object({ name: z.string().max(80), input: z.string().max(4000).optional(), output: z.string().max(8000).optional() });
 const message = z.object({
@@ -26,7 +31,7 @@ const message = z.object({
   tools: z.array(tool).max(100).optional(),
   at: z.string().max(40).optional(),
 });
-const file = z.object({ name: z.string().min(1).max(200), mime: z.string().max(100).default("application/octet-stream"), data: z.string().max(Math.ceil((MAX_SHARE_BYTES * 4) / 3) + 8) });
+const file = z.object({ name: z.string().min(1).max(200), mime: z.string().max(100).default("application/octet-stream"), data: z.string().max(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8) });
 
 export const shareBody = z.object({
   title: z.string().trim().min(1).max(160),
@@ -37,6 +42,8 @@ export const shareBody = z.object({
   model: z.string().max(120).nullish(),
   messages: z.array(message).min(1).max(2000),
   files: z.array(file).max(MAX_FILES).default([]),
+  /** skills SinoBee used in the conversation (names) */
+  skills: z.array(z.string().max(80)).max(50).default([]),
   /** what SinoBee redacted, for the viewer banner (counts only) */
   redactions: z.array(z.object({ kind: z.string().max(40), count: z.number().int().min(0) })).max(20).default([]),
 });
@@ -49,12 +56,28 @@ export type ShareDoc = {
   messages: z.infer<typeof message>[];
   files: { id: string; name: string; mime: string; size: number }[];
   redactions: { kind: string; count: number }[];
+  skills?: string[];
 };
+
+export type UploadFile = { name: string; mime: string; bytes: Buffer };
 
 const ALPHA = "23456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
 const newId = () => Array.from({ length: 12 }, () => ALPHA[randomInt(ALPHA.length)]).join("");
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-const SAFE_MIME = /^(image\/(png|jpe?g|gif|webp)|text\/(plain|csv|markdown)|application\/(json|pdf|zip|gzip))$/;
+const SAFE_MIME = /^(image\/(png|jpe?g|gif|webp)|video\/(mp4|webm|quicktime|ogg)|audio\/(mpeg|mp4|ogg|wav|webm)|text\/(plain|csv|markdown)|application\/(json|pdf|zip|gzip))$/;
+
+// formats the server refuses even after SinoBee's redaction (a second line of defence)
+const SECRET_RX: [string, RegExp][] = [
+  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["API key", /\b(sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{20}|sbh_[A-Za-z0-9_-]{30,})\b/],
+  ["connection string with a password", /\b(postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqp):\/\/[^\s:/@]+:(?!••••@)[^\s@/]{3,}@/i],
+];
+
+/** Refuse conversations that still contain obvious secrets */
+export function scanSecrets(text: string): string | null {
+  for (const [what, rx] of SECRET_RX) if (rx.test(text)) return what;
+  return null;
+}
 
 /** @handles and addresses → lowercase addresses; unknown handles are an error (so a typo never widens access) */
 export async function resolveAccounts(list: string[]): Promise<string[]> {
@@ -74,9 +97,14 @@ export async function resolveAccounts(list: string[]): Promise<string[]> {
   return [...out];
 }
 
-export async function createShare(owner: User, input: unknown) {
+export async function createShare(owner: User, input: unknown, uploads: UploadFile[] = []) {
   const b = shareBody.parse(input);
-  const files = b.files.map((f, i) => ({ id: String(i + 1), name: f.name.replace(/[\\/]/g, "_"), mime: SAFE_MIME.test(f.mime) ? f.mime : "application/octet-stream", bytes: Buffer.from(f.data, "base64") }));
+  const all = [...b.files.map((f) => ({ name: f.name, mime: f.mime, bytes: Buffer.from(f.data, "base64") })), ...uploads];
+  if (all.length > MAX_FILES) throw new HttpError(413, `at most ${MAX_FILES} attachments`);
+  const files = all.map((f, i) => ({ id: String(i + 1), name: f.name.replace(/[\\/]/g, "_").slice(0, 200), mime: SAFE_MIME.test(f.mime) ? f.mime : "application/octet-stream", bytes: f.bytes }));
+  for (const f of files) if (f.bytes.length > MAX_FILE_BYTES) throw new HttpError(413, `${f.name} is larger than 25 MB`);
+  const leak = scanSecrets(JSON.stringify(b.messages) + "\n" + b.title);
+  if (leak) throw new HttpError(422, `the conversation still contains a ${leak} — redact it in SinoBee and try again`);
   const id = newId();
   const doc: ShareDoc = {
     v: 1,
@@ -86,16 +114,21 @@ export async function createShare(owner: User, input: unknown) {
     messages: b.messages,
     files: files.map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.bytes.length })),
     redactions: b.redactions,
+    skills: b.skills,
   };
   const body = Buffer.from(JSON.stringify(doc));
-  const total = body.length + files.reduce((a, f) => a + f.bytes.length, 0);
-  if (total > MAX_SHARE_BYTES) throw new HttpError(413, `share too large (${Math.round(total / 1024)} KiB > ${MAX_SHARE_BYTES >> 20} MiB)`);
+  if (body.length > MAX_SHARE_BYTES) throw new HttpError(413, `conversation too large (${Math.round(body.length / 1024)} KiB > ${MAX_SHARE_BYTES >> 20} MiB)`);
+  const total = files.reduce((a, f) => a + f.bytes.length, 0);
+  if (total > MAX_TOTAL_BYTES) throw new HttpError(413, `attachments too large (${Math.round(total / 1048576)} MB > 100 MB)`);
+  const days = b.expiresInDays === undefined ? DEFAULT_DAYS : b.expiresInDays;
+  const expiresAt = days ? new Date(Date.now() + days * 86400_000) : null;
   const accounts = b.visibility === "LOGIN" ? await resolveAccounts(b.accounts) : [];
   if (b.visibility !== "LOGIN" && b.accounts.length) throw new HttpError(400, "accounts only apply to LOGIN shares");
 
   const objectKey = `shares/${id}/share.json`;
-  await putObject(objectKey, body, "application/json");
-  for (const f of files) await putObject(`shares/${id}/files/${f.id}`, f.bytes, f.mime);
+  // stored on Boltchain (2 copies) only until the share expires
+  await putObject(objectKey, body, "application/json", { keepUntil: expiresAt });
+  for (const f of files) await putObject(`shares/${id}/files/${f.id}`, f.bytes, f.mime, { keepUntil: expiresAt });
   const share = await db.conversationShare.create({
     data: {
       id,
@@ -107,7 +140,7 @@ export async function createShare(owner: User, input: unknown) {
       contentHash: `sha256:${hashFile(body).sha256.slice(2)}`,
       messages: b.messages.length,
       model: b.model ?? null,
-      expiresAt: b.expiresInDays ? new Date(Date.now() + b.expiresInDays * 86400_000) : null,
+      expiresAt,
       access: { create: accounts.map((account) => ({ account })) },
       files: { create: files.map((f) => ({ name: f.name, objectKey: `shares/${id}/files/${f.id}`, size: f.bytes.length, sha256: hashFile(f.bytes).sha256.slice(2), mime: f.mime })) },
     },
@@ -166,6 +199,10 @@ export async function updateShare(id: string, owner: User, input: unknown) {
   const s = await db.conversationShare.findUnique({ where: { id } });
   if (!s || s.ownerId !== owner.id || s.revokedAt) throw new HttpError(404, "not found");
   const visibility = b.visibility ?? s.visibility;
+  if (b.expiresInDays !== undefined) {
+    const { setKeepUntil } = await import("../storage");
+    await setKeepUntil(`shares/${id}/`, b.expiresInDays ? new Date(Date.now() + b.expiresInDays * 86400_000) : null);
+  }
   const accounts = visibility === "LOGIN" && b.accounts ? await resolveAccounts(b.accounts) : null;
   await db.$transaction([
     ...(visibility !== "LOGIN" || accounts ? [db.shareAccess.deleteMany({ where: { shareId: id } })] : []),

@@ -3,7 +3,7 @@ import { db } from "../db";
 import { mirrorDelete, mirrorGet } from "../storage";
 import { siteAccount, publicClient, SWARM, swarmAbi, walletClient, currentEpoch } from "./chain";
 import { wrapKey } from "./keys";
-import { cancelDeal, closeDeal, extendDeal, storeSealed, MAX_DEAL_EPOCHS, dealInfo } from "./swarm";
+import { cancelDeal, closeDeal, extendDeal, storeSealed, MAX_DEAL_EPOCHS, dealInfo, epochsUntil, openSlots } from "./swarm";
 import { issue, type FileHash } from "./certificates";
 
 /**
@@ -27,7 +27,17 @@ export async function storePending(limit = 4) {
     if (lease.count !== 1) continue;
     try {
       const bytes = await mirrorGet(o.key);
-      const r = await storeSealed(new Uint8Array(bytes), o.key.split("/").pop() || "object", o.contentType);
+      if (o.keepUntil && o.keepUntil < new Date()) {
+        // expired before it was stored (e.g. a share that ran out): nothing to keep
+        await db.storageObject.update({ where: { key: o.key }, data: { status: "DELETED", recipientKey: null, deletedAt: new Date() } });
+        await mirrorDelete(o.key);
+        continue;
+      }
+      const epochs = o.keepUntil ? epochsUntil(o.keepUntil) : BigInt(config.boltchain.epochs);
+      const r = await storeSealed(new Uint8Array(bytes), o.key.split("/").pop() || "object", o.contentType, {
+        replicas: o.wantReplicas ?? config.boltchain.replicas,
+        epochs: epochs > MAX_DEAL_EPOCHS ? MAX_DEAL_EPOCHS : epochs,
+      });
       const keep = config.boltchain.mirror;
       // the row may have been deleted or overwritten while we were storing it
       const upd = await db.storageObject.updateMany({
@@ -59,6 +69,7 @@ async function tombstone(dealId: bigint) {
 
 export async function cancelDeleted(limit = 10) {
   const rows = await db.storageObject.findMany({ where: { status: "DELETED", dealId: { not: null }, dealState: "active", nextTryAt: { lte: new Date() } }, take: limit });
+  // keep-until reached: the deal may already be over — closeEnded settles it
   for (const o of rows) {
     try {
       await cancelDeal(o.dealId!);
@@ -77,12 +88,22 @@ export async function cancelDeleted(limit = 10) {
 export async function renewDeals(limit = 10) {
   const now = await currentEpoch();
   const soon = now + BigInt(config.boltchain.renewBelow);
-  const rows = await db.storageObject.findMany({ where: { status: "STORED", dealState: "active", endEpoch: { lte: soon } }, take: limit });
+  const rows = await db.storageObject.findMany({
+    where: { status: "STORED", dealState: "active", endEpoch: { lte: soon }, OR: [{ keepUntil: null }, { keepUntil: { gt: new Date() } }] },
+    take: limit,
+  });
   for (const o of rows) {
     try {
       const d = await dealInfo(o.dealId!);
       const room = MAX_DEAL_EPOCHS - (d.endEpoch - d.startEpoch);
-      const epochs = BigInt(config.boltchain.epochs) < room ? BigInt(config.boltchain.epochs) : room;
+      let want = BigInt(config.boltchain.epochs);
+      if (o.keepUntil) {
+        // only as long as the object is meant to be kept
+        const target = now + epochsUntil(o.keepUntil);
+        want = target > d.endEpoch ? target - d.endEpoch : 0n;
+        if (want === 0n) continue;
+      }
+      const epochs = want < room ? want : room;
       if (epochs > 0n && d.endEpoch > now) {
         await extendDeal(o.dealId!, epochs);
         await db.storageObject.update({ where: { key: o.key }, data: { endEpoch: d.endEpoch + epochs, error: null } });
@@ -119,6 +140,80 @@ export async function closeEnded(limit = 10) {
     await publicClient().waitForTransactionReceipt({ hash });
     log(`withdrew ${bal} wei of refunds`);
   }
+}
+
+/** Objects past their keep-until date or retention period: destroy the key; the deal ends or is cancelled */
+export async function expireObjects(limit = 50) {
+  const now = new Date();
+  const rows = await db.storageObject.findMany({
+    where: { status: { in: ["PENDING", "STORED"] }, OR: [{ keepUntil: { lte: now } }, { deleteAfter: { lte: now } }] },
+    take: limit,
+  });
+  for (const o of rows) {
+    await mirrorDelete(o.key).catch(() => undefined);
+    await db.storageObject.update({
+      where: { key: o.key },
+      // retention over → cancel now; keep-until reached → the deal was sized to end then, cancel what is left
+      data: { status: "DELETED", recipientKey: null, deletedAt: now, mirrored: false, nextTryAt: now, attempts: 0 },
+    });
+    log(`expired ${o.key}`);
+  }
+}
+
+/** Compare the database with the chain: re-store objects whose deal ended early or lost every copy */
+export async function auditDeals(limit = 5) {
+  const hourAgo = new Date(Date.now() - 3600_000);
+  const rows = await db.storageObject.findMany({
+    where: { status: "STORED", dealState: "active", OR: [{ lastAuditAt: null }, { lastAuditAt: { lt: hourAgo } }] },
+    orderBy: { lastAuditAt: "asc" },
+    take: limit,
+  });
+  if (!rows.length) return;
+  const now = await currentEpoch();
+  for (const o of rows) {
+    try {
+      const d = await dealInfo(o.dealId!);
+      const copies = d.closed ? 0 : await openSlots(o.dealId!);
+      const want = o.wantReplicas ?? config.boltchain.replicas;
+      const ended = d.closed || d.endEpoch <= now || d.root !== o.dealRoot;
+      if (ended || copies === 0) {
+        if (!ended) await tombstone(o.dealId!);
+        await db.storageObject.update({
+          where: { key: o.key },
+          data: { status: "PENDING", dealState: "none", nextTryAt: new Date(), attempts: 0, lastAuditAt: new Date(), error: ended ? `deal ${o.dealId} ended unexpectedly` : `deal ${o.dealId} lost every copy` },
+        });
+        log(`audit: re-storing ${o.key} (${ended ? "deal ended" : "no copies left"})`);
+      } else {
+        await db.storageObject.update({
+          where: { key: o.key },
+          data: { lastAuditAt: new Date(), endEpoch: d.endEpoch, error: copies < want ? `only ${copies} of ${want} copies are held` : null },
+        });
+      }
+    } catch (e) {
+      await db.storageObject.update({ where: { key: o.key }, data: { lastAuditAt: new Date(), error: msg(e) } });
+    }
+  }
+}
+
+/** Tell admins (once a day) when the site wallet runs low on BOLT */
+export async function checkBalance() {
+  const me = siteAccount().address;
+  const bal = await publicClient().getBalance({ address: me });
+  if (bal >= BigInt(config.boltchain.lowBalanceWei)) return bal;
+  const since = new Date(Date.now() - 86400_000);
+  const admins = await db.user.findMany({ where: { isAdmin: true } });
+  const { notify } = await import("../notify");
+  for (const a of admins) {
+    if (await db.notification.count({ where: { userId: a.id, type: "storage.low_balance", createdAt: { gt: since } } })) continue;
+    await notify(a.id, {
+      type: "storage.low_balance",
+      title: "Boltchain storage wallet is running low",
+      body: `${me} holds ${Number(bal / 10n ** 15n) / 1000} BOLT. New objects stay in the mirror until it is topped up.`,
+      link: "/admin?tab=storage",
+    }).catch(() => undefined);
+  }
+  log(`low balance: ${bal} wei`);
+  return bal;
 }
 
 // ---------- anchors (notarization) ----------
@@ -160,7 +255,7 @@ async function onAnchored(targetType: string, targetId: string, code: string) {
 /** One pass of every job; each job's failure is logged and does not stop the others. */
 export async function keeperTick() {
   if (!config.boltchain.enabled) return;
-  for (const [name, job] of [["store", storePending], ["anchor", anchorPending], ["cancel", cancelDeleted], ["renew", renewDeals], ["close", closeEnded]] as const) {
+  for (const [name, job] of [["expire", expireObjects], ["store", storePending], ["anchor", anchorPending], ["cancel", cancelDeleted], ["renew", renewDeals], ["close", closeEnded], ["audit", auditDeals], ["balance", checkBalance]] as const) {
     try {
       await job();
     } catch (e) {
@@ -177,7 +272,7 @@ export async function storageStatus() {
   try {
     const me = siteAccount().address;
     const [balance, epoch] = await Promise.all([publicClient().getBalance({ address: me }), currentEpoch()]);
-    return { ...base, wallet: me, balance: balance.toString(), epoch: epoch.toString() };
+    return { ...base, wallet: me, balance: balance.toString(), epoch: epoch.toString(), low: balance < BigInt(config.boltchain.lowBalanceWei) };
   } catch (e) {
     return { ...base, error: msg(e) };
   }
