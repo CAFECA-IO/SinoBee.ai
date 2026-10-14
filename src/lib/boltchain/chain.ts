@@ -84,3 +84,26 @@ export async function rpc<T = unknown>(method: string, params: unknown[]): Promi
 }
 
 export const enabled = () => config.boltchain.enabled;
+
+/**
+ * Gas for a Boltchain call: the node's estimate plus headroom. Storage deals and certificates pick providers and
+ * touch state that changes between the estimate and the block (gas used varied by ~7% on the testnet), so a bare
+ * estimate can run out of gas and revert. Unused gas is refunded.
+ */
+export function withHeadroom(estimate: bigint): bigint {
+  return (estimate * 135n) / 100n + 25_000n;
+}
+
+/** Simulates, sends with gas headroom and waits; throws `<label> reverted …` (and says when it ran out of gas) */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function sendContract(req: any, label: string) {
+  const wc = walletClient();
+  const pc = publicClient();
+  const full = { account: wc.account, ...req };
+  await pc.simulateContract(full);
+  const gas = withHeadroom(await pc.estimateContractGas(full));
+  const hash = await wc.writeContract({ ...full, gas });
+  const rc = await pc.waitForTransactionReceipt({ hash, timeout: 300_000 });
+  if (rc.status !== "success") throw new Error(`${label} reverted (${hash}${rc.gasUsed >= gas ? `, out of gas at ${gas}` : ""})`);
+  return { hash, receipt: rc };
+}

@@ -3,7 +3,7 @@ import { decodeEventLog, encodeAbiParameters, keccak256, toHex, type Hex } from 
 import { config } from "../config";
 import { cidToBytes, rawCid, type Block } from "./cid";
 import { buildDealIndex } from "./deal-index";
-import { certificatesAbi, publicClient, walletClient } from "./chain";
+import { certificatesAbi, sendContract, walletClient } from "./chain";
 import { hostBlocks, quote } from "./swarm";
 
 /**
@@ -86,7 +86,6 @@ export async function issue(files: FileHash[], salt: Hex): Promise<Issued> {
   const address = config.boltchain.certificates as Hex;
   if (!address) throw new Error("BOLT_CERTIFICATES is not set");
   const wc = walletClient();
-  const pc = publicClient();
   const manifest: Block = (() => {
     const bytes = certManifest(files, salt);
     return { cid: rawCid(bytes), bytes };
@@ -102,10 +101,7 @@ export async function issue(files: FileHash[], salt: Hex): Promise<Issued> {
     salt, files.map((f) => f.keccak256), files.map((f) => f.sha256), files.map((f) => BigInt(f.size)), false,
     toHex(cidToBytes(manifest.cid)), toHex(cidToBytes(idx.root)), BigInt(idx.count), size, q.replicas, q.epochs, q.price,
   ] as const;
-  await pc.simulateContract({ account: wc.account, address, abi: certificatesAbi, functionName: "issue", args, value: q.cost });
-  const txHash = await wc.writeContract({ address, abi: certificatesAbi, functionName: "issue", args, value: q.cost });
-  const rc = await pc.waitForTransactionReceipt({ hash: txHash, timeout: 300_000 });
-  if (rc.status !== "success") throw new Error(`issue reverted (${txHash})`);
+  const { hash: txHash, receipt: rc } = await sendContract({ address, abi: certificatesAbi, functionName: "issue", args, value: q.cost }, "issue");
   for (const log of rc.logs) {
     if (log.address.toLowerCase() !== address) continue;
     try {

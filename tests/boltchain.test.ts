@@ -236,3 +236,10 @@ test("objects stored before Boltchain are migrated; skill versions get a certifi
   const after = await db.skillVersion.findUniqueOrThrow({ where: { id: v.id } });
   assert.match(after.anchorCode ?? "", /^[0-9A-HJKMNP-TV-Z]{16}$/);
 });
+
+test("gas headroom covers the testnet's gas variance", async () => {
+  const { withHeadroom } = await import("../src/lib/boltchain/chain");
+  // createDeal estimated at 507,030 used up to 540,493; issue at 719,616 used 724,625 (testnet, Oct 2026)
+  assert.ok(withHeadroom(507_030n) > 540_493n * 12n / 10n);
+  assert.ok(withHeadroom(719_616n) > 724_625n);
+});

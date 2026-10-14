@@ -2,7 +2,7 @@ import { decodeEventLog, hexToBytes, toHex, type Hex } from "viem";
 import { config } from "../config";
 import { checkBlock, cidToBytes, cidFromBytes, type Block } from "./cid";
 import { buildDealIndex, decodeDealIndex } from "./deal-index";
-import { SWARM, currentEpoch, publicClient, rpc, swarmAbi, walletClient } from "./chain";
+import { SWARM, currentEpoch, publicClient, rpc, sendContract, swarmAbi, walletClient } from "./chain";
 import * as vault from "./vault";
 
 /** SwarmStorage (Boltchain ADR 0014): seal → host blocks on our node → createDeal; read back with bolt_getBlocks. */
@@ -81,13 +81,8 @@ export async function createDeal(blocks: Block[], entry: string, opts: DealOptio
   await hostBlocks(idx.root, [...blocks, ...idx.indexBlocks]);
   const size = BigInt(idx.dealSize);
   const q = await quote(size, opts.epochs ?? BigInt(config.boltchain.epochs), opts.replicas ?? config.boltchain.replicas);
-  const wc = walletClient();
-  const pc = publicClient();
   const args = [toHex(cidToBytes(idx.root)), BigInt(idx.count), size, q.replicas, q.epochs, q.price] as const;
-  await pc.simulateContract({ account: wc.account, address: SWARM, abi: swarmAbi, functionName: "createDeal", args, value: q.cost });
-  const txHash = await wc.writeContract({ address: SWARM, abi: swarmAbi, functionName: "createDeal", args, value: q.cost });
-  const rc = await pc.waitForTransactionReceipt({ hash: txHash, timeout: 300_000 });
-  if (rc.status !== "success") throw new Error(`createDeal reverted (${txHash})`);
+  const { hash: txHash, receipt: rc } = await sendContract({ address: SWARM, abi: swarmAbi, functionName: "createDeal", args, value: q.cost }, "createDeal");
   for (const log of rc.logs) {
     if (log.address.toLowerCase() !== SWARM) continue;
     try {
@@ -136,14 +131,7 @@ export async function dealInfo(id: bigint) {
 }
 
 async function send(functionName: "extendDeal" | "cancelDeal" | "closeDeal" | "claim", args: readonly bigint[], value?: bigint) {
-  const wc = walletClient();
-  const pc = publicClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const req = { account: wc.account, address: SWARM, abi: swarmAbi, functionName, args, value } as any;
-  await pc.simulateContract(req);
-  const hash = await wc.writeContract(req);
-  const rc = await pc.waitForTransactionReceipt({ hash, timeout: 300_000 });
-  if (rc.status !== "success") throw new Error(`${functionName} reverted (${hash})`);
+  const { hash } = await sendContract({ address: SWARM, abi: swarmAbi, functionName, args, value }, functionName);
   return hash;
 }
 
