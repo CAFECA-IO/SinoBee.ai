@@ -1,5 +1,5 @@
 import { db, icontains } from "@/lib/db";
-import { userFromBearer } from "@/lib/auth";
+import { requireBearer } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
 import { publishSkill } from "@/lib/skills/service";
 import { LISTED, trustOf } from "@/lib/skills/api";
@@ -47,8 +47,7 @@ export const GET = handle(async (req: Request) => {
 
 /** Hub API v1 publish — `sinobee skills publish <name>` (Bearer token, multipart bundle + manifest) */
 export const POST = handle(async (req: Request) => {
-  const user = await userFromBearer(req);
-  if (!user) return json({ error: "invalid or missing hub token" }, 401);
+  const { user } = await requireBearer(req, "skills:publish");
   const form = await req.formData();
   const f = form.get("bundle");
   if (!(f instanceof File)) return json({ error: "multipart field `bundle` required" }, 400);

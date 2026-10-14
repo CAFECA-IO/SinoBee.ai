@@ -9,6 +9,8 @@ import { UserMenu } from "./user-menu";
 const NAV = [
   { href: "/download", key: "download" },
   { href: "/skills", key: "skills" },
+  { href: "/tools", key: "tools" },
+  { href: "/shares", key: "shares" },
   { href: "/tasks", key: "tasks" },
   { href: "/benchmarks", key: "benchmarks" },
   { href: "/pricing", key: "pricing" },

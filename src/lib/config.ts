@@ -56,9 +56,61 @@ export const config = {
   storage: {
     /** "local" (dev) or "s3" */
     driver: (process.env.STORAGE_DRIVER ?? "local") as "local" | "s3",
-    localDir: process.env.STORAGE_LOCAL_DIR ?? "./data/storage",
+    get localDir() {
+      return process.env.STORAGE_LOCAL_DIR ?? "./data/storage";
+    },
     s3Bucket: process.env.S3_BUCKET ?? "",
     s3Region: process.env.AWS_REGION ?? "ap-northeast-1",
+  },
+
+  /**
+   * Boltchain storage (SwarmStorage deals) and notarization (Certificates). Every stored object is
+   * sealed with bolt-vault and kept by storage providers; the site wallet pays in BOLT.
+   * Enabled when BOLT_RPC_URL, BOLT_WALLET_KEY and BOLT_MASTER_KEY are all set (read on use).
+   */
+  boltchain: {
+    get enabled() {
+      return !!(process.env.BOLT_RPC_URL && process.env.BOLT_WALLET_KEY && process.env.BOLT_MASTER_KEY);
+    },
+    /** JSON-RPC of the site's own node, started with --rpc-storage (it serves bolt_hostBlocks / bolt_getBlocks) */
+    get rpcUrl() {
+      return process.env.BOLT_RPC_URL ?? "http://127.0.0.1:8545";
+    },
+    get chainId() {
+      return num(process.env.BOLT_CHAIN_ID, 8018);
+    },
+    /** site wallet private key (pays deals and certificates) */
+    get walletKey() {
+      return process.env.BOLT_WALLET_KEY ?? "";
+    },
+    /** 32-byte key (hex or base64) that encrypts each object's vault key; destroying an object key crypto-shreds it */
+    get masterKey() {
+      return process.env.BOLT_MASTER_KEY ?? "";
+    },
+    /** Certificates contract (ADR 0016); empty → content hashes are not notarized */
+    get certificates() {
+      return (process.env.BOLT_CERTIFICATES ?? "").toLowerCase();
+    },
+    get explorer() {
+      return (process.env.BOLT_EXPLORER_URL ?? "https://boltchain.cafeca.io").replace(/\/$/, "");
+    },
+    get replicas() {
+      return num(process.env.BOLT_REPLICAS, 3);
+    },
+    /** epochs bought per deal / per renewal (testnet epoch ≈ 1–2 h) */
+    get epochs() {
+      return num(process.env.BOLT_DEAL_EPOCHS, 720);
+    },
+    /** renew when fewer than this many epochs remain */
+    get renewBelow() {
+      return num(process.env.BOLT_RENEW_BELOW_EPOCHS, 48);
+    },
+    /** highest price accepted, BOLT per GiB per epoch (wei = BOLT × 1e18); empty → no cap */
+    get maxPriceWei() {
+      return process.env.BOLT_MAX_PRICE_WEI ?? "";
+    },
+    /** keep a mirror copy in local/S3 storage for fast reads (Boltchain stays the system of record) */
+    mirror: (process.env.BOLT_MIRROR ?? "1") !== "0",
   },
 
   hub: {

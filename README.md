@@ -128,6 +128,39 @@ skills:
   hub_keys: ["<key from /.well-known/sinobee-hub-keys.json>"]
 ```
 
+### SinoBee sign-in, tools, vault and shares
+
+- **`sinobee login`** uses the OAuth 2.0 device authorization grant (RFC 8628). The flow:
+  - `POST /api/v1/device/code` starts the sign-in.
+  - The user approves it at `/device`.
+  - SinoBee polls `POST /api/v1/device/token` until it gets an `sbh_` token.
+  - The token is bound to a device and carries scopes: `skills:publish tools:write vault:rw shares:write`.
+  - Users sign devices out under **Account → Signed-in SinoBee installs**. `GET /api/v1/me` backs `sinobee whoami`.
+- **Tools** (`/api/v1/tools`, pages `/tools`): database browsers registered from SinoBee as `TOOL.json` (`sinobee.tool/v1`).
+  - Credentials are rejected by the schema and a scanner.
+  - Private versions are only visible to the owner; public versions are reviewed (Admin → Tool reviews). A tool that goes public never exposes its private versions.
+- **Vault** (`/api/v1/vault/*`): end-to-end encrypted.
+  - The server stores an X25519 public key, the private key wrapped with a scrypt-derived key, and sealed packs (ephemeral X25519 + HKDF + AES-GCM).
+  - Everything is encrypted in SinoBee; the server cannot read it.
+- **Shares** (`/api/v1/shares`, page `/s/<id>`, list `/shares`):
+  - SinoBee redacts and previews before upload.
+  - Visibility: `LINK`, `LOGIN` (optionally limited to specific CAFECA accounts, by address or @handle), or `PUBLIC`.
+  - Owners can change the visibility, set expiry, and revoke a share. Viewers can report a share; admins handle reports with a takedown.
+
+### Boltchain storage and notarization
+
+When `BOLT_RPC_URL`, `BOLT_WALLET_KEY` and `BOLT_MASTER_KEY` are set (see `.env.example`), every `putObject` is recorded and moved to Boltchain right away by the **storage keeper**. This covers skill bundles, task results, tool manifests, vault packs and shares. The keeper runs inside the worker, or on its own with `npm run storage-keeper [-- --loop]`.
+
+1. **Seal**: each object is sealed with **bolt-vault** (`vendor/bolt-vault`, WASM built from Boltchain `crates/vault`) for its own X25519 key. That key is encrypted with the master key.
+2. **Store**: the keeper lists the blocks in a deal index (dag-cbor, byte-identical to `bolt-ipld`). It hands the blocks to the site's own node with `bolt_hostBlocks` (the node must run with `--rpc-storage`), then pays `SwarmStorage.createDeal` from the site wallet. The website absorbs the storage fees.
+3. **Read**: reads use the local/S3 mirror and fall back to `bolt_getBlocks`. Every block is checked against its CID, and the result against its sha256.
+4. **Delete**: deleting an object destroys its key (crypto-shred). The deal is then cancelled, closed, and the refunds withdrawn.
+5. **Renew**: deals are extended before they end.
+6. **Notarize**: if `BOLT_CERTIFICATES` is set, tool versions and shares are notarized with the Certificates contract (ADR 0016). The page shows the certificate code, which links to `<explorer>/cert/<code>`.
+7. **Monitor**: Admin → Boltchain storage shows the wallet, its balance, object counts and errors.
+
+Tests run against `tests/helpers/stub-boltchain.ts`. It is a JSON-RPC stand-in that follows `SwarmStorage.sol` and `Certificates.sol`, so the tests need no chain.
+
 ## Open items
 
 - **CAFECA notifications**: the CAFECA README does not yet document a notification API. Notifications are stored in the on-site inbox and POSTed to `CAFECA_NOTIFY_URL` when configured (`src/lib/notify.ts`).

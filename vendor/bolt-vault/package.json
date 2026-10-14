@@ -1,0 +1,9 @@
+{
+  "name": "bolt-vault",
+  "version": "0.1.0",
+  "description": "bolt-vault (Boltchain b4fba15, crates/vault) compiled to WebAssembly for Node.js",
+  "license": "MIT",
+  "main": "bolt_vault.js",
+  "types": "bolt_vault.d.ts",
+  "files": ["bolt_vault.js", "bolt_vault.d.ts", "bolt_vault_bg.wasm", "bolt_vault_bg.wasm.d.ts"]
+}

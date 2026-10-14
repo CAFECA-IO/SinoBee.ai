@@ -97,15 +97,40 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return u;
 }
 
-/** Bearer token auth for Hub API v1 (`sinobee keys set sinobee-hub`) */
-export async function userFromBearer(req: Request) {
+/** Bearer token auth for Hub API v1 (`sinobee login` device tokens or `sinobee keys set sinobee-hub`) */
+export async function bearerAuth(req: Request) {
   const h = req.headers.get("authorization") ?? "";
   const m = /^Bearer\s+(sbh_[A-Za-z0-9_-]{20,})$/.exec(h);
   if (!m) return null;
-  const tok = await db.apiToken.findUnique({ where: { tokenHash: sha256Hex(m[1]) }, include: { user: true } });
+  const tok = await db.apiToken.findUnique({ where: { tokenHash: sha256Hex(m[1]) }, include: { user: true, device: true } });
   if (!tok || tok.revokedAt) return null;
-  await db.apiToken.update({ where: { id: tok.id }, data: { lastUsedAt: new Date() } });
-  return tok.user;
+  const now = new Date();
+  if (tok.expiresAt && tok.expiresAt < now) return null;
+  if (tok.device?.revokedAt) return null;
+  // throttle bookkeeping writes to once a minute
+  if (!tok.lastUsedAt || now.getTime() - tok.lastUsedAt.getTime() > 60_000) {
+    await db.apiToken.update({ where: { id: tok.id }, data: { lastUsedAt: now } });
+    if (tok.deviceId) await db.device.update({ where: { id: tok.deviceId }, data: { lastSeenAt: now } });
+  }
+  return { user: tok.user, token: tok, scopes: tok.scopes.split(/\s+/).filter(Boolean), device: tok.device };
+}
+
+export async function userFromBearer(req: Request) {
+  return (await bearerAuth(req))?.user ?? null;
+}
+
+/** Bearer token that carries `scope`; 401 without a valid token, 403 when the scope is missing */
+export async function requireBearer(req: Request, scope: string) {
+  const a = await bearerAuth(req);
+  if (!a) throw new HttpError(401, "invalid or missing hub token — run `sinobee login`");
+  if (!a.scopes.includes(scope)) throw new HttpError(403, `token lacks scope ${scope} — run \`sinobee login\` again`);
+  return a;
+}
+
+/** Session cookie (website) or Bearer token with `scope` (SinoBee) */
+export async function userFromSessionOrBearer(req: Request, scope: string) {
+  if (req.headers.get("authorization")) return (await requireBearer(req, scope)).user;
+  return requireUser();
 }
 
 export const devLoginEnabled = () => process.env.NODE_ENV !== "production" && process.env.DEV_LOGIN === "1";

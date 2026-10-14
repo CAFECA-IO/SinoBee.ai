@@ -6,6 +6,7 @@ import { activeSubscription } from "@/lib/retention";
 import { Link, redirect } from "@/i18n/navigation";
 import { PublisherForm } from "@/components/publisher-form";
 import { TokenManager } from "@/components/token-manager";
+import { DeviceList } from "@/components/device-list";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { LocalDate } from "@/components/date";
 import { StatusBadge } from "@/components/status-badge";
@@ -18,11 +19,16 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
   const me = await currentUser();
   if (!me) redirect({ href: "/login?next=/account", locale });
   const t = await getTranslations("account");
-  const [sub, tokens, payments, skills] = await Promise.all([
+  const [sub, tokens, payments, skills, devices, tools, vault, packs, shares] = await Promise.all([
     activeSubscription(me!.id),
-    db.apiToken.findMany({ where: { userId: me!.id, revokedAt: null }, orderBy: { createdAt: "desc" } }),
+    db.apiToken.findMany({ where: { userId: me!.id, revokedAt: null, deviceId: null }, orderBy: { createdAt: "desc" } }),
     db.payment.findMany({ where: { userId: me!.id }, orderBy: { createdAt: "desc" }, take: 30 }),
     db.skill.findMany({ where: { publisherId: me!.id }, include: { versions: { orderBy: { publishedAt: "desc" }, take: 1 } }, orderBy: { updatedAt: "desc" } }),
+    db.device.findMany({ where: { userId: me!.id, revokedAt: null }, include: { tokens: { where: { revokedAt: null }, take: 1 } }, orderBy: { lastSeenAt: "desc" } }),
+    db.tool.findMany({ where: { ownerId: me!.id }, include: { versions: { orderBy: { publishedAt: "desc" }, take: 1 } }, orderBy: { updatedAt: "desc" } }),
+    db.vaultKey.findUnique({ where: { userId: me!.id } }),
+    db.vaultPack.findMany({ where: { userId: me!.id }, orderBy: { name: "asc" } }),
+    db.conversationShare.findMany({ where: { ownerId: me!.id, revokedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   return (
     <div className="container-x max-w-4xl space-y-8 py-12">
@@ -60,6 +66,12 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
         <SubscribeButton price={config.subscription.priceTwdc} days={config.subscription.days} extend={!!sub} />
       </section>
 
+      <section id="devices" className="card space-y-3 p-6">
+        <h2 className="h3">{t("devices")}</h2>
+        <p className="text-sm text-muted">{t("devicesHelp")}</p>
+        <DeviceList devices={devices.map((d) => ({ id: d.id, name: d.name, platform: d.platform, createdAt: d.createdAt.toISOString(), lastSeenAt: d.lastSeenAt.toISOString(), scopes: d.tokens[0]?.scopes ?? "" }))} />
+      </section>
+
       <section className="card space-y-3 p-6">
         <h2 className="h3">{t("tokens")}</h2>
         <p className="text-sm text-muted">{t("tokensHelp")}</p>
@@ -80,6 +92,56 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
             )}
           </div>
         ))}
+      </section>
+
+      <section id="tools" className="card space-y-3 p-6">
+        <h2 className="h3">{t("myTools")}</h2>
+        <p className="text-sm text-muted">{t("myToolsHelp")}</p>
+        {tools.length === 0 && <p className="text-sm text-muted">{t("noTools")}</p>}
+        {tools.map((x) => (
+          <div key={x.id} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <Link href={`/tools/${me!.publisher ?? me!.account}/${x.name}`} className="font-mono text-accent">{x.name}</Link>
+            <span className="flex items-center gap-2">
+              <span className="chip">{x.visibility === "PUBLIC" ? t("toolPublic") : t("toolPrivate")}</span>
+              {x.versions[0] && <span className="font-mono text-muted">v{x.versions[0].version}</span>}
+              {x.versions[0] && <StatusBadge status={x.versions[0].status} />}
+            </span>
+          </div>
+        ))}
+      </section>
+
+      <section id="shares" className="card space-y-3 p-6">
+        <h2 className="h3">{t("myShares")}</h2>
+        <p className="text-sm text-muted">{t("mySharesHelp")}</p>
+        {shares.length === 0 && <p className="text-sm text-muted">{t("noShares")}</p>}
+        {shares.map((x) => (
+          <div key={x.id} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <Link href={`/s/${x.id}`} className="text-accent">{x.title}</Link>
+            <span className="flex items-center gap-2 text-xs text-muted">
+              <span className="chip">{t(`shareVis.${x.visibility}`)}{x.restricted ? " 🔒" : ""}</span>
+              {t("shareViews", { n: x.views })} · <LocalDate value={x.createdAt} withTime={false} />
+            </span>
+          </div>
+        ))}
+      </section>
+
+      <section id="vault" className="card space-y-3 p-6">
+        <h2 className="h3">{t("vault")}</h2>
+        <p className="text-sm text-muted">{t("vaultHelp")}</p>
+        {vault ? (
+          <>
+            <p className="text-sm"><span className="text-ok">✓ {t("vaultReady")}</span> <span className="font-mono text-xs text-muted">{vault.publicKey.slice(0, 16)}…</span></p>
+            {packs.map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm">
+                <span className="font-mono">{p.name}</span>
+                <span className="text-xs text-muted">{t("packInfo", { size: p.size, rev: p.revision })} · <LocalDate value={p.updatedAt} /></span>
+              </div>
+            ))}
+            {packs.length === 0 && <p className="text-sm text-muted">{t("noPacks")}</p>}
+          </>
+        ) : (
+          <p className="text-sm text-muted">{t("vaultNone")}</p>
+        )}
       </section>
 
       <section className="card overflow-x-auto p-6">

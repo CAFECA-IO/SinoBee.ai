@@ -2,6 +2,8 @@
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+# bolt-vault (WASM) is a local package
+COPY vendor ./vendor
 RUN npm ci --no-audit --no-fund
 
 FROM deps AS build
@@ -16,6 +18,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+# external server package (loads its .wasm from disk), copied as real files instead of the npm symlink
+COPY --from=build /app/vendor/bolt-vault ./node_modules/bolt-vault
 RUN mkdir -p /data/storage && chown node /data/storage
 USER node
 EXPOSE 3000

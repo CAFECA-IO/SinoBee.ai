@@ -4,6 +4,8 @@
  *  - runs each in the requester's own docker container (DockerExecutor) or simulated (MockExecutor)
  *  - meters cost while running: 1.5 × (tokens + VM time + S3), stops when the budget is used up
  *  - uploads results, applies retention, notifies the requester through CAFECA
+ *  - storage keeper: moves every stored object (results included) to Boltchain right away, notarizes
+ *    tool/share hashes, renews and cancels deals (STORAGE_KEEPER=0 turns it off on extra workers)
  *  - cleanup: expired results, idle containers (7 days for non-subscribers), stale runs, unanswered funding requests
  *
  * Run: npm run worker
@@ -19,6 +21,7 @@ import { addDays, containerExpiry, resultsRetentionDays } from "../src/lib/reten
 import { fmtTwdc } from "../src/lib/money";
 import { DockerExecutor, containerName, volumeName } from "./docker-executor";
 import { MockExecutor } from "./mock-executor";
+import { keeperTick } from "../src/lib/boltchain/keeper";
 import type { Executor, TaskWithRefs, Usage } from "./types";
 
 const WORKER_ID = `${process.env.HOSTNAME ?? "worker"}-${randomUUID().slice(0, 8)}`;
@@ -241,7 +244,18 @@ async function cleanup() {
   if (dead.count) log("requeued stale tasks", dead.count);
 }
 
+/** Boltchain storage runs beside the task loop so slow chain transactions never delay tasks */
+async function keeperLoop() {
+  if (!config.boltchain.enabled || process.env.STORAGE_KEEPER === "0") return;
+  log("storage keeper on (Boltchain)");
+  while (!stopping) {
+    await keeperTick().catch((e) => log("storage keeper error", e));
+    await new Promise((r) => setTimeout(r, 30_000));
+  }
+}
+
 async function loop() {
+  void keeperLoop();
   log(`started (mode=${config.runner.mode}, concurrency=${config.runner.concurrency})`);
   let lastCleanup = 0;
   while (!stopping) {

@@ -18,44 +18,52 @@ datasource db {
 // ───────────────────────── Accounts ─────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
+  id                String   @id @default(cuid())
   /// CAFECA identity contract address (lowercase) — the stable user id
-  account       String    @unique
-  handle        String?
+  account           String   @unique
+  handle            String?
   /// Skill Hub publisher id (e.g. "cafeca"), [a-z0-9-]{2,39}
-  publisher     String?   @unique
-  displayName   String?
-  kycLevel      Int?
-  publisherVerified Boolean @default(false)
-  isAdmin       Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  lastLoginAt   DateTime  @default(now())
+  publisher         String?  @unique
+  displayName       String?
+  kycLevel          Int?
+  publisherVerified Boolean  @default(false)
+  isAdmin           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  lastLoginAt       DateTime @default(now())
 
-  sessions      Session[]
-  apiTokens     ApiToken[]
-  skills        Skill[]
-  ratings       SkillRating[]
-  comments      Comment[]
-  tasks         Task[]
-  taskVotes     TaskVote[]
-  payments      Payment[]
-  subscriptions Subscription[]
-  notifications Notification[]
-  container     UserContainer?
-  evaluations   EvaluationReport[]
-  reviewedVersions SkillVersion[] @relation("reviewer")
+  sessions         Session[]
+  apiTokens        ApiToken[]
+  skills           Skill[]
+  ratings          SkillRating[]
+  comments         Comment[]
+  tasks            Task[]
+  taskVotes        TaskVote[]
+  payments         Payment[]
+  subscriptions    Subscription[]
+  notifications    Notification[]
+  container        UserContainer?
+  evaluations      EvaluationReport[]
+  reviewedVersions SkillVersion[]      @relation("reviewer")
+  devices          Device[]
+  deviceAuths      DeviceAuth[]
+  tools            Tool[]
+  vaultKey         VaultKey?
+  vaultPacks       VaultPack[]
+  shares           ConversationShare[]
+  reports          Report[]
+  reviewedTools    ToolVersion[]       @relation("toolReviewer")
 }
 
 model Session {
-  id          String   @id @default(cuid())
-  tokenHash   String   @unique
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  tokenHash        String    @unique
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// CAFECA signing channel id granted at sign-in (keys live in the browser)
-  channelId   String?
+  channelId        String?
   channelExpiresAt DateTime?
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
 
   @@index([userId])
 }
@@ -81,9 +89,59 @@ model ApiToken {
   name       String
   prefix     String
   tokenHash  String    @unique
+  /// space-separated scopes: skills:publish tools:write vault:rw shares:write
+  scopes     String    @default("skills:publish")
+  /// set for tokens issued to a SinoBee install through the device flow
+  deviceId   String?
+  device     Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
   revokedAt  DateTime?
+
+  @@index([userId])
+}
+
+/// A SinoBee install signed in with `sinobee login` (OAuth 2.0 device authorization grant, RFC 8628)
+model Device {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  platform   String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  tokens ApiToken[]
+
+  @@index([userId])
+}
+
+enum DeviceAuthStatus {
+  PENDING
+  APPROVED
+  DENIED
+  CONSUMED
+}
+
+model DeviceAuth {
+  id             String           @id @default(cuid())
+  deviceCodeHash String           @unique
+  /// 8 chars from an unambiguous alphabet, shown as XXXX-XXXX
+  userCode       String           @unique
+  scopes         String
+  deviceName     String
+  platform       String?
+  ip             String?
+  status         DeviceAuthStatus @default(PENDING)
+  userId         String?
+  user           User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interval       Int              @default(5)
+  lastPollAt     DateTime?
+  expiresAt      DateTime
+  approvedAt     DateTime?
+  createdAt      DateTime         @default(now())
 }
 
 // ───────────────────────── Skill Hub ─────────────────────────
@@ -102,22 +160,22 @@ enum ScanVerdict {
 }
 
 model Skill {
-  id           String   @id @default(cuid())
-  publisherId  String
-  publisher    User     @relation(fields: [publisherId], references: [id], onDelete: Cascade)
-  name         String
-  description  String
-  license      String?
-  downloads    Int      @default(0)
-  ratingAvg    Float    @default(0)
-  ratingCount  Int      @default(0)
+  id            String   @id @default(cuid())
+  publisherId   String
+  publisher     User     @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  name          String
+  description   String
+  license       String?
+  downloads     Int      @default(0)
+  ratingAvg     Float    @default(0)
+  ratingCount   Int      @default(0)
   latestVersion String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  versions     SkillVersion[]
-  ratings      SkillRating[]
-  tags         SkillTag[]
+  versions SkillVersion[]
+  ratings  SkillRating[]
+  tags     SkillTag[]
 
   @@unique([publisherId, name])
   @@index([downloads])
@@ -148,8 +206,8 @@ model SkillVersion {
   publishedAt  DateTime     @default(now())
   downloads    Int          @default(0)
 
-  tasks        Task[]
-  evaluations  EvaluationReport[]
+  tasks       Task[]
+  evaluations EvaluationReport[]
 
   @@unique([skillId, version])
   @@index([contentHash])
@@ -221,54 +279,54 @@ enum TaskStatus {
 }
 
 model Task {
-  id            String     @id @default(cuid())
-  userId        String
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kind          TaskKind   @default(TASK)
-  title         String
-  prompt        String
-  model         String
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind           TaskKind      @default(TASK)
+  title          String
+  prompt         String
+  model          String
   skillVersionId String?
-  skillVersion  SkillVersion? @relation(fields: [skillVersionId], references: [id])
-  isPublic      Boolean    @default(false)
-  status        TaskStatus @default(AWAITING_PAYMENT)
+  skillVersion   SkillVersion? @relation(fields: [skillVersionId], references: [id])
+  isPublic       Boolean       @default(false)
+  status         TaskStatus    @default(AWAITING_PAYMENT)
 
   /// total TWDC funded (initial + top-ups)
-  budget        Decimal    @default(0) @db.Decimal(20, 6)
+  budget       Decimal @default(0) @db.Decimal(20, 6)
   /// TWDC charged so far (= 1.5 x raw costs converted at usdTwdRate)
-  charged       Decimal    @default(0) @db.Decimal(20, 6)
-  usdTwdRate    Decimal    @default(32) @db.Decimal(12, 6)
+  charged      Decimal @default(0) @db.Decimal(20, 6)
+  usdTwdRate   Decimal @default(32) @db.Decimal(12, 6)
   /// raw provider costs in USD
-  tokenCostUsd  Decimal    @default(0) @db.Decimal(20, 8)
-  vmCostUsd     Decimal    @default(0) @db.Decimal(20, 8)
-  s3CostUsd     Decimal    @default(0) @db.Decimal(20, 8)
-  inputTokens   BigInt     @default(0)
-  outputTokens  BigInt     @default(0)
-  vmSeconds     Int        @default(0)
+  tokenCostUsd Decimal @default(0) @db.Decimal(20, 8)
+  vmCostUsd    Decimal @default(0) @db.Decimal(20, 8)
+  s3CostUsd    Decimal @default(0) @db.Decimal(20, 8)
+  inputTokens  BigInt  @default(0)
+  outputTokens BigInt  @default(0)
+  vmSeconds    Int     @default(0)
 
   /// evaluation fields (kind = EVALUATION)
-  evalMethod    String?
-  evalCriteria  String?
+  evalMethod   String?
+  evalCriteria String?
 
-  summary       String?
-  error         String?
-  containerName String?
-  workerId      String?
-  heartbeatAt   DateTime?
-  startedAt     DateTime?
-  finishedAt    DateTime?
+  summary            String?
+  error              String?
+  containerName      String?
+  workerId           String?
+  heartbeatAt        DateTime?
+  startedAt          DateTime?
+  finishedAt         DateTime?
   /// set when budget is exhausted; auto-closes after the retention window
   fundingRequestedAt DateTime?
   /// results download deadline (7 days for non-subscribers)
-  resultsExpireAt DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  resultsExpireAt    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  artifacts     Artifact[]
-  events        TaskEvent[]
-  votes         TaskVote[]
-  payments      Payment[]
-  report        EvaluationReport?
+  artifacts Artifact[]
+  events    TaskEvent[]
+  votes     TaskVote[]
+  payments  Payment[]
+  report    EvaluationReport?
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
@@ -288,17 +346,17 @@ model TaskEvent {
 }
 
 model Artifact {
-  id         String    @id @default(cuid())
-  taskId     String
-  task       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  key        String
-  filename   String
-  sizeBytes  BigInt
-  sha256     String
-  partial    Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  expiresAt  DateTime?
-  deletedAt  DateTime?
+  id        String    @id @default(cuid())
+  taskId    String
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  key       String
+  filename  String
+  sizeBytes BigInt
+  sha256    String
+  partial   Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  deletedAt DateTime?
 }
 
 model TaskVote {
@@ -315,12 +373,12 @@ model TaskVote {
 
 /// Per-user isolated docker container (+ volume)
 model UserContainer {
-  userId        String   @id
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  containerName String   @unique
+  userId        String    @id
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  containerName String    @unique
   volumeName    String
-  status        String   @default("created")
-  lastActiveAt  DateTime @default(now())
+  status        String    @default("created")
+  lastActiveAt  DateTime  @default(now())
   /// removed by the cleanup job after this time (7 days after last task for non-subscribers)
   expiresAt     DateTime?
 }
@@ -397,19 +455,250 @@ model Subscription {
 }
 
 model Notification {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type       String
-  title      String
-  body       String
-  link       String?
-  data       Json?
-  readAt     DateTime?
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  title             String
+  body              String
+  link              String?
+  data              Json?
+  readAt            DateTime?
   /// delivery to CAFECA (null = not delivered / not configured)
   cafecaDeliveredAt DateTime?
-  cafecaError String?
-  createdAt  DateTime  @default(now())
+  cafecaError       String?
+  createdAt         DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ───────────────────────── Tools (database browser registrations) ─────────────────────────
+
+enum ToolVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+/// A tool registered from SinoBee (e.g. a database browser). The manifest never contains secrets.
+model Tool {
+  id            String         @id @default(cuid())
+  ownerId       String
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String
+  kind          String         @default("database")
+  description   String         @default("")
+  visibility    ToolVisibility @default(PRIVATE)
+  latestVersion String?
+  installs      Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  versions ToolVersion[]
+
+  @@unique([ownerId, name])
+  @@index([visibility, updatedAt])
+}
+
+model ToolVersion {
+  id           String       @id @default(cuid())
+  toolId       String
+  tool         Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  version      String
+  /// "sha256:<hex>" of the canonical TOOL.json
+  contentHash  String
+  manifest     Json
+  /// storage object holding TOOL.json (Boltchain-backed)
+  objectKey    String?
+  /// published for everyone (reviewed) vs. for the owner only — a tool that goes public never exposes its private versions
+  public       Boolean      @default(false)
+  /// public versions go through review; private ones are APPROVED immediately
+  status       ReviewStatus @default(APPROVED)
+  scanFindings Json         @default("[]")
+  reviewNote   String?
+  reviewerId   String?
+  reviewer     User?        @relation("toolReviewer", fields: [reviewerId], references: [id])
+  reviewedAt   DateTime?
+  anchorCode   String?
+  publishedAt  DateTime     @default(now())
+
+  @@unique([toolId, version])
+}
+
+// ───────────────────────── End-to-end encrypted vault ─────────────────────────
+
+/// Wrapped vault key: the user's X25519 private key encrypted with a key derived (scrypt) from their passphrase.
+/// The server never sees the passphrase or the plaintext key.
+model VaultKey {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicKey String
+  /// base64 { v, kdf:{n,r,p,salt}, iv, ct } (AES-256-GCM)
+  wrapped   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// An encrypted blob (e.g. private tool connection settings + secrets) only the owner can open
+model VaultPack {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// storage object key of the ciphertext
+  objectKey String
+  size      Int
+  sha256    String
+  /// increments on every write; clients send the version they read (optimistic concurrency)
+  revision  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+}
+
+// ───────────────────────── Conversation sharing ─────────────────────────
+
+enum ShareVisibility {
+  /// anyone with the link (unlisted)
+  LINK
+  /// signed-in users; optionally only the CAFECA accounts in ShareAccess
+  LOGIN
+  /// listed publicly
+  PUBLIC
+}
+
+model ConversationShare {
+  id          String          @id
+  ownerId     String
+  owner       User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  visibility  ShareVisibility @default(LINK)
+  /// LOGIN only: restrict to ShareAccess accounts
+  restricted  Boolean         @default(false)
+  /// storage object key of the share JSON (messages, already redacted by the client)
+  objectKey   String
+  contentHash String
+  messages    Int
+  model       String?
+  views       Int             @default(0)
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  anchorCode  String?
+  createdAt   DateTime        @default(now())
+
+  access ShareAccess[]
+  files  ShareFile[]
+
+  @@index([ownerId, createdAt])
+  @@index([visibility, createdAt])
+}
+
+model ShareAccess {
+  shareId String
+  share   ConversationShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  /// CAFECA identity contract address (lowercase)
+  account String
+
+  @@id([shareId, account])
+  @@index([account])
+}
+
+model ShareFile {
+  id        String            @id @default(cuid())
+  shareId   String
+  share     ConversationShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  name      String
+  objectKey String
+  size      Int
+  sha256    String
+  mime      String
+}
+
+model Report {
+  id         String    @id @default(cuid())
+  reporterId String
+  reporter   User      @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType String
+  targetId   String
+  reason     String
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([targetType, targetId])
+}
+
+// ───────────────────────── Storage on Boltchain ─────────────────────────
+
+enum StorageStatus {
+  /// stored in the mirror only, waiting for the Boltchain worker
+  PENDING
+  /// sealed with bolt-vault, blocks hosted, deal created
+  STORED
+  /// deal ended or could not be created; mirror still serves it
+  FAILED
+  /// deleted: object key destroyed (crypto-shred) and deal cancelled
+  DELETED
+}
+
+/// One logical object (skill bundle, task artifact, tool manifest, vault pack, share).
+/// Bytes are sealed with bolt-vault for a per-object X25519 recipient whose private key is
+/// encrypted with the site master key; destroying `recipientKey` makes the on-chain copy unreadable.
+model StorageObject {
+  key          String        @id
+  kind         String
+  size         BigInt
+  sha256       String
+  keccak       String
+  contentType  String        @default("application/octet-stream")
+  status       StorageStatus @default(PENDING)
+  /// bolt-vault envelope CID (raw CIDv1) and deal index root (dag-cbor CIDv1)
+  envelopeCid  String?
+  dealRoot     String?
+  dealId       BigInt?
+  /// none | active | cancelled (ends after the current epoch) | closed (refund settled)
+  dealState    String        @default("none")
+  blocks       Int?
+  dealSize     BigInt?
+  replicas     Int?
+  endEpoch     BigInt?
+  /// BOLT paid by the site wallet (wei, decimal string)
+  paidWei      String?
+  txHash       String?
+  /// AES-256-GCM(site master key, X25519 private key), base64
+  recipientKey String?
+  /// keep the mirror copy (local/S3) for fast reads
+  mirrored     Boolean       @default(true)
+  error        String?
+  attempts     Int           @default(0)
+  nextTryAt    DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+
+  @@index([status, nextTryAt])
+  @@index([dealState, endEpoch])
+}
+
+/// Content hashes notarized with the Boltchain Certificates contract (third-party verifiable)
+model Anchor {
+  id         String    @id @default(cuid())
+  /// what was anchored: tool-version | share | skill-version | artifact
+  targetType String
+  targetId   String
+  /// 16-char Crockford base32 certificate code (null until issued)
+  code       String?   @unique
+  salt       String
+  /// [{name, sha256, keccak, size}]
+  files      Json
+  root       String?
+  txHash     String?
+  status     String    @default("pending")
+  error      String?
+  attempts   Int       @default(0)
+  nextTryAt  DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  issuedAt   DateTime?
+
+  @@unique([targetType, targetId])
+  @@index([status, nextTryAt])
 }
