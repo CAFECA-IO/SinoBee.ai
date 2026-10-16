@@ -3,93 +3,157 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Landing-page hero: robot bees working in a honeycomb (pure SVG + SMIL, loops forever).
- * Each bee leaves its spot at the hive core, works two cells (they light up), and flies back to recharge.
- * Geometry is computed deterministically so server and client render the same markup.
+ * Landing-page hero (pure SVG + SMIL, loops forever, transparent background).
+ * A honeycomb seen at 45°: hexagonal cells drift upward at different speeds and fade out. Bumblebee-shaped bees
+ * chase a rising cell, catch it, smash it into shards and a result icon (the finished task) floats up.
+ * Geometry is computed deterministically so the server and the client render the same markup.
  * prefers-reduced-motion: the animation is paused on a representative frame.
  */
 
 const W = 600;
-const H = 420;
-const R = 40; // hex radius (pointy top)
-const DX = R * Math.sqrt(3);
-const DY = R * 1.5;
-const COLS = 7;
-const ROWS = 6;
-const X0 = (W - (COLS - 0.5) * DX) / 2 + DX / 2;
-const Y0 = 50;
-const DUR = 12; // seconds per bee cycle
+const H = 460;
+const R = 30; // hex radius (pointy top) before the 45° tilt
+const K = Math.SQRT1_2; // cos 45°: depth axis foreshortening
+const D = 9; // prism thickness
+const f = (n: number) => n.toFixed(1);
+type P = [number, number];
 
-const center = (row: number, col: number): [number, number] => [X0 + col * DX + (row % 2 ? DX / 2 : 0), Y0 + row * DY];
-const hex = ([cx, cy]: [number, number], r: number) =>
-  "M" +
+/** hexagon vertices on the tilted plane, around (0, 0) */
+const verts = (r: number): P[] =>
   Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 180) * (60 * i - 90);
-    return `${(cx + r * Math.cos(a)).toFixed(1)} ${(cy + r * Math.sin(a)).toFixed(1)}`;
-  }).join("L") +
-  "Z";
+    return [r * Math.cos(a), r * Math.sin(a) * K];
+  });
+const poly = (pts: P[]) => "M" + pts.map(([x, y]) => `${f(x)} ${f(y)}`).join("L") + "Z";
 
+/** a hexagonal prism seen from above at 45°: top face + the two front faces */
+function Prism({ r = R, strong = false }: { r?: number; strong?: boolean }) {
+  const v = verts(r);
+  const down = (p: P): P => [p[0], p[1] + D];
+  // vertices 1→2→3→4 are the lower-right, bottom and lower-left corners; faces 1-2 and 2-3 and 3-4 face the viewer
+  const faces = [
+    [v[1], v[2]],
+    [v[2], v[3]],
+    [v[3], v[4]],
+  ].map(([a, b]) => poly([a, b, down(b), down(a)]));
+  return (
+    <g strokeLinejoin="round">
+      {faces.map((d, i) => (
+        <path key={i} d={d} fill="var(--accent)" fillOpacity={strong ? 0.4 : 0.22 + i * 0.04} stroke="var(--accent)" strokeOpacity={strong ? 0.9 : 0.5} strokeWidth="1" />
+      ))}
+      <path d={poly(v)} fill="var(--accent)" fillOpacity={strong ? 0.24 : 0.1} stroke="var(--accent)" strokeOpacity={strong ? 1 : 0.65} strokeWidth={strong ? 1.8 : 1.2} />
+    </g>
+  );
+}
+
+/** deterministic PRNG (mulberry32) so SSR and hydration match */
+function rng(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ── drifting honeycomb: a tilted grid, each cell rises with its own speed and fades out ──
+const DX = R * Math.sqrt(3);
+const DY = R * 1.5 * K;
+const DRIFT = (() => {
+  const rand = rng(8018);
+  const cells: { x: number; y: number; dur: number; begin: number; rise: number; scale: number }[] = [];
+  for (let row = 0; row < 6; row++)
+    for (let col = 0; col < 7; col++) {
+      if (rand() < 0.55) continue;
+      const x = 48 + col * DX * 1.1 + (row % 2 ? DX * 0.55 : 0);
+      const y = 270 + row * DY * 1.25;
+      if (x > W - 30) continue;
+      const dur = 6 + rand() * 8; // different speeds
+      cells.push({ x, y, dur, begin: -rand() * dur, rise: 120 + rand() * 120, scale: 0.75 + rand() * 0.35 });
+    }
+  return cells;
+})();
+
+// ── bees and their targets ──
 const ICONS = {
   doc: "M-7-9h9l5 5v13h-14zM2-9v5h5M-4 1h8M-4 5h8",
   chart: "M-8 8V-8M-8 8H8M-4 4V0M0 4V-4M4 4V-2",
   code: "M-4-5-9 0l5 5M4-5 9 0 4 5M2-8-2 8",
-  globe: "M0 9a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM-9 0H9M0-9a14 14 0 0 1 0 18M0-9a14 14 0 0 0 0 18",
-  term: "M-8-6l5 5-5 5M0 6h8",
-  db: "M0-4c4.4 0 8-1.3 8-3s-3.6-3-8-3-8 1.3-8 3 3.6 3 8 3zM-8-7V7c0 1.7 3.6 3 8 3s8-1.3 8-3V-7",
-  folder: "M-9-5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H-7a2 2 0 0 1-2-2z",
-  video: "M-9-6h12v12H-9zM3-2l6-3v10l-6-3",
+  image: "M-9-7h18v14h-18zM-9 4l5-5 4 4 3-3 6 6M3-3a1.5 1.5 0 1 0 0-.1",
+  check: "M-7 0l4.5 4.5L7-5",
 } as const;
 type IconKey = keyof typeof ICONS;
 
-const CORE: [number, number] = [2, 3];
-/** each bee: two work cells it visits, and its parking offset at the core */
-const BEES: { cells: [[number, number, IconKey], [number, number, IconKey]]; park: [number, number] }[] = [
-  { cells: [[1, 1, "globe"], [0, 2, "doc"]], park: [-16, -10] },
-  { cells: [[1, 5, "chart"], [0, 4, "code"]], park: [16, -10] },
-  { cells: [[4, 5, "db"], [3, 5, "term"]], park: [16, 12] },
-  { cells: [[4, 1, "folder"], [3, 0, "video"]], park: [-16, 12] },
+/** A: where the bee waits; H0: where its target cell starts; rise: how far the cell drifts before it is caught */
+const BEES: { A: P; H0: P; rise: number; dur: number; begin: number; icon: IconKey }[] = [
+  { A: [52, 300], H0: [190, 420], rise: 175, dur: 8, begin: 0, icon: "doc" },
+  { A: [556, 330], H0: [420, 430], rise: 175, dur: 9.5, begin: -3.1, icon: "chart" },
+  { A: [92, 120], H0: [300, 400], rise: 245, dur: 11, begin: -6.4, icon: "code" },
+  { A: [520, 96], H0: [520, 410], rise: 225, dur: 10, begin: -1.7, icon: "image" },
 ];
 
-// flight plan (seconds): fly, hover, fly, hover, fly home, recharge
-const FLY = 1.6;
-const HOVER = 1.5;
-const T = [0, FLY, FLY + HOVER, 2 * FLY + HOVER, 2 * FLY + 2 * HOVER, 3 * FLY + 2 * HOVER, DUR].map((t) => t / DUR);
+// timeline of one bee cycle (fractions): cell appears, bee launches, catch, bee leaves, bee home
+const U = { appear: 0.04, launch: 0.12, catch: 0.55, leave: 0.62, home: 0.94 };
+
+const cubicLen = (p0: P, p1: P, p2: P, p3: P) => {
+  let len = 0;
+  let prev = p0;
+  for (let i = 1; i <= 40; i++) {
+    const t = i / 40;
+    const m = 1 - t;
+    const q: P = [
+      m * m * m * p0[0] + 3 * m * m * t * p1[0] + 3 * m * t * t * p2[0] + t * t * t * p3[0],
+      m * m * m * p0[1] + 3 * m * m * t * p1[1] + 3 * m * t * t * p2[1] + t * t * t * p3[1],
+    ];
+    len += Math.hypot(q[0] - prev[0], q[1] - prev[1]);
+    prev = q;
+  }
+  return len;
+};
+
+const PLANS = BEES.map((b) => {
+  const I: P = [b.H0[0], b.H0[1] - b.rise];
+  const side = Math.sign(I[0] - b.A[0]) || 1;
+  // chase: swoop down behind the rising cell and come at it from below
+  const c1: P = [b.A[0] + side * 40, b.A[1] + 90];
+  const c2: P = [I[0] - side * 30, I[1] + 110];
+  // leave: up and away, back to the waiting spot
+  const c3: P = [I[0] + side * 50, I[1] - 70];
+  const c4: P = [b.A[0] + side * 30, b.A[1] - 60];
+  const l1 = cubicLen(b.A, c1, c2, I);
+  const l2 = cubicLen(I, c3, c4, b.A);
+  const h = l1 / (l1 + l2);
+  const path = `M${f(b.A[0])} ${f(b.A[1])}C${[c1, c2, I].map((p) => `${f(p[0])} ${f(p[1])}`).join(" ")}C${[c3, c4, b.A].map((p) => `${f(p[0])} ${f(p[1])}`).join(" ")}`;
+  const facing = side; // +1 = facing right
+  return { ...b, I, path, h, facing };
+});
+
+const kt = (...n: number[]) => n.map((x) => x.toFixed(3)).join(";");
 const EASE = ".45 0 .55 1";
-const STILL = "0 0 1 1";
-const SPLINES = [EASE, STILL, EASE, STILL, EASE, STILL].join(";");
-const kt = (n: number) => n.toFixed(4);
-const dist = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const LIN = "0 0 1 1";
 
-function plan(i: number) {
-  const core = center(...CORE);
-  const home: [number, number] = [core[0] + BEES[i].park[0], core[1] + BEES[i].park[1]];
-  const a = center(BEES[i].cells[0][0], BEES[i].cells[0][1]);
-  const b = center(BEES[i].cells[1][0], BEES[i].cells[1][1]);
-  const la = dist(home, a);
-  const lb = la + dist(a, b);
-  const lt = lb + dist(b, home);
-  return {
-    path: `M${home[0].toFixed(1)} ${home[1].toFixed(1)}L${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}Z`,
-    keyPoints: [0, la / lt, la / lt, lb / lt, lb / lt, 1, 1].map(kt).join(";"),
-    begin: `${-i * (DUR / BEES.length)}s`,
-    arrive: [T[1], T[3]],
-  };
-}
-
-/** a work cell lights up when its bee arrives and dims just before the bee's next round */
-function lightTimes(arrive: number) {
-  return { values: "0;0;1;1;0;0", keyTimes: [0, arrive, arrive + 0.03, 0.9, 0.96, 1].map(kt).join(";") };
-}
+/** shards of the smashed cell: the six triangles from the centre to each edge */
+const SHARDS = (() => {
+  const v = verts(R);
+  return v.map((a, i) => {
+    const b = v[(i + 1) % 6];
+    const mx = (a[0] + b[0]) / 2;
+    const my = (a[1] + b[1]) / 2;
+    const n = Math.hypot(mx, my) || 1;
+    return { d: poly([[0, 0], a, b]), dx: (mx / n) * 30, dy: (my / n) * 30 + 22, rot: (i % 2 ? 1 : -1) * (40 + i * 12), cx: mx / 1.5, cy: my / 1.5 };
+  });
+})();
 
 export function HeroHive({ label }: { label: string }) {
   const ref = useRef<SVGSVGElement>(null);
   useEffect(() => {
     const svg = ref.current;
+    if (!svg || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => {
-      if (!svg) return;
       if (mq.matches) {
-        svg.setCurrentTime(5.5); // bees out working, most cells lit
+        svg.setCurrentTime(5);
         svg.pauseAnimations();
       } else svg.unpauseAnimations();
     };
@@ -98,100 +162,134 @@ export function HeroHive({ label }: { label: string }) {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  const cells: [number, number][] = [];
-  for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) cells.push([row, col]);
-  const plans = BEES.map((_, i) => plan(i));
-  const core = center(...CORE);
-
   return (
-    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} className="block h-auto w-full">
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} className="block h-auto w-full overflow-visible">
       <defs>
-        <linearGradient id="hh-body" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2fb3a0" />
-          <stop offset="1" stopColor="#7fe8b6" />
-        </linearGradient>
-        <linearGradient id="hh-wing" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#cfe9f5" stopOpacity=".9" />
-          <stop offset="1" stopColor="#7fb2c9" stopOpacity=".35" />
-        </linearGradient>
-        <radialGradient id="hh-glow">
-          <stop offset="0" stopColor="var(--accent)" stopOpacity=".5" />
-          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+        <radialGradient id="hh-wing" cx=".35" cy=".35" r=".8">
+          <stop offset="0" stopColor="#ffffff" stopOpacity=".9" />
+          <stop offset="1" stopColor="#bfe3f0" stopOpacity=".35" />
         </radialGradient>
-        <radialGradient id="hh-bg" cx="50%" cy="45%" r="70%">
-          <stop offset="0" stopColor="var(--panel-2)" />
-          <stop offset="1" stopColor="var(--bg)" />
-        </radialGradient>
-        {/* robot bee centred on 0,0 (~46px) */}
+        <clipPath id="hh-body-clip">
+          <ellipse cx="0" cy="2" rx="16" ry="13.5" />
+        </clipPath>
+        {/* bumblebee, facing right, ~46 px wide */}
         <g id="hh-bee">
-          <g>
-            <ellipse cx="-8" cy="-12" rx="10" ry="6" fill="url(#hh-wing)" stroke="#9fd3e6" strokeWidth=".8">
-              <animateTransform attributeName="transform" type="rotate" values="-25 -3 -6;-58 -3 -6;-25 -3 -6" dur=".16s" repeatCount="indefinite" />
+          {/* wings (behind) */}
+          <g transform="translate(-2 -9)">
+            <ellipse cx="-6" cy="-6" rx="8" ry="11" transform="rotate(-25)" fill="url(#hh-wing)" stroke="#9fcfe0" strokeWidth=".8">
+              <animateTransform attributeName="transform" type="rotate" values="-25;-55;-25" dur=".12s" repeatCount="indefinite" />
             </ellipse>
-            <ellipse cx="8" cy="-12" rx="10" ry="6" fill="url(#hh-wing)" stroke="#9fd3e6" strokeWidth=".8">
-              <animateTransform attributeName="transform" type="rotate" values="25 3 -6;58 3 -6;25 3 -6" dur=".16s" repeatCount="indefinite" />
+            <ellipse cx="5" cy="-5" rx="7" ry="10" transform="rotate(20)" fill="url(#hh-wing)" stroke="#9fcfe0" strokeWidth=".8">
+              <animateTransform attributeName="transform" type="rotate" values="20;48;20" dur=".12s" repeatCount="indefinite" />
             </ellipse>
           </g>
-          <ellipse cx="0" cy="3" rx="11" ry="13" fill="url(#hh-body)" />
-          <path d="M-10.4 0h20.8M-9 7h18" stroke="#0b1627" strokeWidth="2.6" />
-          <path d="M0 16v4.5" stroke="#7fe8b6" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="0" cy="-8" r="6.8" fill="#0f2a35" stroke="#2fb3a0" strokeWidth="1.3" />
-          <rect x="-4.2" y="-9.8" width="8.4" height="3.4" rx="1.7" fill="#6fe3b0">
-            <animate attributeName="opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite" />
+          {/* legs */}
+          <path d="M-6 14l-2 5M0 15.5l0 5M6 14l2 5" stroke="#241d16" strokeWidth="1.8" strokeLinecap="round" />
+          {/* round fuzzy body with bands: dark thorax, yellow, dark, white tail */}
+          <ellipse cx="0" cy="2" rx="16.5" ry="14" fill="#f3b72e" stroke="#f3b72e" strokeWidth="2.6" strokeDasharray="1.2 1.6" />
+          <g clipPath="url(#hh-body-clip)">
+            <rect x="-17" y="-12" width="34" height="28" fill="#f3b72e" />
+            <rect x="4" y="-12" width="13" height="28" fill="#2a2119" />
+            <rect x="-8" y="-12" width="5.5" height="28" fill="#2a2119" />
+            <rect x="-17" y="-12" width="6" height="28" fill="#f6efdc" />
+          </g>
+          <ellipse cx="-4" cy="-4" rx="7" ry="3.5" fill="#fff" opacity=".22" />
+          {/* head with a glowing visor (robot bee) */}
+          <circle cx="16" cy="1" r="7.5" fill="#2a2119" stroke="#2a2119" strokeWidth="1.6" strokeDasharray="1 1.4" />
+          <rect x="15" y="-2.2" width="6.5" height="3.6" rx="1.8" fill="#6fe3b0">
+            <animate attributeName="opacity" values="1;1;.15;1;1" keyTimes="0;.9;.94;.98;1" dur="4s" repeatCount="indefinite" />
           </rect>
-          <path d="M-3.4-14-6.5-20M3.4-14 6.5-20" stroke="#86a0a4" strokeWidth="1.2" strokeLinecap="round" />
-          <circle cx="-6.6" cy="-20.6" r="1.8" fill="#f5b83d" />
-          <circle cx="6.6" cy="-20.6" r="1.8" fill="#f5b83d" />
+          <path d="M14-5l-2-7M18-5l3-6" stroke="#2a2119" strokeWidth="1.3" strokeLinecap="round" fill="none" />
+          <circle cx="12" cy="-12" r="1.6" fill="#6fe3b0" />
+          <circle cx="21" cy="-11" r="1.6" fill="#6fe3b0" />
+          {/* stinger */}
+          <path d="M-17.5 3l-4 1 4 1.5z" fill="#2a2119" />
         </g>
       </defs>
 
-      <rect width={W} height={H} fill="url(#hh-bg)" />
-
-      {/* honeycomb */}
-      {cells.map(([row, col]) => (
-        <path key={`c${row}-${col}`} d={hex(center(row, col), R - 3)} fill="var(--panel-2)" stroke="var(--line)" strokeWidth="1.5" />
-      ))}
-
-      {/* hive core: where bees recharge */}
-      <circle cx={core[0]} cy={core[1]} r="70" fill="url(#hh-glow)">
-        <animate attributeName="r" values="58;78;58" dur="3s" repeatCount="indefinite" />
-      </circle>
-      <path d={hex(core, R - 3)} fill="var(--accent)" fillOpacity=".16" stroke="var(--accent)" strokeWidth="2" />
-
-      {/* work cells (light up when a bee works on them) */}
-      {BEES.map((bee, i) =>
-        bee.cells.map(([row, col, icon], j) => {
-          const c = center(row, col);
-          const lt = lightTimes(plans[i].arrive[j]);
-          const anim = { dur: `${DUR}s`, begin: plans[i].begin, repeatCount: "indefinite" as const, values: lt.values, keyTimes: lt.keyTimes };
-          return (
-            <g key={`w${i}-${j}`}>
-              <path d={hex(c, R - 3)} fill="var(--accent)" fillOpacity="0" stroke="var(--accent)" strokeWidth="2" strokeOpacity="0">
-                <animate attributeName="fill-opacity" {...anim} values={lt.values.replace(/1/g, ".2")} />
-                <animate attributeName="stroke-opacity" {...anim} />
-              </path>
-              <g transform={`translate(${c[0].toFixed(1)} ${c[1].toFixed(1)}) scale(1.35)`} fill="none" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-                <path d={ICONS[icon]} stroke="var(--muted)" opacity=".55" />
-                <path d={ICONS[icon]} stroke="var(--accent)" opacity="0">
-                  <animate attributeName="opacity" {...anim} />
-                </path>
-              </g>
+      {/* drifting honeycomb */}
+      {DRIFT.map((c, i) => (
+        <g key={`d${i}`} transform={`translate(${f(c.x)} ${f(c.y)})`}>
+          <g opacity="0">
+            <animateTransform attributeName="transform" type="translate" values={`0 0;0 ${f(-c.rise)}`} dur={`${c.dur.toFixed(2)}s`} begin={`${c.begin.toFixed(2)}s`} repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0;.9;.75;0" keyTimes="0;.15;.6;1" dur={`${c.dur.toFixed(2)}s`} begin={`${c.begin.toFixed(2)}s`} repeatCount="indefinite" />
+            <g transform={`scale(${c.scale.toFixed(2)})`}>
+              <Prism />
             </g>
-          );
-        }),
-      )}
-
-      {/* bees */}
-      {plans.map((p, i) => (
-        <g key={`b${i}`}>
-          <g>
-            <use href="#hh-bee">
-              <animateTransform attributeName="transform" type="translate" values="0 -2;0 2;0 -2" dur={`${1.1 + i * 0.13}s`} repeatCount="indefinite" />
-            </use>
           </g>
-          <animateMotion dur={`${DUR}s`} begin={p.begin} repeatCount="indefinite" path={p.path} keyPoints={p.keyPoints} keyTimes={T.map(kt).join(";")} calcMode="spline" keySplines={SPLINES} />
         </g>
       ))}
+
+      {PLANS.map((b, i) => {
+        const dur = `${b.dur}s`;
+        const begin = `${b.begin}s`;
+        const anim = { dur, begin, repeatCount: "indefinite" } as const;
+        return (
+          <g key={`b${i}`}>
+            {/* the target cell: appears, rises toward the catch point, vanishes when hit */}
+            <g transform={`translate(${f(b.H0[0])} ${f(b.H0[1])})`}>
+              <g opacity="0">
+                <animateTransform attributeName="transform" type="translate" values={`0 0;0 0;0 ${f(-b.rise)};0 ${f(-b.rise)}`} keyTimes={kt(0, U.appear, U.catch, 1)} {...anim} />
+                <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes={kt(0, U.appear, U.appear + 0.06, U.catch, U.catch + 0.005, 1)} {...anim} />
+                <Prism strong />
+              </g>
+            </g>
+
+            {/* impact: flash ring + shards */}
+            <g transform={`translate(${f(b.I[0])} ${f(b.I[1])})`}>
+              <ellipse rx="10" ry={f(10 * K)} fill="none" stroke="var(--accent)" strokeWidth="2" opacity="0">
+                <animate attributeName="opacity" values="0;0;.9;0;0" keyTimes={kt(0, U.catch, U.catch + 0.01, U.catch + 0.1, 1)} {...anim} />
+                <animate attributeName="rx" values="10;10;46;46" keyTimes={kt(0, U.catch, U.catch + 0.1, 1)} {...anim} />
+                <animate attributeName="ry" values={`${f(10 * K)};${f(10 * K)};${f(46 * K)};${f(46 * K)}`} keyTimes={kt(0, U.catch, U.catch + 0.1, 1)} {...anim} />
+              </ellipse>
+              {SHARDS.map((s, k) => (
+                <g key={k} opacity="0">
+                  <animate attributeName="opacity" values="0;0;1;0;0" keyTimes={kt(0, U.catch, U.catch + 0.005, U.catch + 0.17, 1)} {...anim} />
+                  <animateTransform attributeName="transform" type="translate" values={`0 0;0 0;${f(s.dx)} ${f(s.dy)};${f(s.dx)} ${f(s.dy)}`} keyTimes={kt(0, U.catch, U.catch + 0.17, 1)} calcMode="spline" keySplines={[LIN, ".2 .7 .4 1", LIN].join(";")} {...anim} />
+                  <path d={s.d} transform="scale(.8)" fill="var(--accent)" fillOpacity=".45" stroke="var(--accent)" strokeWidth="1.2" strokeLinejoin="round">
+                    <animateTransform attributeName="transform" type="rotate" values={`0 ${f(s.cx)} ${f(s.cy)};0 ${f(s.cx)} ${f(s.cy)};${s.rot} ${f(s.cx)} ${f(s.cy)};${s.rot} ${f(s.cx)} ${f(s.cy)}`} keyTimes={kt(0, U.catch, U.catch + 0.17, 1)} additive="sum" {...anim} />
+                  </path>
+                </g>
+              ))}
+            </g>
+
+            {/* result icon floats up out of the shards */}
+            <g transform={`translate(${f(b.I[0])} ${f(b.I[1] - 6)})`}>
+              <g opacity="0">
+                <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes={kt(0, U.catch + 0.02, U.catch + 0.07, 0.84, 0.96, 1)} {...anim} />
+                <animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 -46;0 -46" keyTimes={kt(0, U.catch + 0.02, 0.96, 1)} calcMode="spline" keySplines={[LIN, ".2 .6 .4 1", LIN].join(";")} {...anim} />
+                <g>
+                  <animateTransform attributeName="transform" type="scale" values=".4;.4;1.15;1;1" keyTimes={kt(0, U.catch + 0.02, U.catch + 0.07, U.catch + 0.11, 1)} {...anim} />
+                  <circle r="17" fill="var(--accent)" fillOpacity=".16" stroke="var(--accent)" strokeOpacity=".7" strokeWidth="1.2" />
+                  <path d={ICONS[b.icon]} transform="scale(1.05)" fill="none" stroke="var(--accent)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              </g>
+            </g>
+
+            {/* the bee: waits, chases the cell, hits it, flies back */}
+            <g>
+              <animateMotion
+                path={b.path}
+                keyPoints={kt(0, 0, b.h, b.h, 1, 1)}
+                keyTimes={kt(0, U.launch, U.catch, U.leave, U.home, 1)}
+                calcMode="spline"
+                keySplines={[LIN, ".5 0 .7 1", LIN, ".4 0 .5 1", LIN].join(";")}
+                {...anim}
+              />
+              <g transform={`scale(${b.facing} 1)`}>
+                <animateTransform attributeName="transform" type="scale" values={`${b.facing} 1;${-b.facing} 1`} keyTimes={kt(0, U.leave)} calcMode="discrete" {...anim} />
+                <g>
+                  {/* hover bob, plus a jolt on impact */}
+                  <animateTransform attributeName="transform" type="translate" values="0 0;0 0;-4 -3;3 2;0 0;0 0" keyTimes={kt(0, U.catch, U.catch + 0.015, U.catch + 0.03, U.catch + 0.05, 1)} {...anim} />
+                  <use href="#hh-bee" transform="scale(1.3)">
+                    <animateTransform attributeName="transform" type="translate" values="0 -2;0 2;0 -2" dur={`${(1 + i * 0.17).toFixed(2)}s`} additive="sum" repeatCount="indefinite" />
+                  </use>
+                </g>
+              </g>
+            </g>
+          </g>
+        );
+      })}
     </svg>
   );
 }

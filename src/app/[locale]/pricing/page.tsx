@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { config } from "@/lib/config";
 import { publicPrices } from "@/lib/public-config";
-import { cheapestBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
+import { referenceBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
 import { listPlans } from "@/lib/plans";
 import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { Link } from "@/i18n/navigation";
@@ -18,8 +18,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   const t = await getTranslations("pricing");
   const p = await publicPrices();
   // the same rows the admin backend edits (ModelPrice / Plan)
-  const [models, plans, cheap, fx] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), cheapestBlended(), pricingSettings()]);
-  const tok = (twd: number) => (cheap ? formatTokens(quotaTokens(twd, cheap.blendedTwd), locale) : "—");
+  const [models, plans, ref, fx] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), referenceBlended(), pricingSettings()]);
+  const tok = (twd: number) => (ref ? formatTokens(quotaTokens(twd, ref.blendedTwd), locale) : "—");
   return (
     <div className="container-x max-w-5xl space-y-12 py-12">
       <header>
@@ -50,7 +50,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
             </div>
           ))}
         </div>
-        <p className="text-xs text-muted">{cheap ? t("planNote", { model: cheap.model.label }) : null}</p>
+        <p className="text-xs text-muted">{ref ? t("planNote", { model: ref.model.label }) : null}</p>
       </section>
 
       <section className="space-y-4">

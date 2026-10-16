@@ -11,7 +11,7 @@ import { storageStatus } from "@/lib/boltchain/keeper";
 import { ToolReview, ReportActions } from "@/components/admin-actions";
 import type { ToolManifest } from "@/lib/tools/spec";
 import { isAdminRole } from "@/lib/roles";
-import { cheapestBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
+import { referenceBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
 import { listPlans } from "@/lib/plans";
 import { icontains } from "@/lib/db";
 import { PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
@@ -324,9 +324,9 @@ async function Prices() {
 
 async function Plans() {
   const t = await getTranslations("admin.plans");
-  const [plans, cheap, s] = await Promise.all([listPlans(), cheapestBlended(), pricingSettings()]);
-  const blended = cheap?.blendedTwd ?? 0;
-  const label = cheap?.model.label ?? "—";
+  const [plans, ref, s] = await Promise.all([listPlans(), referenceBlended(), pricingSettings()]);
+  const blended = ref?.blendedTwd ?? 0;
+  const label = ref?.model.label ?? "—";
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">{t("help")}</p>

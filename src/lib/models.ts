@@ -208,6 +208,19 @@ export async function cheapestBlended(): Promise<{ model: ModelPriceView; blende
   return best;
 }
 
+/** Allowances are shown as tokens of this model, at its published price right now */
+export const TOKEN_REFERENCE_MODEL = "anthropic/claude-sonnet-5-5";
+
+/**
+ * TWD per 1M tokens (input : output = 3 : 1) of Claude Sonnet 5.5 at the price in effect now, for turning a TWD
+ * allowance into a token count. Falls back to the cheapest offered model if Sonnet 5.5 is not offered.
+ */
+export async function referenceBlended(): Promise<{ model: ModelPriceView; blendedTwd: number } | null> {
+  const m = (await currentModels()).find((x) => x.modelId === TOKEN_REFERENCE_MODEL);
+  const b = m ? (3 * m.twd.input + m.twd.output) / 4 : 0;
+  return m && b > 0 ? { model: m, blendedTwd: b } : cheapestBlended();
+}
+
 /** model id → label, for display (server components) */
 export async function modelLabels(): Promise<Record<string, string>> {
   return Object.fromEntries([...(await modelCatalog()).values()].map((m) => [m.modelId, m.label]));

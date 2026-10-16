@@ -237,7 +237,7 @@ test("windows release 6 h / 168 h after the cost was incurred; stale holds are s
   assert.equal(st.windows[0].window, "6h");
   assert.ok(Math.abs(st.windows[0].usedPct - (1.5 / plan.l6Twd) * 100) < 1e-6);
   assert.ok(st.windows[0].remainingTokens > 0);
-  assert.equal(st.tokensBasis?.model, "anthropic/claude-haiku-5-5");
+  assert.equal(st.tokensBasis?.model, "anthropic/claude-sonnet-5-5", "token counts use Claude Sonnet 5.5");
   assert.equal(await quota.sweepHolds(), 1);
   u = await quota.windowUse(userId);
   assert.equal(u.held, 0);

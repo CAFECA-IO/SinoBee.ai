@@ -74,7 +74,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <CopyCode code={"git clone https://github.com/CAFECA-IO/SinoBee.git && cd SinoBee\ndocker compose up -d --build"} />
             </div>
           </div>
-          <div className="card overflow-hidden shadow-2xl shadow-black/20">
+          <div className="min-w-0">
             <HeroHive label={t("heroAlt")} />
           </div>
         </div>

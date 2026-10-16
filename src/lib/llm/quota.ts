@@ -2,7 +2,7 @@ import { db, dbKind } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { audit } from "../roles";
-import { cheapestBlended, type ModelPriceView } from "../models";
+import { referenceBlended, type ModelPriceView } from "../models";
 import { listPlans, type PlanView } from "../plans";
 import { subscriptionState } from "../subscriptions";
 import type { UsageLedger } from "@/generated/prisma/client";
@@ -293,8 +293,8 @@ export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row
 export async function quotaStatus(userId: string, now = new Date()) {
   const ctx = await quotaContext(userId);
   const u = await windowUse(userId, now);
-  const cheap = await cheapestBlended();
-  const tokens = (twd: number) => (cheap ? Math.floor((Math.max(0, twd) / cheap.blendedTwd) * 1e6) : 0);
+  const ref = await referenceBlended();
+  const tokens = (twd: number) => (ref ? Math.floor((Math.max(0, twd) / ref.blendedTwd) * 1e6) : 0);
   const win = (key: "6h" | "168h", ms: number, limit: number, used: number) => {
     const releases = u.rows
       .filter((r) => r.status !== "HELD" && at(r).getTime() > now.getTime() - ms && amount(r) > 0)
@@ -315,6 +315,6 @@ export async function quotaStatus(userId: string, now = new Date()) {
     graceEndsAt: st.graceEndsAt?.toISOString() ?? null,
     windows: [win("6h", W6, ctx.plan.l6Twd, u.w6), win("168h", W168, ctx.plan.l168Twd, u.w168)],
     inFlight: u.held,
-    tokensBasis: cheap ? { model: cheap.model.modelId, label: cheap.model.label, blendedTwdPer1M: cheap.blendedTwd, mix: "input:output = 3:1" } : null,
+    tokensBasis: ref ? { model: ref.model.modelId, label: ref.model.label, blendedTwdPer1M: ref.blendedTwd, mix: "input:output = 3:1" } : null,
   };
 }

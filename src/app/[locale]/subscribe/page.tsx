@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { currentUser } from "@/lib/auth";
 import { redirect } from "@/i18n/navigation";
 import { listPlans } from "@/lib/plans";
-import { cheapestBlended } from "@/lib/models";
+import { referenceBlended } from "@/lib/models";
 import { subscriptionState } from "@/lib/subscriptions";
 import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { SubscribeForm } from "@/components/subscribe-form";
@@ -23,8 +23,8 @@ export default async function SubscribePage({ params, searchParams }: { params: 
   const me = await currentUser();
   if (!me) redirect({ href: `/login?next=${encodeURIComponent(`/subscribe${plan ? `?plan=${plan}` : ""}`)}`, locale });
   const t = await getTranslations("subscribe");
-  const [plans, cheap, st] = await Promise.all([listPlans({ activeOnly: true }), cheapestBlended(), subscriptionState(me!.id)]);
-  const tok = (twd: number) => (cheap ? formatTokens(quotaTokens(twd, cheap.blendedTwd), locale) : "—");
+  const [plans, ref, st] = await Promise.all([listPlans({ activeOnly: true }), referenceBlended(), subscriptionState(me!.id)]);
+  const tok = (twd: number) => (ref ? formatTokens(quotaTokens(twd, ref.blendedTwd), locale) : "—");
   const zh = locale.startsWith("zh");
   const stacks = st.endsAt && st.endsAt > new Date();
   return (
