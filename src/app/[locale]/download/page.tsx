@@ -2,6 +2,7 @@ import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { CopyCode } from "@/components/copy-code";
 import { AGENT_URL } from "@/lib/links";
+import { Icon } from "@/components/icon";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const t = await getTranslations({ locale: (await params).locale, namespace: "download" });
@@ -34,13 +35,10 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
         <header>
           <h1 className="h1">{t("title")}</h1>
           <p className="mt-3 max-w-2xl text-lg text-muted">{t("lead")}</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a href={REPO} target="_blank" rel="noreferrer" className="btn-primary">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.1c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.3 1.9 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5z" /></svg>
-              {t("github")}
-            </a>
-            <a href={`${REPO}/archive/refs/heads/main.zip`} className="btn-ghost">{t("zip")}</a>
-            <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-ghost">{t("tryOnline")} ↗</a>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <a href={REPO} target="_blank" rel="noreferrer" aria-label={t("github")} data-tip={t("github")} className="icon-btn solid lg"><Icon name="github" /></a>
+            <a href={`${REPO}/archive/refs/heads/main.zip`} aria-label={t("zip")} data-tip={t("zip")} className="icon-btn outline lg"><Icon name="download" /></a>
+            <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("tryOnline")} data-tip={t("tryOnline")} className="icon-btn outline lg"><Icon name="rocket" /></a>
           </div>
           <p className="mt-3 text-sm text-muted">{t("tryOnlineNote")}</p>
         </header>

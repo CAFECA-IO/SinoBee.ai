@@ -18,7 +18,8 @@
     "loginShort": "登入",
     "tools": "工具",
     "shares": "分享",
-    "tryAgent": "線上試用"
+    "tryAgent": "線上試用",
+    "menu": "選單"
   },
   "footer": {
     "tagline": "SinoBee 是一個在你電腦上工作的開源群體智慧 AI 助理：查資料、讀寫檔案、操作瀏覽器與桌面，做完把結果整理成表格、圖表與檔案。",
@@ -108,7 +109,7 @@
     "pillars": {
       "hub": {
         "title": "Skill Hub 技能市集",
-        "body": "提交、下載、評分、討論各種技能。審核通過的版本以 ed25519 簽章，SinoBee 安裝時自動驗證。",
+        "body": "提交、下載、評分、討論技能，包含官方的 AI 影片製作、記憶管理、資料庫分析等技能。可上傳含腳本、參考文件與固定流程的完整技能包；審核通過的版本以 ed25519 簽章，SinoBee 安裝時自動驗證。",
         "cta": "逛逛技能"
       },
       "commission": {
@@ -125,7 +126,41 @@
     "popularSkills": "熱門技能",
     "viewAll": "全部技能",
     "ctaTry": "線上試用 Agent",
-    "tryNote": "不用安裝：在 agent.sinobee.ai 直接開一個 SinoBee 試試看。"
+    "tryNote": "不用安裝：在 agent.sinobee.ai 直接開一個 SinoBee 試試看。",
+    "trySay": "試著說：",
+    "casesTry": "每個例子都可以直接在線上試用的 SinoBee 輸入。",
+    "more": {
+      "video": {
+        "title": "一句話拍出一支影片",
+        "body": "寫劇本、設計角色與場景、規劃分鏡、配音、渲染、剪接上字幕，正式渲染前先讓你看草稿；同時交給你影片與完整素材包。",
+        "prompt": "做一支 30 秒介紹台灣茶的紀錄片"
+      },
+      "sequel": {
+        "title": "用素材包拍續集",
+        "body": "附上上一支影片的素材包，角色外貌、場景、畫面風格、配樂與聲線都會沿用，只寫新的故事；也能整支重拍再改細節。",
+        "prompt": "用這個素材包拍續集：兩人在雪夜再次交手"
+      },
+      "schedule": {
+        "title": "每天自動幫你檢查",
+        "body": "把例行工作排進「工作」頁：資料庫健檢、報表彙整、網站巡檢，到時間自動執行、比較上次結果並寫成報告。",
+        "prompt": "每天早上 9 點檢查訂單資料庫，有異常就寫成報告"
+      },
+      "team": {
+        "title": "大任務分頭進行",
+        "body": "研究員、分析師、審查員等子代理並行處理，在共用黑板交換發現，最後彙整成一份有來源的報告。",
+        "prompt": "比較五家雲端主機的價格與規格，分頭查完再彙整成表格"
+      },
+      "forms": {
+        "title": "登入網站、填表、下載報表",
+        "body": "用真正的瀏覽器登入、填寫表單、下載檔案並整理；送出或付款這類動作一定先問你。",
+        "prompt": "登入後台下載上個月的發票 CSV，彙整成 Excel"
+      },
+      "code": {
+        "title": "寫程式、修錯誤",
+        "body": "讀懂專案、找出測試失敗的原因、修改並重跑測試；執行中可以隨時補充需求，完成前自動檢查是否真的修好。",
+        "prompt": "找出這個專案測試失敗的原因並修好"
+      }
+    }
   },
   "download": {
     "title": "下載與安裝 SinoBee",
@@ -247,7 +282,7 @@
     "confirmDelete": "確定要刪除這則留言？"
   },
   "skills": {
-    "lead": "提交、下載、評分與討論 SinoBee 技能。所有技能都遵循 Agent Skills 標準，可與其他支援此標準的 agent 互通。",
+    "lead": "提交、下載、評分與討論 SinoBee 技能。技能遵循 Agent Skills 標準，可與其他支援此標準的 agent 互通；可以只是一份 SKILL.md，也可以是含腳本、參考文件、範例與固定流程的完整技能包。",
     "submit": "提交技能",
     "search": "搜尋技能名稱或描述",
     "searchBtn": "搜尋",
@@ -257,7 +292,81 @@
     "verifiedOnly": "只看已驗證發布者",
     "empty": "沒有符合的技能。",
     "cliTitle": "在 SinoBee 裡直接使用",
-    "cliBody": "SinoBee 內建 Hub 用戶端：搜尋、安裝、更新與發布技能，並自動驗證內容雜湊、簽章與撤銷清單。"
+    "cliBody": "SinoBee 內建 Hub 用戶端：搜尋、安裝、檢查更新與發布技能，並自動驗證內容雜湊、簽章與撤銷清單。用 export 打包含腳本與參考文件的技能，再 publish 上傳。",
+    "officialTitle": "官方技能",
+    "officialLead": "隨 SinoBee 內建，由 CAFECA 發布並簽章；也可以從這裡下載到其他相容的 agent。",
+    "official": {
+      "ai-video-production": {
+        "title": "AI 影片製作",
+        "body": "一句話拍出影片：劇本、角色、場景、分鏡、配音、渲染、剪接與字幕，附可重複使用的素材包。"
+      },
+      "memory-management": {
+        "title": "記憶管理",
+        "body": "把任務重點整理成短期、長期與永久記憶，依需求壓縮，並依你的指示新增或移除。"
+      },
+      "database-analysis": {
+        "title": "資料庫分析",
+        "body": "以唯讀方式查詢 PostgreSQL、MySQL、SQLite，產出指標、圖表與健檢報告。"
+      },
+      "web-research": {
+        "title": "網路研究",
+        "body": "多組關鍵字搜尋、交叉比對至少兩個來源，附引用整理成結論。"
+      },
+      "browser-form-filling": {
+        "title": "瀏覽器填表",
+        "body": "登入網站、填寫表單、下載報表；送出與付款前一定先確認。"
+      },
+      "desktop-automation": {
+        "title": "桌面自動化",
+        "body": "看螢幕、移動滑鼠、輸入鍵盤，操作沒有 API 的桌面軟體。"
+      },
+      "code-repo-explainer": {
+        "title": "程式專案解說",
+        "body": "讀 README 與原始碼，整理架構、模組與流程圖。"
+      },
+      "skill-authoring": {
+        "title": "撰寫技能",
+        "body": "把做過的流程寫成符合 Agent Skills 標準的新技能，或改進既有技能。"
+      }
+    },
+    "howTitle": "技能怎麼運作",
+    "how": {
+      "format": {
+        "title": "一個資料夾就是一個技能",
+        "body": "SKILL.md 寫明何時使用與步驟；scripts/、references/、assets/ 放腳本、參考與範例。上傳 SKILL.md 或 sinobee skills export 產生的 .tar.gz。"
+      },
+      "trust": {
+        "title": "信任等級與簽章",
+        "body": "上傳時自動掃描危險指令；審核通過的版本以 ed25519 簽章，版本發布後不可修改。SinoBee 依 builtin、verified、community 等等級決定能否執行腳本。"
+      },
+      "suggest": {
+        "title": "自動選用",
+        "body": "請求中出現技能的觸發詞時，SinoBee 會直接推薦對應的技能與快速上手步驟，模型不用自己猜。"
+      },
+      "workflow": {
+        "title": "技能可附固定流程",
+        "body": "複雜技能可以宣告 YAML 流程（例如影片製作：企劃 → 草稿 → 核准 → 正式渲染），在「工作」頁一鍵執行、可排程、可續跑。"
+      }
+    },
+    "standardBadge": "Agent Skills 標準 · 開放互通",
+    "statSkills": "個技能",
+    "statPublishers": "位發布者",
+    "statDownloads": "次下載",
+    "featuredTitle": "精選官方技能",
+    "allOfficial": "全部官方技能",
+    "browseTitle": "所有技能",
+    "count": "共 {n} 個",
+    "filterSort": "排序",
+    "filterOnly": "只看",
+    "filterTags": "標籤",
+    "clear": "清除篩選",
+    "copy": "複製安裝指令",
+    "copied": "已複製",
+    "details": "查看技能",
+    "apiDocs": "Hub API 文件",
+    "prev": "上一頁",
+    "next": "下一頁",
+    "officialBadge": "官方"
   },
   "skill": {
     "trustVerified": "官方驗證",
@@ -753,5 +862,9 @@
     "continueMore": "其他方式",
     "port": "SinoBee 的連接埠",
     "reportTool": "檢舉這個工具"
+  },
+  "common": {
+    "copy": "複製",
+    "copied": "已複製"
   }
 }

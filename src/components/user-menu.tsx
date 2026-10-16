@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCafeca } from "./cafeca-provider";
+import { Icon, type IconName } from "./icon";
 
 export const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
@@ -29,44 +30,45 @@ export function UserMenu() {
     return () => document.removeEventListener("click", close);
   }, []);
 
-  if (!ready) return <div className="h-9 w-24 animate-pulse rounded-xl bg-panel-2" />;
+  if (!ready) return <div className="h-9 w-9 animate-pulse rounded-xl bg-panel-2" />;
   if (!me)
     return (
-      <Link href="/login" className="btn-primary whitespace-nowrap !py-2">
-        <span className="hidden sm:inline">{t("login")}</span>
-        <span className="sm:hidden">{t("loginShort")}</span>
+      <Link href="/login" aria-label={t("login")} data-tip={t("login")} className="icon-btn outline tip-end">
+        <Icon name="login" />
       </Link>
     );
+  const who = me.handle ? `@${me.handle}` : short(me.account);
   return (
     <div className="relative flex items-center gap-1" ref={ref}>
-      <Link href="/notifications" className="relative rounded-lg p-2 text-muted hover:text-accent" aria-label={t("notifications")}>
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+      <Link href="/notifications" className="icon-btn" aria-label={t("notifications")} data-tip={t("notifications")}>
+        <Icon name="bell" />
         {unread > 0 && <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-err px-1 text-center text-[10px] font-bold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
       </Link>
-      <button onClick={() => setOpen(!open)} className="btn-ghost !px-3 !py-2 font-mono text-xs">
-        {me.handle ? `@${me.handle}` : short(me.account)}
+      <button onClick={() => setOpen(!open)} className={`icon-btn outline tip-end ${open ? "on" : ""}`} aria-label={who} data-tip={open ? undefined : who} aria-expanded={open}>
+        <Icon name="user" />
       </button>
       {open && (
-        <div className="card absolute right-0 top-11 z-50 w-52 p-1.5 shadow-xl">
-          {[
-            ["/account", t("account")],
-            ["/tasks?mine=1", t("myTasks")],
-            ["/notifications", t("notifications")],
-            ...(me.isAdmin ? [["/admin", t("admin")]] : []),
-          ].map(([href, label]) => (
-            <Link key={href} href={href} onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-panel-2">
-              {label}
+        <div className="card absolute right-0 top-11 z-50 w-56 p-1.5 shadow-xl">
+          <div className="truncate px-3 pb-1.5 pt-1 font-mono text-xs text-muted">{who}</div>
+          {([
+            ["/account", t("account"), "user"],
+            ["/tasks?mine=1", t("myTasks"), "task"],
+            ["/notifications", t("notifications"), "bell"],
+            ...(me.isAdmin ? [["/admin", t("admin"), "shield"]] : []),
+          ] as [string, string, IconName][]).map(([href, label, icon]) => (
+            <Link key={href} href={href} onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm hover:bg-panel-2">
+              <Icon name={icon} className="h-4 w-4 text-muted" /> {label}
             </Link>
           ))}
           <button
-            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-err hover:bg-panel-2"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-err hover:bg-panel-2"
             onClick={async () => {
               await logout();
               setOpen(false);
               router.refresh();
             }}
           >
-            {t("logout")}
+            <Icon name="logout" className="h-4 w-4" /> {t("logout")}
           </button>
         </div>
       )}

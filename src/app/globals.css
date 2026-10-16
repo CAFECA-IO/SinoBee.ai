@@ -78,7 +78,26 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
   .h3 { @apply text-lg font-semibold; }
   .muted { @apply text-muted; }
   .codeblock { @apply overflow-x-auto rounded-xl border border-line bg-code p-4 font-mono text-[13px] leading-relaxed; }
+  /* square icon buttons; the text is in data-tip / aria-label and shows on hover or keyboard focus */
+  .icon-btn { @apply relative inline-grid h-9 w-9 flex-none place-items-center rounded-xl text-ink/75 transition hover:bg-panel-2 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent; }
+  .icon-btn.on { @apply bg-accent-soft text-accent; }
+  .icon-btn.solid { @apply bg-accent text-accent-ink hover:bg-accent hover:text-accent-ink hover:brightness-110; }
+  .icon-btn.outline { @apply border border-line bg-panel hover:border-accent; }
+  .icon-btn.lg { @apply h-11 w-11 rounded-2xl; }
 }
+
+/* hover / focus tooltips: <button data-tip="…"> (add .tip-up to show above, .tip-end to align right) */
+[data-tip]:not(.absolute):not(.fixed) { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 50%; transform: translate(-50%, -4px);
+  padding: 5px 9px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 500;
+  line-height: 1.3; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 60;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+[data-tip].tip-up::after { top: auto; bottom: calc(100% + 8px); }
+[data-tip].tip-end::after { left: auto; right: 0; transform: translateY(-4px); }
+[data-tip].tip-end:hover::after, [data-tip].tip-end:focus-visible::after { transform: none; }
+@media (hover: none) { [data-tip]::after { display: none; } }
 
 /* rendered markdown (SKILL.md, summaries, reports) */
 .prose-sb { line-height: 1.7; overflow-wrap: anywhere; }

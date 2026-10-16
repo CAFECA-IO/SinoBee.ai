@@ -2,7 +2,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db, icontains } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
-import { Toggle } from "@/components/toggle";
+import { CopyButton } from "@/components/copy-button";
+import { Icon, type IconName } from "@/components/icon";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -13,15 +14,34 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 const PAGE = 24;
-const SORTS: Record<string, Prisma.SkillOrderByWithRelationInput[]> = { popular: [{ downloads: "desc" }], rating: [{ ratingAvg: "desc" }, { ratingCount: "desc" }], new: [{ createdAt: "desc" }] };
+const OFFICIAL_PUBLISHER = "cafeca";
+/** Skills bundled with SinoBee and published by the official publisher (prisma/seed-skills) */
+const OFFICIAL = ["ai-video-production", "memory-management", "database-analysis", "web-research", "browser-form-filling",
+  "desktop-automation", "code-repo-explainer", "skill-authoring"] as const;
+const FEATURED: { name: (typeof OFFICIAL)[number]; icon: IconName }[] = [
+  { name: "ai-video-production", icon: "video" },
+  { name: "memory-management", icon: "brain" },
+  { name: "database-analysis", icon: "database" },
+];
+const HOW: { k: string; icon: IconName }[] = [
+  { k: "format", icon: "folder" },
+  { k: "trust", icon: "shield" },
+  { k: "suggest", icon: "sparkles" },
+  { k: "workflow", icon: "flow" },
+];
+const SORTS: Record<string, Prisma.SkillOrderByWithRelationInput[]> = {
+  popular: [{ downloads: "desc" }],
+  rating: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
+  new: [{ createdAt: "desc" }],
+};
+const SORT_ICON: Record<string, IconName> = { popular: "download", rating: "sparkles", new: "plus" };
+const LISTED: Prisma.SkillWhereInput = {
+  versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } },
+};
 
-export default async function SkillsPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; tag?: string; sort?: string; page?: string; verified?: string }>;
-}) {
+type SP = { q?: string; tag?: string; sort?: string; page?: string; verified?: string; official?: string };
+
+export default async function SkillsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<SP> }) {
   setRequestLocale((await params).locale);
   const t = await getTranslations("skills");
   const sp = await searchParams;
@@ -29,91 +49,217 @@ export default async function SkillsPage({
   const sort = sp.sort && sp.sort in SORTS ? sp.sort : "popular";
   const page = Math.max(1, Number(sp.page) || 1);
   const where: Prisma.SkillWhereInput = {
-    versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } },
+    ...LISTED,
     ...(q ? { OR: [{ name: icontains(q) }, { description: icontains(q) }] } : {}),
     ...(sp.tag ? { tags: { some: { tag: sp.tag } } } : {}),
-    ...(sp.verified ? { publisher: { publisherVerified: true } } : {}),
+    ...(sp.verified || sp.official
+      ? { publisher: { ...(sp.verified ? { publisherVerified: true } : {}), ...(sp.official ? { publisher: OFFICIAL_PUBLISHER } : {}) } }
+      : {}),
   };
-  const [total, skills, tagCounts] = await Promise.all([
+  const [total, skills, tagCounts, all, publishers] = await Promise.all([
     db.skill.count({ where }),
     db.skill.findMany({ where, include: { publisher: true }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
-    db.skillTag.groupBy({ by: ["tag"], _count: { tag: true }, orderBy: { _count: { tag: "desc" } }, take: 20 }),
+    db.skillTag.groupBy({ by: ["tag"], _count: { tag: true }, orderBy: { _count: { tag: "desc" } }, take: 18 }),
+    db.skill.aggregate({ where: LISTED, _count: { _all: true }, _sum: { downloads: true } }),
+    db.skill.groupBy({ by: ["publisherId"], where: LISTED }),
   ]);
   const tagRows = tagCounts.map((r) => ({ tag: r.tag, n: r._count.tag }));
-  const qs = (o: Record<string, string | undefined>) => {
+  const qs = (o: Partial<SP>) => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ q: q || undefined, tag: sp.tag, sort, verified: sp.verified, ...o })) if (v) p.set(k, v);
-    return `/skills?${p}`;
+    const cur: SP = { q: q || undefined, tag: sp.tag, sort: sort === "popular" ? undefined : sort, verified: sp.verified, official: sp.official };
+    for (const [k, v] of Object.entries({ ...cur, ...o })) if (v) p.set(k, v);
+    const s = p.toString();
+    return s ? `/skills?${s}` : "/skills";
   };
+  const isOfficial = (s: (typeof skills)[number]) =>
+    s.publisher.publisher === OFFICIAL_PUBLISHER && (OFFICIAL as readonly string[]).includes(s.name);
+  const filtered = !!(q || sp.tag || sp.verified || sp.official);
+  const pages = Math.ceil(total / PAGE);
+  const stats: [number, string][] = [
+    [all._count._all, t("statSkills")],
+    [publishers.length, t("statPublishers")],
+    [all._sum.downloads ?? 0, t("statDownloads")],
+  ];
+  const side = "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition hover:bg-panel-2";
 
   return (
-    <div className="container-x py-12">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="h1">Skill Hub</h1>
-          <p className="mt-2 max-w-2xl text-muted">{t("lead")}</p>
-        </div>
-        <Link href="/skills/new" className="btn-primary">{t("submit")}</Link>
-      </div>
-
-      <form className="mt-8 flex flex-wrap gap-3" action="">
-        <input name="q" defaultValue={q} placeholder={t("search")} className="input max-w-md flex-1" />
-        <select name="sort" defaultValue={sort} className="input w-auto">
-          <option value="popular">{t("sortPopular")}</option>
-          <option value="rating">{t("sortRating")}</option>
-          <option value="new">{t("sortNew")}</option>
-        </select>
-        <Toggle name="verified" defaultChecked={!!sp.verified} label={t("verifiedOnly")} className="self-center" />
-        {sp.tag && <input type="hidden" name="tag" value={sp.tag} />}
-        <button className="btn-ghost">{t("searchBtn")}</button>
-      </form>
-
-      {tagRows.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {sp.tag && (
-            <Link href={qs({ tag: undefined, page: undefined })} className="chip border-accent text-accent">
-              ✕ {sp.tag}
-            </Link>
-          )}
-          {tagRows
-            .filter((r) => r.tag !== sp.tag)
-            .map((r) => (
-              <Link key={r.tag} href={qs({ tag: r.tag, page: undefined })} className="chip hover:border-accent hover:text-accent">
-                #{r.tag} <span className="opacity-60">{Number(r.n)}</span>
-              </Link>
+    <>
+      {/* hero */}
+      <section className="relative overflow-hidden border-b border-line">
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(var(--accent)_1px,transparent_1px)] [background-size:22px_22px]" />
+        <div className="container-x relative py-12">
+          <div className="flex flex-wrap items-start justify-between gap-6">
+            <div className="min-w-0 max-w-2xl">
+              <span className="chip border-accent/40 text-accent">{t("standardBadge")}</span>
+              <h1 className="h1 mt-4">Skill Hub</h1>
+              <p className="mt-3 text-muted">{t("lead")}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/docs/hub-api" aria-label={t("apiDocs")} data-tip={t("apiDocs")} className="icon-btn outline lg"><Icon name="list" /></Link>
+              <a href="#cli" aria-label={t("cliTitle")} data-tip={t("cliTitle")} className="icon-btn outline lg"><Icon name="terminal" /></a>
+              <Link href="/skills/new" aria-label={t("submit")} data-tip={t("submit")} className="icon-btn solid lg tip-end"><Icon name="plus" /></Link>
+            </div>
+          </div>
+          <form action="" className="mt-8 flex max-w-2xl items-center gap-2 rounded-2xl border border-line bg-panel p-1.5 shadow-sm focus-within:border-accent">
+            <span className="pl-2 text-muted"><Icon name="search" /></span>
+            <input name="q" defaultValue={q} placeholder={t("search")} aria-label={t("search")} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-sm outline-none placeholder:text-muted" />
+            {sort !== "popular" && <input type="hidden" name="sort" value={sort} />}
+            {sp.tag && <input type="hidden" name="tag" value={sp.tag} />}
+            {sp.verified && <input type="hidden" name="verified" value="1" />}
+            {sp.official && <input type="hidden" name="official" value="1" />}
+            <button aria-label={t("searchBtn")} data-tip={t("searchBtn")} className="icon-btn solid"><Icon name="search" /></button>
+          </form>
+          <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-2">
+            {stats.map(([n, l]) => (
+              <div key={l} className="flex items-baseline gap-2">
+                <dt className="text-2xl font-extrabold text-accent">{Number(n).toLocaleString()}</dt>
+                <dd className="text-sm text-muted">{l}</dd>
+              </div>
             ))}
+          </dl>
         </div>
-      )}
+      </section>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {skills.map((s) => (
-          <SkillCard key={s.id} skill={s} />
-        ))}
-      </div>
-      {skills.length === 0 && (
-        <div className="card mt-8 p-10 text-center text-muted">
-          {t("empty")} <Link href="/skills/new" className="text-accent underline">{t("submit")}</Link>
-        </div>
-      )}
-      {total > PAGE && (
-        <div className="mt-8 flex justify-center gap-2">
-          {page > 1 && <Link className="btn-ghost" href={qs({ page: String(page - 1) })}>←</Link>}
-          <span className="btn text-muted">
-            {page} / {Math.ceil(total / PAGE)}
-          </span>
-          {page * PAGE < total && <Link className="btn-ghost" href={qs({ page: String(page + 1) })}>→</Link>}
-        </div>
-      )}
+      <div className="container-x py-10">
+        {/* featured official skills (default view only) */}
+        {!filtered && page === 1 && (
+          <section>
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="h2">{t("featuredTitle")}</h2>
+                <p className="mt-1 text-sm text-muted">{t("officialLead")}</p>
+              </div>
+              <Link href={qs({ official: "1", page: undefined })} className="text-sm font-semibold text-accent">{t("allOfficial")} →</Link>
+            </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              {FEATURED.map(({ name, icon }) => (
+                <div key={name} className="card relative flex flex-col overflow-hidden p-5">
+                  <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#2fb3a0] to-[#7fe8b6]" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-gradient-to-br from-[#2fb3a0] to-[#7fe8b6] text-[#04201a]">
+                      <Icon name={icon} className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <Link href={`/skills/${OFFICIAL_PUBLISHER}/${name}`} className="block truncate font-semibold hover:text-accent">{t(`official.${name}.title`)}</Link>
+                      <div className="truncate font-mono text-xs text-muted">{OFFICIAL_PUBLISHER}/{name}</div>
+                    </div>
+                  </div>
+                  <p className="mt-3 flex-1 text-sm text-muted">{t(`official.${name}.body`)}</p>
+                  <div className="mt-4 flex items-center gap-1 rounded-xl border border-line bg-code py-1 pl-3 pr-1">
+                    <code className="min-w-0 flex-1 truncate font-mono text-xs">sinobee skills install hub:{OFFICIAL_PUBLISHER}/{name}</code>
+                    <CopyButton text={`sinobee skills install hub:${OFFICIAL_PUBLISHER}/${name}`} label={t("copy")} done={t("copied")} className="tip-end" />
+                    <Link href={`/skills/${OFFICIAL_PUBLISHER}/${name}`} aria-label={t("details")} data-tip={t("details")} className="icon-btn !h-8 !w-8 tip-end"><Icon name="external" className="h-4 w-4" /></Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-      <div className="card mt-12 grid gap-6 p-6 md:grid-cols-2">
-        <div>
-          <h2 className="h3">{t("cliTitle")}</h2>
-          <p className="mt-2 text-sm text-muted">{t("cliBody")}</p>
-        </div>
-        <pre className="codeblock">{`sinobee skills search pdf
-sinobee skills install hub:cafeca/web-research
+        {/* browse: filters + results */}
+        <section className={`grid gap-8 lg:grid-cols-[230px_minmax(0,1fr)] ${!filtered && page === 1 ? "mt-14" : ""}`}>
+          <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterSort")}</div>
+              <div className="flex flex-wrap gap-1 lg:flex-col">
+                {(["popular", "rating", "new"] as const).map((k) => (
+                  <Link key={k} href={qs({ sort: k === "popular" ? undefined : k, page: undefined })}
+                    className={`${side} ${sort === k ? "bg-accent-soft font-semibold text-accent" : "text-ink/80"}`}>
+                    <Icon name={SORT_ICON[k]} className="h-4 w-4" />
+                    {t(`sort${k[0].toUpperCase()}${k.slice(1)}` as "sortPopular")}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterOnly")}</div>
+              <div className="flex flex-wrap gap-1 lg:flex-col">
+                <Link href={qs({ official: sp.official ? undefined : "1", page: undefined })} aria-pressed={!!sp.official}
+                  className={`${side} ${sp.official ? "bg-accent-soft font-semibold text-accent" : "text-ink/80"}`}>
+                  <Icon name="badge" className="h-4 w-4" /> {t("officialTitle")}
+                </Link>
+                <Link href={qs({ verified: sp.verified ? undefined : "1", page: undefined })} aria-pressed={!!sp.verified}
+                  className={`${side} ${sp.verified ? "bg-accent-soft font-semibold text-accent" : "text-ink/80"}`}>
+                  <Icon name="shield" className="h-4 w-4" /> {t("verifiedOnly")}
+                </Link>
+              </div>
+            </div>
+            {tagRows.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterTags")}</div>
+                <div className="flex flex-wrap gap-1.5 max-lg:[&>a:nth-child(n+11)]:hidden">
+                  {tagRows.map((r) => (
+                    <Link key={r.tag} href={qs({ tag: r.tag === sp.tag ? undefined : r.tag, page: undefined })}
+                      className={`chip transition ${r.tag === sp.tag ? "border-accent bg-accent-soft text-accent" : "hover:border-accent hover:text-accent"}`}>
+                      #{r.tag} <span className="opacity-60">{r.n}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </aside>
+
+          <div className="min-w-0">
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <h2 className="h3 mr-2">{t("browseTitle")}</h2>
+              <span className="text-sm text-muted">{t("count", { n: total })}</span>
+              {q && <Link href={qs({ q: undefined, page: undefined })} className="chip border-accent text-accent">“{q}” ✕</Link>}
+              {sp.tag && <Link href={qs({ tag: undefined, page: undefined })} className="chip border-accent text-accent">#{sp.tag} ✕</Link>}
+              {filtered && <Link href="/skills" className="ml-auto text-sm text-muted hover:text-accent">{t("clear")}</Link>}
+            </div>
+            {skills.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {skills.map((s) => (
+                  <SkillCard key={s.id} skill={s} official={isOfficial(s)} officialLabel={t("officialBadge")}
+                    title={isOfficial(s) ? t(`official.${s.name}.title`) : undefined} />
+                ))}
+              </div>
+            ) : (
+              <div className="card flex flex-col items-center gap-3 p-10 text-center text-muted">
+                <Icon name="search" className="h-8 w-8" />
+                {t("empty")}
+                <Link href="/skills/new" className="btn-primary"><Icon name="plus" className="h-4 w-4" />{t("submit")}</Link>
+              </div>
+            )}
+            {pages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-2">
+                {page > 1 && <Link className="icon-btn outline" aria-label={t("prev")} data-tip={t("prev")} href={qs({ page: String(page - 1) })}>←</Link>}
+                <span className="px-2 text-sm text-muted">{page} / {pages}</span>
+                {page < pages && <Link className="icon-btn outline" aria-label={t("next")} data-tip={t("next")} href={qs({ page: String(page + 1) })}>→</Link>}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* how skills work */}
+        <section className="mt-16">
+          <h2 className="h2">{t("howTitle")}</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {HOW.map(({ k, icon }) => (
+              <div key={k} className="card p-5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent"><Icon name={icon} /></div>
+                <div className="mt-3 font-semibold">{t(`how.${k}.title`)}</div>
+                <p className="mt-1.5 text-sm text-muted">{t(`how.${k}.body`)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CLI */}
+        <section id="cli" className="card mt-8 grid scroll-mt-24 gap-6 p-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent"><Icon name="terminal" /></div>
+            <h2 className="h3 mt-3">{t("cliTitle")}</h2>
+            <p className="mt-2 text-sm text-muted">{t("cliBody")}</p>
+          </div>
+          <pre className="codeblock whitespace-pre-wrap break-all">{`sinobee skills search video
+sinobee skills install hub:cafeca/ai-video-production
+sinobee skills outdated && sinobee skills update
+sinobee skills validate ./my-skill
+sinobee skills export my-skill   # .tar.gz with scripts & references
 sinobee skills publish my-skill`}</pre>
+        </section>
       </div>
-    </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
 import { CopyCode } from "@/components/copy-code";
 import { AGENT_URL } from "@/lib/links";
+import { Icon } from "@/components/icon";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,16 @@ const ICONS: Record<(typeof FEATURES)[number], string> = {
   video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
   work: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
   steer: "M4 12h10M10 6l6 6-6 6M20 5v14",
+};
+
+const MORE_CASES = ["video", "sequel", "schedule", "team", "forms", "code"] as const;
+const CASE_ICONS: Record<(typeof MORE_CASES)[number], string> = {
+  video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
+  sequel: "M4 4h7v7H4zM13 13h7v7h-7zM11 7.5h4.5V11M13 16.5H8.5V13",
+  schedule: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+  team: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5",
+  forms: "M4 4h16v16H4zM8 9h8M8 13h8M8 17h4",
+  code: "M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12",
 };
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
@@ -53,9 +64,9 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">{t("lead")}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary !px-6 !py-3 text-base">{t("ctaTry")}</a>
-              <Link href="/download" className="btn-ghost !px-6 !py-3 text-base">{t("ctaInstall")}</Link>
-              <Link href="/tasks/new" className="btn-ghost !px-6 !py-3 text-base">{t("ctaCommission")}</Link>
+              <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary !px-6 !py-3 text-base"><Icon name="rocket" />{t("ctaTry")}</a>
+              <Link href="/download" aria-label={t("ctaInstall")} data-tip={t("ctaInstall")} className="icon-btn outline lg"><Icon name="download" /></Link>
+              <Link href="/tasks/new" aria-label={t("ctaCommission")} data-tip={t("ctaCommission")} className="icon-btn outline lg"><Icon name="task" /></Link>
             </div>
             <p className="mt-3 text-sm text-muted">{t("tryNote")}</p>
             <div className="mt-8 max-w-xl">
@@ -116,6 +127,28 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           ))}
         </div>
         <p className="mt-3 text-xs text-muted">{t("casesNote")}</p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {MORE_CASES.map((k) => (
+            <div key={k} className="card flex flex-col p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={CASE_ICONS[k]} />
+                  </svg>
+                </div>
+                <div className="font-semibold">{t(`more.${k}.title`)}</div>
+              </div>
+              <p className="mt-3 flex-1 text-sm text-muted">{t(`more.${k}.body`)}</p>
+              <div className="mt-4 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm">
+                <span className="text-muted">{t("trySay")}</span>「{t(`more.${k}.prompt`)}」
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("ctaTry")} data-tip={t("ctaTry")} className="icon-btn solid lg"><Icon name="rocket" /></a>
+          <span className="text-sm text-muted">{t("casesTry")}</span>
+        </div>
       </section>
 
       {/* three pillars of the site */}

@@ -18,7 +18,8 @@
     "loginShort": "Sign in",
     "tools": "Tools",
     "shares": "Shares",
-    "tryAgent": "Try online"
+    "tryAgent": "Try online",
+    "menu": "Menu"
   },
   "footer": {
     "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",
@@ -108,7 +109,7 @@
     "pillars": {
       "hub": {
         "title": "Skill Hub",
-        "body": "Submit, download, rate and discuss skills. Reviewed versions are signed with ed25519 and verified by SinoBee on install.",
+        "body": "Submit, download, rate and discuss skills, including official ones for AI video production, memory management and database analysis. Upload complete bundles with scripts, references and fixed workflows; reviewed versions are signed with ed25519 and verified by SinoBee on install.",
         "cta": "Browse skills"
       },
       "commission": {
@@ -125,7 +126,41 @@
     "popularSkills": "Popular skills",
     "viewAll": "All skills",
     "ctaTry": "Try the agent online",
-    "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it."
+    "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it.",
+    "trySay": "Try saying: ",
+    "casesTry": "Every example can be typed straight into the online SinoBee.",
+    "more": {
+      "video": {
+        "title": "A film from one sentence",
+        "body": "Writes the script, designs characters and locations, plans the shots, records the voice, renders, edits and subtitles — with a draft to approve before the final render. You get the film and a complete production kit.",
+        "prompt": "Make a 30-second documentary about Taiwanese tea"
+      },
+      "sequel": {
+        "title": "Sequels from a production kit",
+        "body": "Attach the kit from the last film: characters, locations, look, music and voices carry over and only the story is new. Or remake the whole film and change details.",
+        "prompt": "Use this kit for a sequel: the two meet again on a snowy night"
+      },
+      "schedule": {
+        "title": "Daily checks on autopilot",
+        "body": "Put routine work in the Work tab — database health checks, report roll-ups, site checks — and it runs on time, compares with the last run and writes a report.",
+        "prompt": "Check the orders database every day at 9am and report anything unusual"
+      },
+      "team": {
+        "title": "Split big jobs across a team",
+        "body": "Researcher, analyst and reviewer sub-agents work in parallel, share findings on a blackboard and merge them into one sourced report.",
+        "prompt": "Compare the prices and specs of five cloud hosts in parallel, then merge them into a table"
+      },
+      "forms": {
+        "title": "Log in, fill forms, download reports",
+        "body": "A real browser logs in, fills forms, downloads and organizes files; submitting or paying always asks you first.",
+        "prompt": "Log into the back office, download last month's invoice CSV and combine it in Excel"
+      },
+      "code": {
+        "title": "Write code and fix bugs",
+        "body": "Understands the project, finds why tests fail, fixes and re-runs them; add requirements while it works, and it checks the fix is real before finishing.",
+        "prompt": "Find out why this project's tests fail and fix them"
+      }
+    }
   },
   "download": {
     "title": "Download & install SinoBee",
@@ -247,7 +282,7 @@
     "confirmDelete": "Delete this comment?"
   },
   "skills": {
-    "lead": "Submit, download, rate and discuss SinoBee skills. Every skill follows the Agent Skills standard and works with other compatible agents.",
+    "lead": "Submit, download, rate and discuss SinoBee skills. Skills follow the Agent Skills standard and work with other compatible agents — a single SKILL.md or a full bundle with scripts, references, examples and fixed workflows.",
     "submit": "Submit a skill",
     "search": "Search skill names or descriptions",
     "searchBtn": "Search",
@@ -257,7 +292,81 @@
     "verifiedOnly": "Verified publishers only",
     "empty": "No matching skills.",
     "cliTitle": "Use it straight from SinoBee",
-    "cliBody": "SinoBee has a built-in Hub client: search, install, update and publish skills, with content hash, signature and revocation checks."
+    "cliBody": "SinoBee ships with a Hub client: search, install, check for updates and publish skills, verifying content hashes, signatures and the revocation list. Use export to bundle a skill with its scripts and references, then publish.",
+    "officialTitle": "Official skills",
+    "officialLead": "Bundled with SinoBee, published and signed by CAFECA; download them for other compatible agents too.",
+    "official": {
+      "ai-video-production": {
+        "title": "AI video production",
+        "body": "A film from one sentence: script, characters, locations, shots, voice, rendering, editing and subtitles, plus a reusable production kit."
+      },
+      "memory-management": {
+        "title": "Memory management",
+        "body": "Turns task highlights into short-term, long-term and permanent memories, compresses on demand, adds or removes on your instruction."
+      },
+      "database-analysis": {
+        "title": "Database analysis",
+        "body": "Read-only queries on PostgreSQL, MySQL and SQLite with metrics, charts and health reports."
+      },
+      "web-research": {
+        "title": "Web research",
+        "body": "Several searches, at least two sources cross-checked, conclusions with citations."
+      },
+      "browser-form-filling": {
+        "title": "Browser forms",
+        "body": "Log in, fill forms, download reports — confirming before anything is submitted or paid."
+      },
+      "desktop-automation": {
+        "title": "Desktop automation",
+        "body": "Sees the screen, moves the mouse, types — for desktop apps without an API."
+      },
+      "code-repo-explainer": {
+        "title": "Code repo explainer",
+        "body": "Reads the README and source and explains architecture, modules and flows."
+      },
+      "skill-authoring": {
+        "title": "Skill authoring",
+        "body": "Turns a procedure into a new Agent Skills skill, or improves an existing one."
+      }
+    },
+    "howTitle": "How skills work",
+    "how": {
+      "format": {
+        "title": "One folder per skill",
+        "body": "SKILL.md says when to use it and the steps; scripts/, references/ and assets/ hold scripts, references and examples. Upload SKILL.md or the .tar.gz from sinobee skills export."
+      },
+      "trust": {
+        "title": "Trust levels and signatures",
+        "body": "Uploads are scanned for dangerous commands; reviewed versions are ed25519-signed and immutable. SinoBee uses trust levels (builtin, verified, community…) to decide whether scripts may run."
+      },
+      "suggest": {
+        "title": "Picked automatically",
+        "body": "When a request contains a skill's trigger words, SinoBee names that skill and its quick start, so the model doesn't have to guess."
+      },
+      "workflow": {
+        "title": "Skills can ship workflows",
+        "body": "Complex skills can declare a YAML workflow (video: plan → draft → approval → final render) that runs from the Work tab in one click, on a schedule, and resumes after interruptions."
+      }
+    },
+    "standardBadge": "Agent Skills standard · open & interoperable",
+    "statSkills": "skills",
+    "statPublishers": "publishers",
+    "statDownloads": "downloads",
+    "featuredTitle": "Featured official skills",
+    "allOfficial": "All official skills",
+    "browseTitle": "All skills",
+    "count": "{n} in total",
+    "filterSort": "Sort",
+    "filterOnly": "Show only",
+    "filterTags": "Tags",
+    "clear": "Clear filters",
+    "copy": "Copy install command",
+    "copied": "Copied",
+    "details": "View skill",
+    "apiDocs": "Hub API docs",
+    "prev": "Previous",
+    "next": "Next",
+    "officialBadge": "Official"
   },
   "skill": {
     "trustVerified": "Verified",
@@ -753,5 +862,9 @@
     "continueMore": "Other ways",
     "port": "SinoBee port",
     "reportTool": "Report this tool"
+  },
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied"
   }
 }

@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { Icon } from "./icon";
 
 export function CopyCode({ code, lang }: { code: string; lang?: string }) {
+  const t = useTranslations("common");
   const [ok, setOk] = useState(false);
   return (
     <div className="group relative">
@@ -12,10 +15,11 @@ export function CopyCode({ code, lang }: { code: string; lang?: string }) {
       <button
         type="button"
         onClick={() => navigator.clipboard.writeText(code).then(() => (setOk(true), setTimeout(() => setOk(false), 1500)))}
-        className="absolute right-2 top-2 rounded-lg border border-line bg-panel px-2 py-1 text-xs text-muted hover:text-accent"
-        aria-label="copy"
+        className="icon-btn outline tip-end !absolute right-2 top-2 !h-8 !w-8"
+        aria-label={t("copy")}
+        data-tip={ok ? t("copied") : t("copy")}
       >
-        {ok ? "✓" : "Copy"}
+        <Icon name={ok ? "check" : "copy"} className="h-4 w-4" />
       </button>
     </div>
   );

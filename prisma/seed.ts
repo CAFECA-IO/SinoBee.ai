@@ -4,12 +4,30 @@
  *   npm run db:seed
  */
 import "dotenv/config";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import * as tar from "tar";
 import { db } from "../src/lib/db";
 import { config } from "../src/lib/config";
 import { publishSkill } from "../src/lib/skills/service";
 import { signContentHash } from "../src/lib/skills/signing";
+import { compareVersions, parseSkillMd } from "../src/lib/skills/spec";
+
+/** A skill folder as an upload: SKILL.md alone, or a .tar.gz bundle when it has scripts, references or assets */
+async function upload(dir: string, name: string): Promise<{ data: Buffer; filename: string }> {
+  const entries = await readdir(dir, { recursive: true });
+  if (entries.filter((e) => e !== "SKILL.md").length === 0) return { data: await readFile(path.join(dir, "SKILL.md")), filename: "SKILL.md" };
+  const tmp = await mkdtemp(path.join(tmpdir(), "sb-seed-"));
+  try {
+    const file = path.join(tmp, `${name}.tgz`);
+    await tar.c({ gzip: true, cwd: path.dirname(dir), file, portable: true, noMtime: true,
+                  filter: (p) => !/(__pycache__|\.pyc$|\.DS_Store$)/.test(p) }, [name]);
+    return { data: await readFile(file), filename: `${name}.tgz` };
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+}
 
 async function main() {
   const account = (process.env.SEED_PUBLISHER_ACCOUNT ?? config.adminAccounts[0] ?? "0x00000000000000000000000000000000000cafec").toLowerCase();
@@ -20,13 +38,18 @@ async function main() {
   });
   const dir = path.join(import.meta.dirname, "seed-skills");
   for (const name of await readdir(dir)) {
-    const md = await readFile(path.join(dir, name, "SKILL.md"));
-    const exists = await db.skill.findFirst({ where: { name, publisherId: publisher.id } });
-    if (exists) {
-      console.log("skip", name);
+    const folder = path.join(dir, name);
+    const md = await readFile(path.join(folder, "SKILL.md")).catch(() => null);
+    if (!md) continue;
+    const version = String(parseSkillMd(md.toString("utf8")).frontmatter.metadata?.version ?? "");
+    const exists = await db.skill.findFirst({ where: { name, publisherId: publisher.id }, include: { versions: { select: { version: true } } } });
+    const latest = exists?.versions.map((v) => v.version).sort(compareVersions).at(-1);
+    if (latest && compareVersions(version, latest) <= 0) {
+      console.log("up to date", name, latest);
       continue;
     }
-    const res = await publishSkill(publisher, md, "SKILL.md");
+    const { data, filename } = await upload(folder, name);
+    const res = await publishSkill(publisher, data, filename);
     const v = await db.skillVersion.findFirstOrThrow({ where: { skill: { name, publisherId: publisher.id }, version: res.version } });
     const signature = signContentHash(v.contentHash);
     await db.skillVersion.update({
