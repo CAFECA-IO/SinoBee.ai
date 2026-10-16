@@ -4,10 +4,11 @@ import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
 import { CopyCode } from "@/components/copy-code";
+import { AGENT_URL } from "@/lib/links";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES = ["research", "data", "files", "approval", "browser", "memory", "skills", "usage", "models"] as const;
+const FEATURES = ["research", "data", "files", "video", "work", "steer", "browser", "approval", "memory", "skills", "models", "usage"] as const;
 const ICONS: Record<(typeof FEATURES)[number], string> = {
   research: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
   data: "M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6",
@@ -18,6 +19,9 @@ const ICONS: Record<(typeof FEATURES)[number], string> = {
   skills: "M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.6 6.5 19.5l1-6.3L3 8.9 9 8z",
   usage: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   models: "M4 6h16M4 12h16M4 18h10",
+  video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
+  work: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+  steer: "M4 12h10M10 6l6 6-6 6M20 5v14",
 };
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
@@ -49,9 +53,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">{t("lead")}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/download" className="btn-primary !px-6 !py-3 text-base">{t("ctaInstall")}</Link>
+              <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary !px-6 !py-3 text-base">{t("ctaTry")}</a>
+              <Link href="/download" className="btn-ghost !px-6 !py-3 text-base">{t("ctaInstall")}</Link>
               <Link href="/tasks/new" className="btn-ghost !px-6 !py-3 text-base">{t("ctaCommission")}</Link>
             </div>
+            <p className="mt-3 text-sm text-muted">{t("tryNote")}</p>
             <div className="mt-8 max-w-xl">
               <CopyCode code={"git clone https://github.com/CAFECA-IO/SinoBee.git && cd SinoBee\ndocker compose up -d --build"} />
             </div>

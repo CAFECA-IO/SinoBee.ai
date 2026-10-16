@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "SinoBee.ai — the open-source AI swarm that works on your computer",
-    "description": "Official SinoBee website: download & install, the Skill Hub, commission AI tasks in the cloud, and public model & skill evaluations."
+    "description": "SinoBee official website: try the agent online, download & install, Skill Hub, commissioned AI tasks, public model and skill evaluations."
   },
   "nav": {
     "download": "Download",
@@ -17,7 +17,8 @@
     "admin": "Hub review",
     "loginShort": "Sign in",
     "tools": "Tools",
-    "shares": "Shares"
+    "shares": "Shares",
+    "tryAgent": "Try online"
   },
   "footer": {
     "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",
@@ -26,10 +27,10 @@
     "hubApi": "Skill Hub API"
   },
   "home": {
-    "badge": "Open source · MIT · any major cloud model or local models",
+    "badge": "Open source · MIT · mix cloud and local models",
     "title1": "Describe the result you want.",
     "title2": "SinoBee gets it done.",
-    "lead": "SinoBee searches the web, reads files, writes code, runs commands and operates the browser, mouse and keyboard, then delivers tables, charts and files. Risky actions ask you first, you rate the results, and it remembers and gets better over time.",
+    "lead": "SinoBee searches the web, reads files, writes code, runs commands and operates the browser, mouse and keyboard; it also runs scheduled background work and produces complete videos. It delivers tables, charts, files and films. Risky actions ask you first, you can add instructions or stop it mid-task, and it remembers your preferences and gets better over time.",
     "ctaInstall": "Download for free",
     "ctaCommission": "Commission a cloud run",
     "shotAlt": "SinoBee explaining a GitHub project with a table and a flow chart",
@@ -37,7 +38,7 @@
     "statTasks": "Completed commissions",
     "statReports": "Public evaluation reports",
     "featuresTitle": "One assistant that finishes the job",
-    "featuresLead": "More than chat: SinoBee has tools, memory, skills — and brakes.",
+    "featuresLead": "More than chat: SinoBee has tools, layered memory, skills and fixed workflows — and brakes.",
     "f": {
       "research": {
         "title": "Research",
@@ -51,29 +52,41 @@
         "title": "File management",
         "body": "Sorts, renames, converts and batch-processes files — never overwriting a file with the same name."
       },
-      "approval": {
-        "title": "Asks before risky actions",
-        "body": "Deleting files, installing software, admin rights or force-pushing need your approval. Modes: confirm, auto, readonly."
+      "video": {
+        "title": "AI video production",
+        "body": "One sentence becomes a short film, documentary or ad: script, characters, locations, shot list, voice, rendering, editing and subtitles are automatic, with a draft to approve before the final render. A production kit is exported too, so a sequel keeps the same characters and look."
+      },
+      "work": {
+        "title": "Background work & schedules",
+        "body": "Sub-agents working in parallel, fixed workflows (YAML graphs), a shared blackboard and schedules; the Work tab shows past, present and next, and interrupted work can resume."
+      },
+      "steer": {
+        "title": "Steer while it works",
+        "body": "Add instructions or stop a task mid-run; intermediate files appear as links; each stretch of work folds into one summary line. Before finishing it checks the job is really done, and switches to a stronger model when a weak one gets stuck."
       },
       "browser": {
         "title": "Browser & desktop",
         "body": "A real Chromium with saved logins; Docker mode adds a virtual desktop you can watch and take over."
       },
+      "approval": {
+        "title": "Asks before risky actions",
+        "body": "Deleting files, installing software, admin rights or force-pushing need your approval; keys and passwords stay on your machine and never reach the model. Modes: confirm, auto, readonly."
+      },
       "memory": {
-        "title": "Memory & feedback",
-        "body": "Thumbs up/down update long-term memory and skills; you can view and delete memories."
+        "title": "Layered memory",
+        "body": "Task, short-term, long-term and permanent memory, tidied, compressed and expired automatically; key facts are saved before a long conversation is summarised. Ratings and your instructions update it, and you can view, pin or delete memories any time."
       },
       "skills": {
         "title": "Skills",
-        "body": "Reusable workflows following the Agent Skills standard. Create with /learn; install from the Hub, GitHub or a folder, with trust levels."
+        "body": "Reusable workflows following the Agent Skills standard. Create with /learn; install from the Hub, GitHub or a folder, with trust levels. Matching skills are suggested automatically, and complex skills can declare fixed workflows."
+      },
+      "models": {
+        "title": "Any model",
+        "body": "Mix OpenAI, Anthropic, Gemini and other cloud models with local Ollama models: pick the main, auxiliary, escalation and fallback models separately. Paste a key, press “Connect”, and its models are verified and listed at once."
       },
       "usage": {
         "title": "Usage & budgets",
         "body": "Every call logs tokens and cost; set daily and monthly budgets with an alert at 80%."
-      },
-      "models": {
-        "title": "Any model",
-        "body": "OpenAI, Anthropic, Gemini and more — or free local open models through Ollama, no API key needed."
       }
     },
     "casesTitle": "What it can do for you",
@@ -110,7 +123,9 @@
       }
     },
     "popularSkills": "Popular skills",
-    "viewAll": "All skills"
+    "viewAll": "All skills",
+    "ctaTry": "Try the agent online",
+    "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it."
   },
   "download": {
     "title": "Download & install SinoBee",
@@ -141,20 +156,21 @@
       }
     },
     "dockerLead": "Install Docker first, then clone and start SinoBee with one command:",
-    "dockerOpen": "Open http://localhost:8000 — setup opens automatically the first time.",
+    "dockerOpen": "Open http://localhost:10024 — setup opens automatically the first time.",
     "cloudTitle": "Cloud API",
-    "cloudBody": "Pick a provider and model in Settings, paste the API key, click “Test connection” and save. Keys stay on the server, only the last four characters are shown, and nothing is written to .env.",
+    "cloudBody": "Under Settings → Model providers, paste an API key and press “Connect”: SinoBee verifies it and loads that provider's models, then pick the main, auxiliary, escalation and fallback models above. Keys stay in secrets.json on the server, only the last four characters are shown, and nothing is written to .env.",
     "startWithKeysTitle": "Pass the model and key at start-up",
     "localLead": "No API bills and your data stays home: run open models locally, free and keyless.",
     "localMac": "On a Mac install and open Ollama first (uses the Metal GPU), then start SinoBee — it connects to host.docker.internal:11434 automatically:",
     "localGpu": "With an NVIDIA GPU add the GPU compose file:",
-    "pipLead": "Requires Python 3.10 or later:",
+    "pipLead": "Requires Python 3.10 or later. Run the install script once, then use the sinobee command from any folder:",
     "pipMacNote": "On macOS grant the terminal Accessibility and Screen Recording in System Settings → Privacy & Security. On a physical machine keep the approval mode on confirm.",
     "firstRun": {
-      "0": "Choose a model source: a cloud API (paste a key) or a local model (download and select one).",
-      "1": "Describe the result in plain words — the more specific the better, e.g. “make it a table”, “save as report.md”.",
-      "2": "Risky actions show an approval card: allow, deny, or switch to read-only.",
-      "3": "Rate results with thumbs up/down; SinoBee updates its memory and skills and does better next time."
+      "0": "Open Settings → Models: paste any provider's key under Model providers and press “Connect”, or open Ollama (local) to download a model; then choose the main model. Cloud and local models can be mixed.",
+      "1": "Describe the result in plain words — the more specific the better, e.g. “make it a table”, “save as report.md”, “make a 30-second product ad”.",
+      "2": "Risky actions show an approval card: allow, deny, or switch to read-only. While a task runs you can type extra instructions or press stop.",
+      "3": "Leave long or recurring work to the Work tab: fixed workflows, sub-agents and schedules live there, with progress and output files at a glance.",
+      "4": "Rate results with thumbs up/down; SinoBee updates its memory and skills. Memory is tidied automatically, and the Memory tab lets you view, pin or delete entries."
     },
     "cliHub": "SinoBee ships with a Skill Hub client. To trust this Hub’s review signatures, pin its public key in your config:",
     "trouble": {
@@ -177,8 +193,19 @@
       "4": {
         "q": "Nothing changed after updating",
         "a": "git pull && docker compose up -d --build, then hard-refresh the browser; your data lives in Docker volumes and is kept."
+      },
+      "5": {
+        "q": "Added a Gemini (or other) key but no models to pick",
+        "a": "Press “Connect” on the provider card: the key is verified at once and its models appear in the list above; “invalid key” means the key needs to be regenerated. On the latest version cloud models can be selected even while the main model is a local one."
+      },
+      "6": {
+        "q": "localhost:8000 does not open",
+        "a": "The default port is now 10024: open http://localhost:10024. A server.port in your config.yaml takes precedence."
       }
-    }
+    },
+    "tryOnline": "Try it online first",
+    "tryOnlineNote": "Want a look before installing? Try the SinoBee agent at agent.sinobee.ai.",
+    "pipManual": "Or install manually:"
   },
   "auth": {
     "title": "Sign in with CAFECA",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { SINOBEE_PORT } from "@/lib/links";
 
 export function ShareOwnerActions({ id, visibility, accounts }: { id: string; visibility: string; accounts: string[] }) {
   const t = useTranslations("share");
@@ -85,7 +86,7 @@ export function ShareReport({ id, targetType = "share" }: { id: string; targetTy
 /** Import this share into the viewer's own SinoBee as a new conversation */
 export function ContinueInSinoBee({ url }: { url: string }) {
   const t = useTranslations("share");
-  const [port, setPort] = useState("8000");
+  const [port, setPort] = useState(SINOBEE_PORT);
   const [open, setOpen] = useState(false);
   return (
     <section className="card space-y-3 p-5 text-sm">

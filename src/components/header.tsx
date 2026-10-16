@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "./logo";
 import { UserMenu } from "./user-menu";
+import { AGENT_URL } from "@/lib/links";
 
 const NAV = [
   { href: "/download", key: "download" },
@@ -41,6 +42,9 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary hidden !px-3 !py-1.5 text-sm sm:inline-flex">
+            {t("tryAgent")}
+          </a>
           <Link href={path} locale={locale === "zh-TW" ? "en" : "zh-TW"} className="rounded-lg px-2 py-1.5 text-xs font-semibold text-muted hover:text-accent" aria-label="language">
             {locale === "zh-TW" ? "EN" : "中文"}
           </Link>
@@ -52,6 +56,9 @@ export function Header() {
       </div>
       {open && (
         <nav className="container-x flex flex-col pb-3 md:hidden">
+          <a href={AGENT_URL} target="_blank" rel="noopener" className="rounded-lg px-2 py-2 text-sm font-semibold text-accent">
+            {t("tryAgent")} ↗
+          </a>
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} onClick={() => setOpen(false)} className="rounded-lg px-2 py-2 text-sm">
               {t(n.key)}

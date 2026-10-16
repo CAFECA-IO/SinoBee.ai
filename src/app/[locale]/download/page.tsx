@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { CopyCode } from "@/components/copy-code";
+import { AGENT_URL } from "@/lib/links";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const t = await getTranslations({ locale: (await params).locale, namespace: "download" });
@@ -39,7 +40,9 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
               {t("github")}
             </a>
             <a href={`${REPO}/archive/refs/heads/main.zip`} className="btn-ghost">{t("zip")}</a>
+            <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-ghost">{t("tryOnline")} ↗</a>
           </div>
+          <p className="mt-3 text-sm text-muted">{t("tryOnlineNote")}</p>
         </header>
 
         <Section id="requirements" title={t("toc.requirements")}>
@@ -87,13 +90,15 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
 
         <Section id="pip" title={t("toc.pip")}>
           <p className="text-muted">{t("pipLead")}</p>
-          <CopyCode code={'git clone https://github.com/CAFECA-IO/SinoBee.git && cd SinoBee\npip install -e ".[all]"          # macOS/Windows desktop control: ".[all,desktop-native]"\npython -m playwright install chromium\nsinobee serve                    # http://localhost:8000'} />
+          <CopyCode code={'git clone https://github.com/CAFECA-IO/SinoBee.git && cd SinoBee\nbash scripts/install-command.sh   # venv + dependencies + `sinobee` command on your PATH\nsinobee serve                     # from any folder: http://localhost:10024'} />
+          <p className="text-sm text-muted">{t("pipManual")}</p>
+          <CopyCode code={'pip install -e ".[all]"          # macOS/Windows desktop control: ".[all,desktop-native]"\npython -m playwright install chromium\nsinobee serve --port 10024'} />
           <p className="rounded-xl border border-warn/40 bg-warn-soft p-4 text-sm text-warn">{t("pipMacNote")}</p>
         </Section>
 
         <Section id="first-run" title={t("toc.first-run")}>
           <ol className="list-decimal space-y-2 pl-5 text-muted">
-            {[0, 1, 2, 3].map((i) => (
+            {[0, 1, 2, 3, 4].map((i) => (
               <li key={i}>{t(`firstRun.${i}`)}</li>
             ))}
           </ol>
@@ -110,6 +115,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
         <Section id="cli" title={t("toc.cli")}>
           <CopyCode
             code={[
+              "sinobee serve                                       # Web UI + API on http://localhost:10024",
               "sinobee chat -m anthropic/claude-sonnet-4-5        # terminal chat",
               'sinobee run "整理 ~/Downloads 裡的 PDF 並列出清單"',
               "sinobee doctor                                      # check models, browser, desktop",
@@ -118,6 +124,8 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
               "sinobee skills install hub:<publisher>/<name>[@version]",
               "sinobee skills publish <name>                       # needs: sinobee keys set sinobee-hub",
               "sinobee usage month --by model",
+              "sinobee work                                        # background work: past / now / next",
+              "sinobee memory stats|maintain|compress              # layered memory upkeep",
             ].join("\n")}
           />
           <p className="text-sm text-muted">{t("cliHub")}</p>
@@ -126,7 +134,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
 
         <Section id="troubleshooting" title={t("toc.troubleshooting")}>
           <div className="card divide-y divide-line">
-            {[0, 1, 2, 3, 4].map((i) => (
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="grid gap-1 p-4 sm:grid-cols-[220px_1fr]">
                 <div className="font-medium">{t(`trouble.${i}.q`)}</div>
                 <div className="text-sm text-muted">{t(`trouble.${i}.a`)}</div>
