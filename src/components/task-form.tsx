@@ -9,7 +9,8 @@ import { Toggle } from "./toggle";
 import type { PaymentIntent } from "./cafeca-provider";
 
 type Model = { id: string; label: string; vendor: string; input: number; output: number };
-type Pricing = { markup: number; usdTwd: number; vmHourlyUsd: number; s3GbMonthUsd: number; s3PutPer1kUsd: number; s3GetPer1kUsd: number; retentionDays: number; minBudget: number };
+/** all prices in TWD (final): model prices per 1M tokens, VM per hour, storage per GB-month, requests per 1,000 */
+type Pricing = { vmHourly: number; storageGbMonth: number; writesPer1k: number; readsPer1k: number; retentionDays: number; minBudget: number };
 type SkillOpt = { id: string; label: string } | null;
 
 export function TaskForm({
@@ -43,11 +44,11 @@ export function TaskForm({
 
   const m = models.find((x) => x.id === model)!;
   const est = useMemo(() => {
-    const tokenUsd = mtok * m.input + mtok * 0.1 * m.output; // assume output ≈ 10% of input
-    const vmUsd = (minutes / 60) * pricing.vmHourlyUsd;
-    const s3Usd = (50 / 1024) * pricing.s3GbMonthUsd * (pricing.retentionDays / 30) + (1 / 1000) * pricing.s3PutPer1kUsd + (3 / 1000) * pricing.s3GetPer1kUsd;
-    const toTwdc = (usd: number) => usd * pricing.markup * pricing.usdTwd;
-    return { token: toTwdc(tokenUsd), vm: toTwdc(vmUsd), s3: toTwdc(s3Usd), total: toTwdc(tokenUsd + vmUsd + s3Usd) };
+    const token = mtok * m.input + mtok * 0.1 * m.output; // assume output ≈ 10% of input
+    const vm = (minutes / 60) * pricing.vmHourly;
+    // ~50 MB of results kept for the retention window, 1 write + 3 reads
+    const s3 = (50 / 1024) * pricing.storageGbMonth * (pricing.retentionDays / 30) + (1 / 1000) * pricing.writesPer1k + (3 / 1000) * pricing.readsPer1k;
+    return { token, vm, s3, total: token + vm + s3 };
   }, [m, minutes, mtok, pricing]);
 
   const submit = async (e: React.FormEvent) => {
@@ -109,7 +110,7 @@ export function TaskForm({
           <select className="input" value={model} onChange={(e) => setModel(e.target.value)}>
             {models.map((x) => (
               <option key={x.id} value={x.id}>
-                {x.label} — {x.vendor} (${x.input}/${x.output} per 1M)
+                {x.label} — {x.vendor}（{t("modelPrice", { input: x.input, output: x.output })}）
               </option>
             ))}
           </select>
@@ -158,16 +159,16 @@ export function TaskForm({
             ))}
             <div className="flex justify-between border-t border-line pt-1 font-semibold">
               <dt>{t("estTotal")}</dt>
-              <dd className="font-mono">≈ {est.total.toFixed(2)} TWDC</dd>
+              <dd className="font-mono">≈ {est.total.toFixed(2)} TWD</dd>
             </div>
           </dl>
-          <p className="text-xs text-muted">{t("estNote", { markup: pricing.markup, rate: pricing.usdTwd })}</p>
+          <p className="text-xs text-muted">{t("estNote")}</p>
         </div>
         <div className="card space-y-3 p-5">
           <label className="label">{t("budget")}</label>
           <div className="flex items-center gap-2">
             <input className="input font-mono" type="number" min={pricing.minBudget} step="1" value={budget} onChange={(e) => setBudget(e.target.value)} required />
-            <span className="text-sm font-semibold">TWDC</span>
+            <span className="text-sm font-semibold">TWD</span>
           </div>
           <p className="text-xs text-muted">{t("budgetHint", { min: pricing.minBudget, days: pricing.retentionDays })}</p>
           <PayStatus busy={busy} error={error} pendingLink={pendingLink} />

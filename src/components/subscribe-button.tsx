@@ -19,7 +19,7 @@ export function SubscribeButton({ price, days, extend }: { price: number; days: 
         onClick={async () => {
           const ok = await run(async () => (await postJson<{ payment: PaymentIntent }>("/api/subscription", {})).payment, {
             title: t("subPayTitle", { days }),
-            detail: `${price} TWDC`,
+            detail: `${price} TWD`,
           });
           if (ok) router.refresh();
         }}

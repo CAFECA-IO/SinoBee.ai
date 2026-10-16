@@ -477,10 +477,10 @@
     "emptyPublic": "還沒有公開的委託。",
     "emptyMine": "你還沒有提交任何委託。",
     "newTitle": "提交委託任務",
-    "newLead": "平台會為你建立獨立的 Docker 容器執行 SinoBee。費用為實際消耗的 Token、AWS VM 租賃與 AWS S3 費用各 1.5 倍；預算用完而尚未完成時，會整理目前成果並透過 CAFECA 請你補充經費或結案。",
+    "newLead": "平台會為你建立獨立的 Docker 容器執行 SinoBee。依實際用量計費：模型 Token、虛擬機租賃與儲存空間，以新台幣（TWD）計價；預算用完而尚未完成時，會整理目前成果並透過 CAFECA 請你補充經費或結案。",
     "steps": {
       "0": "描述任務、選模型與預算",
-      "1": "以 CAFECA 支付 TWDC 委託金",
+      "1": "以 CAFECA 支付委託金",
       "2": "在你的獨立 Docker 中執行",
       "3": "完成後透過 CAFECA 通知，7 天內下載成果"
     }
@@ -512,16 +512,17 @@
     "estTokens": "預估輸入 tokens",
     "est": {
       "tokens": "模型 Token",
-      "vm": "AWS VM",
-      "s3": "AWS S3"
+      "vm": "虛擬機租賃",
+      "s3": "儲存空間"
     },
     "estTotal": "預估合計",
-    "estNote": "以原始成本 × {markup}、1 USD = {rate} TWDC 試算，實際依用量計費，不會超過預算。",
+    "estNote": "以新台幣（TWD）試算；實際依用量計費，不會超過預算。",
     "budget": "委託預算",
-    "budgetHint": "最低 {min} TWDC。預算用完會暫停並請你補充；完成後成果保留 {days} 天（訂閱者更久）。",
-    "submit": "支付 {amount} TWDC 並提交",
+    "budgetHint": "最低 {min} TWD。預算用完會暫停並請你補充；完成後成果保留 {days} 天（訂閱者更久）。",
+    "submit": "支付 {amount} TWD 並提交",
     "paying": "等待 CAFECA 確認…",
-    "payTitle": "SinoBee.ai 委託預算 {amount} TWDC"
+    "payTitle": "SinoBee.ai 委託預算 {amount} TWD",
+    "modelPrice": "每 100 萬 tokens 輸入 {input}／輸出 {output} TWD"
   },
   "pay": {
     "transport": "確認方式",
@@ -550,12 +551,12 @@
     "billing": "費用",
     "cost": {
       "tokens": "模型 Token",
-      "vm": "AWS VM 租賃",
-      "s3": "AWS S3"
+      "vm": "虛擬機租賃",
+      "s3": "儲存空間"
     },
     "charged": "已收取",
     "budget": "預算",
-    "rateNote": "TWDC，原始成本 × 1.5，匯率 1 USD = {rate} TWDC（建立委託時鎖定）。",
+    "rateNote": "以新台幣（TWD）計價，依實際用量計費。",
     "results": "成果下載",
     "noResults": "完成後會在這裡提供下載。",
     "partial": "部分成果",
@@ -566,9 +567,9 @@
     "publicNote": "這是公開的委託。成果檔案只有委託人可以下載。",
     "payBudget": "支付委託預算",
     "topUp": "補充經費",
-    "payNow": "支付 {amount} TWDC",
-    "addFunds": "補充 {amount} TWDC",
-    "payDesc": "SinoBee.ai 委託經費 {amount} TWDC",
+    "payNow": "支付 {amount} TWD",
+    "addFunds": "補充 {amount} TWD",
+    "payDesc": "SinoBee.ai 委託經費 {amount} TWD",
     "close": "結案並保留目前成果",
     "cancel": "取消委託",
     "confirmClose": "結案後不會再繼續執行，目前成果保留供下載。確定？",
@@ -606,7 +607,7 @@
       }
     },
     "newTitle": "委託評鑑",
-    "newLead": "評鑑也是一種委託任務：費用一樣是 Token、VM 與 S3 實際成本的 1.5 倍；完成後報告會公開在評鑑頁與技能頁。"
+    "newLead": "評鑑也是一種委託任務：一樣依模型 Token、虛擬機租賃與儲存空間的實際用量計費；完成後報告會公開在評鑑頁與技能頁。"
   },
   "report": {
     "back": "← 返回評鑑",
@@ -632,19 +633,17 @@
     "formula": "計費公式",
     "charge": "費用",
     "tokens": "模型 Token",
-    "vm": "AWS VM 租賃",
-    "s3": "AWS S3",
-    "formulaNote": "以 TWDC（CAFECA 新台幣穩定幣）支付；美元成本以 1 USD = {rate} TWDC 換算，並在建立委託時鎖定匯率。",
+    "vm": "虛擬機租賃",
+    "s3": "儲存空間",
+    "formulaNote": "所有價格以新台幣（TWD）計價，透過 CAFECA 以 TWDC 支付（1 TWDC = 1 TWD）；建立委託時鎖定價格。",
     "tokensBody": "SinoBee 逐次記錄每個模型呼叫的 tokens 與費用（依各家公告價格，含快取折扣）。",
-    "vmBody": "執行期間依秒計算：每小時 ${price}（每個任務 {cpus} vCPU / {mem} GB 記憶體）。",
-    "s3Body": "成果儲存：每 GB 每月 ${gb}，依保存天數按比例計算；每千次寫入 ${put}、讀取 ${get}。",
+    "vmBody": "執行期間依秒計算：每小時 {price} TWD（每個任務 {cpus} vCPU / {mem} GB 記憶體）。",
+    "s3Body": "成果儲存：每 GB 每月 {gb} TWD，依保存天數按比例計算；每千次寫入 {put} TWD、讀取 {get} TWD。",
     "modelTable": "模型價格（每 100 萬 tokens）",
     "model": "模型",
-    "listIn": "原價輸入 USD",
-    "listOut": "原價輸出 USD",
-    "ourIn": "輸入 TWDC",
-    "ourOut": "輸出 TWDC",
-    "modelNote": "原價為各家公告價格參考值；實際以 SinoBee 記錄的費用（含快取折扣）× 1.5 計費。",
+    "ourIn": "輸入（TWD）",
+    "ourOut": "輸出（TWD）",
+    "modelNote": "價格為每 100 萬 tokens；實際依 SinoBee 逐次記錄的用量計費，快取命中的 tokens 另有折扣。",
     "free": "未訂閱",
     "freeA": "每個用戶有獨立的 Docker 容器，任務完成後保留 {days} 天。",
     "freeB": "成果在任務完成後 {days} 天內可下載，逾期刪除且無法再下載。",
@@ -679,8 +678,8 @@
     "subActive": "訂閱中",
     "until": "到期日",
     "subNone": "未訂閱：容器與成果在任務完成後只保留 {days} 天。",
-    "subscribe": "訂閱 {days} 天（{price} TWDC）",
-    "extend": "延長 {days} 天（{price} TWDC）",
+    "subscribe": "訂閱 {days} 天（{price} TWD）",
+    "extend": "延長 {days} 天（{price} TWD）",
     "subPayTitle": "SinoBee.ai 訂閱 {days} 天",
     "tokens": "Hub API Token",
     "tokensHelp": "給 sinobee skills publish 使用（sinobee keys set sinobee-hub）。",

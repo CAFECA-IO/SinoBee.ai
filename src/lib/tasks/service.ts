@@ -21,7 +21,7 @@ export const TaskInput = z.object({
 });
 
 export async function createTask(userId: string, input: z.infer<typeof TaskInput>) {
-  if (input.budget < config.payments.minTaskBudget) throw new HttpError(400, `minimum budget is ${config.payments.minTaskBudget} TWDC`);
+  if (input.budget < config.payments.minTaskBudget) throw new HttpError(400, `minimum budget is ${config.payments.minTaskBudget} TWD`);
   if (input.skillVersionId) {
     const sv = await db.skillVersion.findUnique({ where: { id: input.skillVersionId } });
     if (!sv || sv.status === "REVOKED" || sv.status === "REJECTED") throw new HttpError(400, "skill version not available");

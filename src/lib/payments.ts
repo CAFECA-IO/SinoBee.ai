@@ -101,6 +101,6 @@ async function applyPayment(paymentId: string) {
     },
   });
   await db.taskEvent.create({
-    data: { taskId: task.id, type: "payment", message: `${pay.purpose === "TASK_TOPUP" ? "Top-up" : "Budget"} ${pay.amount} TWDC confirmed`, data: { txHash: pay.txHash } },
+    data: { taskId: task.id, type: "payment", message: `${pay.purpose === "TASK_TOPUP" ? "Top-up" : "Budget"} ${pay.amount} TWD confirmed`, data: { txHash: pay.txHash } },
   });
 }

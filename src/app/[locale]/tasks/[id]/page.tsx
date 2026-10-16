@@ -152,17 +152,16 @@ export default async function TaskPage({ params }: P) {
                       <dt className="text-muted">{t(`cost.${k}`)}</dt>
                       <dd className="text-right font-mono">
                         {(usd * markup * rate).toFixed(2)}
-                        <span className="block text-[11px] text-muted">${usd.toFixed(4)} × {markup}</span>
                       </dd>
                     </div>
                   ))}
                   <div className="flex justify-between border-t border-line pt-2 font-semibold">
                     <dt>{t("charged")}</dt>
-                    <dd className="font-mono">{Number(task.charged).toFixed(2)} TWDC</dd>
+                    <dd className="font-mono">{Number(task.charged).toFixed(2)} TWD</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-muted">{t("budget")}</dt>
-                    <dd className="font-mono">{Number(task.budget).toFixed(2)} TWDC</dd>
+                    <dd className="font-mono">{Number(task.budget).toFixed(2)} TWD</dd>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-panel-2">
                     <div className="h-full bg-accent" style={{ width: `${Math.min(100, (Number(task.charged) / Math.max(1, Number(task.budget))) * 100)}%` }} />
@@ -172,7 +171,7 @@ export default async function TaskPage({ params }: P) {
                     <span>{Math.round(task.vmSeconds / 60)} min</span>
                   </div>
                 </dl>
-                <p className="text-[11px] text-muted">{t("rateNote", { rate })}</p>
+                <p className="text-[11px] text-muted">{t("rateNote")}</p>
               </div>
               <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} />
             </>

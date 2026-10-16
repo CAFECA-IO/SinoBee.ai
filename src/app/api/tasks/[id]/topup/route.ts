@@ -13,7 +13,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const t = await db.task.findUnique({ where: { id } });
   if (!t || t.userId !== user.id) return json({ error: "not found" }, 404);
   const min = t.status === "AWAITING_PAYMENT" ? config.payments.minTaskBudget : config.payments.minTopUp;
-  if (amount < min) return json({ error: `minimum amount is ${min} TWDC` }, 400);
+  if (amount < min) return json({ error: `minimum amount is ${min} TWD` }, 400);
   if (!["AWAITING_PAYMENT", "NEEDS_FUNDING", "RUNNING", "QUEUED"].includes(t.status)) return json({ error: "task is not running or waiting for funds" }, 400);
   const purpose = t.status === "AWAITING_PAYMENT" ? "TASK_BUDGET" : "TASK_TOPUP";
   const payment = await createPayment({ userId: user.id, purpose, amount: amount.toFixed(6), taskId: id });

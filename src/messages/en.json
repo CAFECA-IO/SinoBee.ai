@@ -477,10 +477,10 @@
     "emptyPublic": "No public commissions yet.",
     "emptyMine": "You have not commissioned anything yet.",
     "newTitle": "Commission a task",
-    "newLead": "The platform runs SinoBee in a Docker container dedicated to you. You pay 1.5× the actual model token, AWS VM rental and AWS S3 costs. If the budget runs out before the task is done, the current results are packaged and CAFECA asks you to add funds or close the task.",
+    "newLead": "The platform runs SinoBee in a Docker container dedicated to you. You pay for actual usage — model tokens, virtual machine rental and storage — priced in TWD. If the budget runs out before the task is done, the current results are packaged and CAFECA asks you to add funds or close the task.",
     "steps": {
       "0": "Describe the task, pick a model and a budget",
-      "1": "Pay the budget in TWDC with CAFECA",
+      "1": "Pay the budget with CAFECA",
       "2": "Runs in your own Docker container",
       "3": "Notified via CAFECA — download within 7 days"
     }
@@ -512,16 +512,17 @@
     "estTokens": "Expected input tokens",
     "est": {
       "tokens": "Model tokens",
-      "vm": "AWS VM",
-      "s3": "AWS S3"
+      "vm": "Virtual machine rental",
+      "s3": "Storage"
     },
     "estTotal": "Estimated total",
-    "estNote": "Raw cost × {markup} at 1 USD = {rate} TWDC. You pay actual usage, never more than your budget.",
+    "estNote": "Estimated in TWD. You pay actual usage, never more than your budget.",
     "budget": "Budget",
-    "budgetHint": "Minimum {min} TWDC. When the budget runs out the task pauses and asks you to add funds; results are kept {days} days after completion (longer for subscribers).",
-    "submit": "Pay {amount} TWDC and submit",
+    "budgetHint": "Minimum {min} TWD. When the budget runs out the task pauses and asks you to add funds; results are kept {days} days after completion (longer for subscribers).",
+    "submit": "Pay {amount} TWD and submit",
     "paying": "Waiting for CAFECA…",
-    "payTitle": "SinoBee.ai commission budget {amount} TWDC"
+    "payTitle": "SinoBee.ai commission budget {amount} TWD",
+    "modelPrice": "{input} / {output} TWD per 1M input / output tokens"
   },
   "pay": {
     "transport": "Confirm on",
@@ -550,12 +551,12 @@
     "billing": "Cost",
     "cost": {
       "tokens": "Model tokens",
-      "vm": "AWS VM rental",
-      "s3": "AWS S3"
+      "vm": "Virtual machine rental",
+      "s3": "Storage"
     },
     "charged": "Charged",
     "budget": "Budget",
-    "rateNote": "TWDC, raw cost × 1.5 at 1 USD = {rate} TWDC (locked when the commission was created).",
+    "rateNote": "Priced in TWD, billed on actual usage.",
     "results": "Results",
     "noResults": "Downloads appear here when the run finishes.",
     "partial": "Partial",
@@ -566,9 +567,9 @@
     "publicNote": "This commission is public. Only the requester can download the result files.",
     "payBudget": "Pay the budget",
     "topUp": "Add funds",
-    "payNow": "Pay {amount} TWDC",
-    "addFunds": "Add {amount} TWDC",
-    "payDesc": "SinoBee.ai commission funds {amount} TWDC",
+    "payNow": "Pay {amount} TWD",
+    "addFunds": "Add {amount} TWD",
+    "payDesc": "SinoBee.ai commission funds {amount} TWD",
     "close": "Close and keep current results",
     "cancel": "Cancel commission",
     "confirmClose": "The task will not continue; current results stay downloadable. Close it?",
@@ -606,7 +607,7 @@
       }
     },
     "newTitle": "Commission an evaluation",
-    "newLead": "An evaluation is a commission too: 1.5× the actual token, VM and S3 cost. The report is published on the benchmarks and skill pages."
+    "newLead": "An evaluation is a commission too, billed on actual usage of model tokens, virtual machine rental and storage. The report is published on the benchmarks and skill pages."
   },
   "report": {
     "back": "← Back to benchmarks",
@@ -632,19 +633,17 @@
     "formula": "How we charge",
     "charge": "Charge",
     "tokens": "Model tokens",
-    "vm": "AWS VM rental",
-    "s3": "AWS S3",
-    "formulaNote": "Paid in TWDC (CAFECA’s TWD stablecoin). USD costs convert at 1 USD = {rate} TWDC, locked when a commission is created.",
+    "vm": "Virtual machine rental",
+    "s3": "Storage",
+    "formulaNote": "All prices are in TWD and paid in TWDC through CAFECA (1 TWDC = 1 TWD); prices are locked when a commission is created.",
     "tokensBody": "SinoBee records tokens and cost for every model call (vendor list prices, cache discounts included).",
-    "vmBody": "Per second while running: ${price}/hour ({cpus} vCPU / {mem} GB RAM per task).",
-    "s3Body": "Result storage: ${gb} per GB-month, prorated by retention; ${put} per 1,000 writes and ${get} per 1,000 reads.",
+    "vmBody": "Per second while running: {price} TWD per hour ({cpus} vCPU / {mem} GB RAM per task).",
+    "s3Body": "Result storage: {gb} TWD per GB-month, prorated by retention; {put} TWD per 1,000 writes and {get} TWD per 1,000 reads.",
     "modelTable": "Model prices (per 1M tokens)",
     "model": "Model",
-    "listIn": "List input USD",
-    "listOut": "List output USD",
-    "ourIn": "Input TWDC",
-    "ourOut": "Output TWDC",
-    "modelNote": "List prices are vendor reference values; billing uses SinoBee’s recorded cost (with cache discounts) × 1.5.",
+    "ourIn": "Input (TWD)",
+    "ourOut": "Output (TWD)",
+    "modelNote": "Prices are per 1M tokens; billing follows the usage SinoBee records for every call, with a discount for cached tokens.",
     "free": "Without subscription",
     "freeA": "Your own Docker container, kept {days} days after a task finishes.",
     "freeB": "Results downloadable for {days} days after completion, then deleted for good.",
@@ -679,8 +678,8 @@
     "subActive": "Active",
     "until": "until",
     "subNone": "Not subscribed: containers and results are kept only {days} days after a task finishes.",
-    "subscribe": "Subscribe for {days} days ({price} TWDC)",
-    "extend": "Extend {days} days ({price} TWDC)",
+    "subscribe": "Subscribe for {days} days ({price} TWD)",
+    "extend": "Extend {days} days ({price} TWD)",
     "subPayTitle": "SinoBee.ai subscription, {days} days",
     "tokens": "Hub API tokens",
     "tokensHelp": "For sinobee skills publish (sinobee keys set sinobee-hub).",

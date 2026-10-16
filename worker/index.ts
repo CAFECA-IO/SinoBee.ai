@@ -140,7 +140,7 @@ async function runTask(id: string) {
 
   if (result.outcome === "stopped") {
     await db.task.update({ where: { id }, data: { status: "NEEDS_FUNDING", fundingRequestedAt: now, resultsExpireAt: expires, workerId: null } });
-    await event(id, "funding.requested", `Budget used up (${chargedStr} / ${fmtTwdc(budget)} TWDC). Partial results saved.`);
+    await event(id, "funding.requested", `Budget used up (${chargedStr} / ${fmtTwdc(budget)} TWD). Partial results saved.`);
     await notify(task.userId, {
       type: "task.needs_funding",
       title: `預算已用完 Budget used up: ${task.title}`,
@@ -161,11 +161,11 @@ async function runTask(id: string) {
         workerId: null,
       },
     });
-    await event(id, reportOk ? "completed" : "failed", reportOk ? `Completed. Charged ${chargedStr} TWDC.` : "Evaluation report missing or invalid");
+    await event(id, reportOk ? "completed" : "failed", reportOk ? `Completed. Charged ${chargedStr} TWD.` : "Evaluation report missing or invalid");
     await notify(task.userId, {
       type: reportOk ? "task.completed" : "task.failed",
       title: `${reportOk ? "任務完成 Task completed" : "任務失敗 Task failed"}: ${task.title}`,
-      body: `請於 ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC 前下載成果，逾期將無法下載。\nDownload the results before ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC; they cannot be downloaded afterwards. Charged ${chargedStr} TWDC.`,
+      body: `請於 ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC 前下載成果，逾期將無法下載。\nDownload the results before ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC; they cannot be downloaded afterwards. Charged ${chargedStr} TWD.`,
       link: `/tasks/${id}`,
     });
   } else {
@@ -174,7 +174,7 @@ async function runTask(id: string) {
     await notify(task.userId, {
       type: "task.failed",
       title: `任務失敗 Task failed: ${task.title}`,
-      body: `執行失敗，已收取 ${chargedStr} TWDC。可下載的部分成果保留至 ${expires.toISOString().slice(0, 10)}。\nThe run failed. Charged ${chargedStr} TWDC.`,
+      body: `執行失敗，已收取 ${chargedStr} TWD。可下載的部分成果保留至 ${expires.toISOString().slice(0, 10)}。\nThe run failed. Charged ${chargedStr} TWD.`,
       link: `/tasks/${id}`,
     });
   }

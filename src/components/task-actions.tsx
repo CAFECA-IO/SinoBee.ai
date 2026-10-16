@@ -20,7 +20,7 @@ export function TaskOwnerActions({ taskId, status, minTopUp, minBudget, title }:
       <div className="font-semibold">{unpaid ? t("payBudget") : t("topUp")}</div>
       <div className="flex items-center gap-2">
         <input className="input font-mono" type="number" min={unpaid ? minBudget : minTopUp} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <span className="text-sm font-semibold">TWDC</span>
+        <span className="text-sm font-semibold">TWD</span>
       </div>
       <PayStatus busy={busy} error={error} pendingLink={pendingLink} />
       <button

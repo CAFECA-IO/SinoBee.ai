@@ -152,7 +152,7 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
               <tr key={p.id} className="border-t border-line">
                 <td className="py-2 text-muted"><LocalDate value={p.createdAt} /></td>
                 <td className="py-2">{t(`purpose.${p.purpose}`)}</td>
-                <td className="py-2 font-mono">{Number(p.amount).toFixed(2)} TWDC</td>
+                <td className="py-2 font-mono">{Number(p.amount).toFixed(2)} TWD</td>
                 <td className="py-2">{t(`pstatus.${p.status}`)}</td>
                 <td className="max-w-[160px] truncate py-2 font-mono text-xs text-muted" title={p.txHash ?? ""}>{p.txHash ?? "—"}</td>
               </tr>
