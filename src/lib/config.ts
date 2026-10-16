@@ -19,25 +19,61 @@ export const config = {
    * is printed in the server log at startup instead (see src/lib/roles.ts).
    */
   ownerAccount: (process.env.OWNER_ACCOUNT ?? "").trim().toLowerCase() || undefined,
+  /** Shown in the Terms, Privacy and Refund policies (/terms, /privacy, /refunds) */
+  legal: {
+    entity: process.env.LEGAL_ENTITY || "CAFECA",
+    taxId: process.env.LEGAL_TAX_ID || "",
+    address: process.env.LEGAL_ADDRESS || "",
+    email: process.env.LEGAL_EMAIL || "",
+    /** effective date of the current policies */
+    effective: process.env.LEGAL_EFFECTIVE || "2026-10-16",
+  },
   /** Accounts that start as ADMIN when they first sign in (later role changes in /admin are never overwritten) */
   adminAccounts: list(process.env.ADMIN_ACCOUNTS).map((a) => a.toLowerCase()),
 
   payments: {
-    /** "chain": verify TWDC transfers on the CAFECA chain. "mock": auto-confirm (development only!) */
-    mode: (process.env.PAYMENT_MODE ?? "chain") as "chain" | "mock",
-    /** Platform treasury that receives TWDC */
-    treasury: (process.env.TREASURY_ADDRESS ?? "").toLowerCase(),
-    /** Token decimals (TWDC = 6) */
-    decimals: num(process.env.TWDC_DECIMALS, 6),
-    minTaskBudget: num(process.env.MIN_TASK_BUDGET_TWDC, 30),
-    minTopUp: num(process.env.MIN_TOPUP_TWDC, 10),
+    /**
+     * "oen": Oen checkout in TWD (https://developer.oen.tw). "mock": a local fake checkout page (development only;
+     * refused when NODE_ENV=production).
+     */
+    mode: (process.env.PAYMENT_MODE === "mock" ? "mock" : "oen") as "oen" | "mock",
+    minTaskBudget: num(process.env.MIN_TASK_BUDGET_TWD, 30),
+    minTopUp: num(process.env.MIN_TOPUP_TWD, 10),
+  },
+
+  /**
+   * Oen payments. The API token is read from the environment at start-up only (pass it on the command line, e.g.
+   * `docker run -e OEN_API_TOKEN=…` or `OEN_API_TOKEN=… npm start`); never write it into .env or the repository.
+   */
+  oen: {
+    get env() {
+      return (process.env.OEN_ENV === "production" ? "production" : "testing") as "production" | "testing";
+    },
+    /** your Oen domain, e.g. "sinobee" for https://sinobee.oen.tw */
+    get merchantId() {
+      return process.env.OEN_MERCHANT_ID ?? "";
+    },
+    get token() {
+      return process.env.OEN_API_TOKEN ?? "";
+    },
+    /** overrides for tests / proxies */
+    get apiBase() {
+      return (process.env.OEN_API_BASE || (this.env === "production" ? "https://payment-api.oen.tw" : "https://payment-api.testing.oen.tw")).replace(/\/$/, "");
+    },
+    get checkoutBase() {
+      return (process.env.OEN_CHECKOUT_BASE || `https://${this.merchantId}.${this.env === "production" ? "" : "testing."}oen.tw`).replace(/\/$/, "");
+    },
+    /** extra payment methods besides card: comma separated cvs,atm,linePay */
+    get methods() {
+      return list(process.env.OEN_PAYMENT_METHODS);
+    },
   },
 
   pricing: {
-    /** Markup applied to every raw cost (tokens, VM, S3) */
+    /** Markup on VM and storage costs (model tokens are billed at the published price instead) */
     markup: num(process.env.PRICE_MARKUP, 1.5),
-    /** USD → TWDC conversion rate used to bill (snapshotted per task) */
-    usdTwd: num(process.env.USD_TWD_RATE, 32),
+    /** legacy USD→TWD default; the live base FX rate is set in /admin (Model prices) */
+    usdTwd: num(process.env.USD_TWD_RATE, 32.5),
     /** AWS EC2 on-demand price for one task slot (USD/hour). Default: m7i.xlarge ap-northeast-1 reference */
     vmHourlyUsd: num(process.env.AWS_VM_HOURLY_USD, 0.2604),
     /** AWS S3 Standard storage (USD per GB-month) and request prices (USD per 1,000) */
@@ -47,6 +83,10 @@ export const config = {
   },
 
   retention: {
+    /** "1" deletes expired results and idle containers; default "0" only marks them expired (deletion paused) */
+    get deleteExpired() {
+      return process.env.RETENTION_DELETE === "1";
+    },
     /** non-subscribers: containers and results are kept this many days after a task finishes */
     freeDays: num(process.env.RETENTION_FREE_DAYS, 7),
     /** subscribers: results kept this many days (containers kept while subscribed) */
@@ -54,8 +94,8 @@ export const config = {
   },
 
   subscription: {
-    priceTwdc: num(process.env.SUBSCRIPTION_PRICE_TWDC, 300),
-    days: num(process.env.SUBSCRIPTION_DAYS, 30),
+    /** results and containers stay this many days after the last subscription period ends */
+    graceDays: num(process.env.SUBSCRIPTION_GRACE_DAYS, 30),
   },
 
   storage: {

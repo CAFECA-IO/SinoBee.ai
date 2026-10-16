@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { HttpError } from "@/lib/errors";
-import { offeredModel } from "@/lib/models";
+import { offeredModel, pricingSettings } from "@/lib/models";
 import { notify } from "@/lib/notify";
 import { addDays, resultsRetentionDays } from "@/lib/retention";
 import { z } from "zod";
@@ -15,13 +15,17 @@ export const TaskInput = z.object({
   model: z.string().min(3).max(200),
   skillVersionId: z.string().optional().nullable(),
   isPublic: z.boolean().default(false),
-  budget: z.coerce.number().positive(),
+  /** whole TWD (Oen charges integer amounts) */
+  budget: z.coerce.number().int().positive(),
   evalMethod: z.enum(EVAL_METHODS).optional(),
   evalCriteria: z.string().trim().max(10_000).optional(),
 });
 
 export async function createTask(userId: string, input: z.infer<typeof TaskInput>) {
-  if (!(await offeredModel(input.model))) throw new HttpError(400, "unsupported model");
+  const model = await offeredModel(input.model);
+  if (!model) throw new HttpError(400, "unsupported model");
+  // snapshot the published price so later price changes never alter this task's bill
+  const { fx, buffer } = await pricingSettings();
   if (input.budget < config.payments.minTaskBudget) throw new HttpError(400, `minimum budget is ${config.payments.minTaskBudget} TWD`);
   if (input.skillVersionId) {
     const sv = await db.skillVersion.findUnique({ where: { id: input.skillVersionId } });
@@ -38,7 +42,9 @@ export async function createTask(userId: string, input: z.infer<typeof TaskInput
       skillVersionId: input.skillVersionId || null,
       // evaluation reports are always public
       isPublic: input.kind === "EVALUATION" ? true : input.isPublic,
-      usdTwdRate: config.pricing.usdTwd,
+      usdTwdRate: fx,
+      priceBuffer: buffer,
+      modelPriceUsd: model.usd,
       evalMethod: input.evalMethod ?? null,
       evalCriteria: input.evalCriteria ?? null,
     },

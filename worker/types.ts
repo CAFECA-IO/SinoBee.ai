@@ -6,7 +6,8 @@ export type TaskWithRefs = Task & {
 };
 
 /** Cumulative usage of the task's SinoBee session (all runs, including continuations) */
-export type Usage = { inputTokens: number; outputTokens: number; tokenCostUsd: number };
+/** tokenCostUsd is SinoBee's own estimate; billing recomputes it from the task's price snapshot (src/lib/pricing.ts) */
+export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; tokenCostUsd: number };
 
 export type RunContext = {
   /** true when this run continues a task that was paused for funding */

@@ -16,7 +16,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("pricing");
-  const p = publicPrices();
+  const p = await publicPrices();
   // the same rows the admin backend edits (ModelPrice / Plan)
   const [models, plans, cheap, fx] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), cheapestBlended(), pricingSettings()]);
   const tok = (twd: number) => (cheap ? formatTokens(quotaTokens(twd, cheap.blendedTwd), locale) : "—");
@@ -45,7 +45,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                 <li>{t("planConcurrency", { n: pl.concurrency })}</li>
                 <li>{t("planNoRenew")}</li>
               </ul>
-              <button type="button" className="btn-ghost mt-auto" disabled aria-disabled="true">{t("planSoon")}</button>
+              <Link href={`/subscribe?plan=${pl.code}`} className="btn-primary mt-auto">{t("planBuy")}</Link>
             </div>
           ))}
         </div>

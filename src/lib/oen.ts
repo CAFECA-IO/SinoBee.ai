@@ -1,0 +1,112 @@
+import { config } from "./config";
+import { HttpError } from "./errors";
+
+/**
+ * Oen Payment API client (https://developer.oen.tw). Server-side only: the token never reaches the browser.
+ *
+ *  POST /checkout                      → { id (27 chars), transactionHid (P…) }; checkout page valid for 5 minutes
+ *  GET  /transactions/:id              → Transaction (source of truth; webhooks are unsigned and only a hint)
+ *  GET  /order/:orderId/transactions   → every transaction created for one order (reconciliation)
+ *  POST /refunds/:transactionHid       → one successful API refund per transaction
+ *
+ * Every response is { code: "S0000" | error code, data, message }.
+ */
+
+export type OenProduct = { productionCode: string; description: string; quantity: number; unit: string; unitPrice: number };
+
+export type OenInvoice =
+  | { invoiceType: "cloud"; carrierType: "3J0002" | "CQ0001" | ""; carrierId?: string; email?: string }
+  | { invoiceType: "company"; buyerIdentifier: string; buyerName?: string; email?: string };
+
+export type OenTransaction = {
+  id: string; // P… transaction number
+  transactionId: string; // 27-char internal id
+  action?: string;
+  amount: number;
+  status: "initiated" | "charging" | "authorized" | "charged" | "claimed" | "failed" | "cancelled" | "refunding" | "refunded" | "refundedPostPayout" | string;
+  orderId?: string;
+  customId?: string;
+  paymentMethod?: string;
+  createdAt: string;
+  paidAt?: string;
+  refundAmount?: number;
+  refundedAt?: string;
+  reason?: string;
+  success?: boolean;
+};
+
+export const PAID = new Set(["charged", "claimed"]);
+export const REFUNDED = new Set(["refunded", "refundedPostPayout", "refunding"]);
+export const DEAD = new Set(["failed", "cancelled"]);
+
+export class OenError extends Error {
+  constructor(public code: string, public status: number, message: string) {
+    super(`Oen ${code}: ${message}`);
+  }
+}
+
+export function oenConfigured() {
+  return !!(config.oen.token && config.oen.merchantId);
+}
+
+async function call<T>(method: "GET" | "POST", path: string, body?: object): Promise<T> {
+  if (!oenConfigured()) throw new HttpError(503, "Oen payments are not configured (OEN_MERCHANT_ID / OEN_API_TOKEN)");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    const r = await fetch(`${config.oen.apiBase}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${config.oen.token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify({ merchantId: config.oen.merchantId, ...body }) : undefined,
+      signal: ctrl.signal,
+    });
+    const text = await r.text();
+    let j: { code?: string; data?: T; message?: string } = {};
+    try {
+      j = JSON.parse(text);
+    } catch {
+      /* 403 / 404 / 504 can be plain text */
+    }
+    if (r.status === 403 && !j.code) throw new OenError("IP", 403, "server IP is not on Oen's allowlist (production)");
+    if (!r.ok || j.code !== "S0000") throw new OenError(j.code ?? `HTTP${r.status}`, r.status, j.message || text.slice(0, 200));
+    return j.data as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function createCheckout(p: {
+  amount: number;
+  orderId: string;
+  successUrl: string;
+  failureUrl: string;
+  product: OenProduct;
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  invoiceInfo?: OenInvoice;
+  customId?: string;
+}) {
+  const data = await call<{ id: string; transactionHid: string }>("POST", "/checkout", {
+    amount: p.amount,
+    currency: "TWD",
+    orderId: p.orderId,
+    successUrl: p.successUrl,
+    failureUrl: p.failureUrl,
+    productDetails: [p.product],
+    ...(config.oen.methods.length ? { allowedPaymentMethods: config.oen.methods } : {}),
+    userId: p.userId,
+    userName: p.userName,
+    userEmail: p.userEmail,
+    invoiceInfo: p.invoiceInfo,
+    customId: p.customId,
+  });
+  return { ...data, url: `${config.oen.checkoutBase}/checkout/${data.id}` };
+}
+
+export const getTransaction = (id: string) => call<OenTransaction>("GET", `/transactions/${encodeURIComponent(id)}`);
+
+export const orderTransactions = (orderId: string) => call<OenTransaction[]>("GET", `/order/${encodeURIComponent(orderId)}/transactions`);
+
+export const refundTransaction = (hid: string, p: { amount: number; reason?: string; product: OenProduct }) =>
+  call<OenTransaction>("POST", `/refunds/${encodeURIComponent(hid)}`, { amount: p.amount, reason: p.reason, productDetails: [p.product] });

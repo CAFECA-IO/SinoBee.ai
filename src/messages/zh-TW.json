@@ -25,7 +25,10 @@
     "tagline": "SinoBee 是一個在你電腦上工作的開源群體智慧 AI 助理：查資料、讀寫檔案、操作瀏覽器與桌面，做完把結果整理成表格、圖表與檔案。",
     "product": "產品",
     "resources": "資源",
-    "hubApi": "Skill Hub API"
+    "hubApi": "Skill Hub API",
+    "terms": "服務條款",
+    "privacy": "隱私權政策",
+    "refunds": "退款政策"
   },
   "home": {
     "badge": "開源 · MIT 授權 · 雲端模型與本機模型可混用",
@@ -244,7 +247,7 @@
   },
   "auth": {
     "title": "以 CAFECA 登入",
-    "lead": "使用 CAFECA 錢包的 Passkey 登入，不需要密碼。登入時會開啟簽章通道，之後付款與簽署都會在 CAFECA 由你逐筆確認。",
+    "lead": "使用 CAFECA 錢包的 Passkey 登入，不需要密碼。",
     "statement": "登入 SinoBee.ai：管理技能、委託任務與評鑑",
     "popup": "以 CAFECA 登入（彈出視窗）",
     "redirect": "整頁導向登入",
@@ -440,7 +443,8 @@
       "users": "用戶與角色",
       "prices": "模型定價",
       "plans": "訂閱方案",
-      "audit": "操作紀錄"
+      "audit": "操作紀錄",
+      "payments": "付款與退款"
     },
     "st": {
       "enabled": "啟用",
@@ -539,6 +543,26 @@
       "action": "動作",
       "target": "對象",
       "detail": "內容"
+    },
+    "payments": {
+      "mode": "付款模式",
+      "merchant": "Oen 網域",
+      "notConfigured": "未設定 OEN_MERCHANT_ID / OEN_API_TOKEN",
+      "last30": "近 30 天收款",
+      "refunded30": "近 30 天退款",
+      "all": "全部",
+      "when": "時間",
+      "user": "用戶",
+      "what": "項目",
+      "status": "狀態",
+      "sync": "向 Oen 查詢",
+      "refund": "退款",
+      "amount": "退款金額",
+      "reason": "原因（選填）",
+      "refundGo": "確認退款",
+      "cancel": "取消",
+      "confirm": "透過 Oen 退款 {amount} TWD？每筆交易只能退款一次。",
+      "help": "Oen 付款通知沒有簽章，系統一律以 GET /transactions 回查為準；漏掉的通知由 worker 每 3 分鐘對帳補上。每筆交易只能退款一次；委託的退款上限是尚未使用的預算，訂閱退款會取消該期並讓後續期間往前遞補。"
     }
   },
   "hubApi": {
@@ -567,7 +591,7 @@
     "newLead": "平台會為你建立獨立的 Docker 容器執行 SinoBee。依實際用量計費：模型 Token、虛擬機租賃與儲存空間，以新台幣（TWD）計價；預算用完而尚未完成時，會整理目前成果並透過 CAFECA 請你補充經費或結案。",
     "steps": {
       "0": "描述任務、選模型與預算",
-      "1": "以 CAFECA 支付委託金",
+      "1": "以 Oen 付款（信用卡等，新臺幣計價）支付委託金",
       "2": "在你的獨立 Docker 中執行",
       "3": "完成後透過 CAFECA 通知，7 天內下載成果"
     }
@@ -603,23 +627,14 @@
       "s3": "儲存空間"
     },
     "estTotal": "預估合計",
-    "estNote": "以新台幣（TWD）試算；實際依用量計費，不會超過預算。",
+    "estNote": "以新臺幣（TWD）試算；實際依用量計費，不會超過預算，未用完的預算可申請退款（見退款政策）。",
     "budget": "委託預算",
     "budgetHint": "最低 {min} TWD。預算用完會暫停並請你補充；完成後成果保留 {days} 天（訂閱者更久）。",
     "submit": "支付 {amount} TWD 並提交",
-    "paying": "等待 CAFECA 確認…",
+    "paying": "前往 Oen 付款…",
     "payTitle": "SinoBee.ai 委託預算 {amount} TWD",
-    "modelPrice": "每 100 萬 tokens 輸入 {input}／輸出 {output} TWD"
-  },
-  "pay": {
-    "transport": "確認方式",
-    "popup": "彈出視窗（同一台裝置）",
-    "relay": "傳到手機上的 CAFECA",
-    "waiting": "請在 CAFECA 確認付款…",
-    "relayHint": "已送到你的 CAFECA，請在手機上確認（或掃描 QR 開啟）。",
-    "noChannel": "這次登入沒有開啟簽章通道，無法付款。請重新登入並同意開啟簽章通道。",
-    "rejected": "你在 CAFECA 拒絕了這筆付款。",
-    "relogin": "重新登入"
+    "modelPrice": "每 100 萬 tokens 輸入 {input}／輸出 {output} TWD",
+    "oenNote": "按下後前往 Oen 付款頁（5 分鐘內有效），付款完成會自動回到 SinoBee.ai。電子發票由 Oen 寄到你的 Email。"
   },
   "task": {
     "back": "← 返回委託列表",
@@ -656,11 +671,11 @@
     "topUp": "補充經費",
     "payNow": "支付 {amount} TWD",
     "addFunds": "補充 {amount} TWD",
-    "payDesc": "SinoBee.ai 委託經費 {amount} TWD",
     "close": "結案並保留目前成果",
     "cancel": "取消委託",
     "confirmClose": "結案後不會再繼續執行，目前成果保留供下載。確定？",
-    "confirmCancel": "確定取消這個尚未付款的委託？"
+    "confirmCancel": "確定取消這個尚未付款的委託？",
+    "amount": "金額"
   },
   "bench": {
     "title": "模型與技能評鑑",
@@ -722,8 +737,8 @@
     "tokens": "模型 Token",
     "vm": "虛擬機租賃",
     "s3": "儲存空間",
-    "formulaNote": "所有價格以新台幣（TWD）計價，透過 CAFECA 以 TWDC 支付（1 TWDC = 1 TWD）；建立委託時鎖定價格。",
-    "tokensBody": "SinoBee 逐次記錄每個模型呼叫的 tokens 與費用（依各家公告價格，含快取折扣）。",
+    "formulaNote": "所有價格以新臺幣（TWD）計價，透過 Oen 付款並開立電子發票；建立委託時鎖定模型價格與匯率。",
+    "tokensBody": "依上方模型公告價計算：未命中快取的輸入、快取讀取、快取寫入與輸出分別計價，與訂閱額度用的是同一張價目表。",
     "vmBody": "執行期間依秒計算：每小時 {price} TWD（每個任務 {cpus} vCPU / {mem} GB 記憶體）。",
     "s3Body": "成果儲存：每 GB 每月 {gb} TWD，依保存天數按比例計算；每千次寫入 {put} TWD、讀取 {get} TWD。",
     "modelTable": "模型公告價（TWD / 每 100 萬 tokens）",
@@ -740,7 +755,7 @@
     "subC": "委託任務費用計算方式不變。",
     "budgetTitle": "預算與補充經費",
     "budget": {
-      "0": "提交委託時設定預算並以 CAFECA 支付；執行期間每 15 秒計算一次費用，實際收取金額不會超過預算。",
+      "0": "提交委託時設定預算並透過 Oen 付款；執行期間每 15 秒計算一次費用，實際收取金額不會超過預算。",
       "1": "預算用完但任務未完成時，平台會整理當下成果並透過 CAFECA 通知你補充經費或結案。",
       "2": "補充經費後會在同一個容器、同一個工作階段從中斷處繼續執行。",
       "3": "成果下載期限內未補充也未結案，系統會自動結案。"
@@ -750,14 +765,14 @@
     "planL168": "每 7 天額度：約 {tokens} tokens",
     "planConcurrency": "同時執行 {n} 個請求",
     "planNoRenew": "不自動續訂，延長時天數累加",
-    "planSoon": "Oen 付款即將開放",
     "planNote": "額度為滾動計算；tokens 數以目前最低價模型 {model} 換算（輸入：輸出 = 3：1），改用其他模型時可用量會較少。",
     "pIn": "輸入",
     "pCacheRead": "快取讀取",
     "pCacheWrite": "快取寫入",
     "pOut": "輸出",
     "tasksTitle": "委託任務",
-    "seePlans": "查看訂閱方案"
+    "seePlans": "查看訂閱方案",
+    "planBuy": "訂閱"
   },
   "account": {
     "title": "帳戶設定",
@@ -765,9 +780,6 @@
     "cafecaAccount": "身分地址",
     "handle": "代稱",
     "kyc": "實名等級",
-    "channel": "簽章通道",
-    "channelOpen": "已開啟（可付款）",
-    "channelClosed": "未開啟，付款前請重新登入",
     "publisher": "Skill Hub 發布者 ID",
     "publisherHelp": "2–39 個小寫英數或連字號，例如 cafeca。發布技能後不能更改。",
     "save": "儲存",
@@ -775,9 +787,6 @@
     "subActive": "訂閱中",
     "until": "到期日",
     "subNone": "未訂閱：容器與成果在任務完成後只保留 {days} 天。",
-    "subscribe": "訂閱 {days} 天（{price} TWD）",
-    "extend": "延長 {days} 天（{price} TWD）",
-    "subPayTitle": "SinoBee.ai 訂閱 {days} 天",
     "tokens": "Hub API Token",
     "tokensHelp": "給 sinobee skills publish 使用（sinobee keys set sinobee-hub）。",
     "newToken": "建立 token",
@@ -796,7 +805,9 @@
     "pstatus": {
       "PENDING": "待確認",
       "CONFIRMED": "已確認",
-      "FAILED": "失敗"
+      "FAILED": "失敗",
+      "EXPIRED": "已逾時",
+      "REFUNDED": "已退款"
     },
     "devices": "已登入的 SinoBee",
     "devicesHelp": "透過 sinobee login 登入的裝置。登出後該裝置的權杖立即失效。",
@@ -824,8 +835,13 @@
       "PUBLIC": "公開"
     },
     "shareViews": "{n} 次瀏覽",
-    "subMoving": "新的訂閱方案將改以 Oen 新臺幣付款，開放前暫停購買；已購買的訂閱照常到期。",
-    "seePlans": "查看訂閱方案"
+    "seePlans": "查看訂閱方案",
+    "refunded": "已退 {n}",
+    "subStacked": "另有 {n} 期已預先購買",
+    "subGrace": "訂閱已到期，寬限期內成果與容器照常保留，到",
+    "subKeep": "成果與容器保留到",
+    "extendPlan": "延長 30 天或變更方案",
+    "choosePlan": "選擇訂閱方案"
   },
   "notifications": {
     "title": "通知",
@@ -964,5 +980,74 @@
   "common": {
     "copy": "複製",
     "copied": "已複製"
+  },
+  "checkout": {
+    "buyer": "付款人與發票",
+    "name": "姓名",
+    "email": "Email（電子發票寄送）",
+    "invoice": "發票",
+    "inv": {
+      "member": "雲端發票（會員載具）",
+      "mobile": "手機條碼載具",
+      "cert": "自然人憑證載具",
+      "company": "公司戶（統一編號）"
+    },
+    "carrierId": "載具號碼",
+    "taxId": "統一編號（8 碼）",
+    "companyName": "公司名稱（選填）",
+    "agree": "我已閱讀並同意<terms>服務條款</terms>、<refunds>退款政策</refunds>與<privacy>隱私權政策</privacy>，並同意付款後立即開始提供服務（線上服務不適用七日解除權，退款依退款政策辦理）。",
+    "redirecting": "前往 Oen 付款…",
+    "oenNote": "付款由 Oen 應援科技處理（新臺幣計價，信用卡等）；SinoBee.ai 不會取得你的卡號。付款頁 5 分鐘內有效。"
+  },
+  "subscribe": {
+    "title": "訂閱 SinoBee.ai",
+    "lead": "以 30 天為一期，不自動續訂。再次購買時會接在目前期間之後，天數累加。",
+    "plan": "方案",
+    "limits": "每 6 小時約 {l6}、每 7 天約 {l168} tokens · 同時 {n} 個請求",
+    "pay": "前往付款 NT${fee}",
+    "current": "目前方案：{plan}，到",
+    "grace": "訂閱已到期，寬限期到",
+    "stacks": "新的一期從 {date} 開始（接在目前期間之後）。",
+    "startsNow": "付款完成後立即生效，30 天從付款時起算。"
+  },
+  "payReturn": {
+    "title": {
+      "ok": "付款完成",
+      "pending": "確認付款中…",
+      "failed": "付款未完成"
+    },
+    "ok": {
+      "SUBSCRIPTION": "訂閱已生效，電子發票會寄到你的 Email。",
+      "TASK_BUDGET": "已收到 {amount} TWD 委託預算，任務已排入執行。",
+      "TASK_TOPUP": "已補充 {amount} TWD，任務會從中斷處繼續。"
+    },
+    "pending": "正在向 Oen 確認付款結果，這個頁面會自動更新。",
+    "charging": "等待繳費：完成超商或 ATM 繳費後會自動更新（最長 3 天）。",
+    "failed": "這筆付款沒有完成，沒有扣款。可以重新付款。",
+    "err": {
+      "V0002": "付款頁已逾時（5 分鐘），請重新付款。",
+      "V0003": "付款結果尚未確定，請稍候。",
+      "T0001": "付款失敗（含 3D 驗證失敗），請換卡或稍後再試。",
+      "T0002": "安全碼錯誤，請確認卡片資料。",
+      "T0003": "卡片已過期，請換一張卡。",
+      "T0004": "額度不足，請換一張卡。",
+      "T0005": "發卡銀行拒絕交易，請聯絡銀行或換卡。"
+    },
+    "toTask": "回到委託",
+    "toAccount": "回到帳戶",
+    "retry": "重新付款"
+  },
+  "legal": {
+    "nav": "條款與政策",
+    "effective": "生效日期：{date}",
+    "terms": {
+      "title": "服務條款"
+    },
+    "privacy": {
+      "title": "隱私權政策"
+    },
+    "refunds": {
+      "title": "退款政策"
+    }
   }
 }

@@ -97,16 +97,16 @@ async function readUsage(c: Docker.Container, session: string): Promise<Usage> {
   const py = [
     "import sqlite3, json, os",
     "p = os.path.expanduser('~/.sinobee/sinobee.db')",
-    "r = (0, 0, 0.0)",
+    "r = (0, 0, 0.0, 0, 0)",
     "if os.path.exists(p):",
     "    db = sqlite3.connect(p)",
-    "    r = db.execute('SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0) FROM usage WHERE session_id=?', (" + JSON.stringify(session) + ",)).fetchone()",
+    "    r = db.execute('SELECT COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0), COALESCE(SUM(cache_read_tokens),0), COALESCE(SUM(cache_write_tokens),0) FROM usage WHERE session_id=?', (" + JSON.stringify(session) + ",)).fetchone()",
     "print(json.dumps(r))",
   ].join("\n");
   const r = await exec(c, ["python3", "-c", py]);
   const last = r.output.trim().split("\n").pop() ?? "[0,0,0]";
-  const [i, o, cost] = JSON.parse(last) as [number, number, number];
-  return { inputTokens: i, outputTokens: o, tokenCostUsd: cost };
+  const [i, o, cost, cr = 0, cw = 0] = JSON.parse(last) as [number, number, number, number?, number?];
+  return { inputTokens: i, outputTokens: o, cacheReadTokens: cr, cacheWriteTokens: cw, tokenCostUsd: cost };
 }
 
 export class DockerExecutor implements Executor {

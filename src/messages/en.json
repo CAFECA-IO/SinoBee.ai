@@ -25,7 +25,10 @@
     "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",
     "product": "Product",
     "resources": "Resources",
-    "hubApi": "Skill Hub API"
+    "hubApi": "Skill Hub API",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "refunds": "Refunds"
   },
   "home": {
     "badge": "Open source · MIT · mix cloud and local models",
@@ -244,7 +247,7 @@
   },
   "auth": {
     "title": "Sign in with CAFECA",
-    "lead": "Use the Passkey in your CAFECA wallet — no password. Signing in opens a signing channel; every later payment or signature is confirmed by you in CAFECA.",
+    "lead": "Use the Passkey in your CAFECA wallet — no password.",
     "statement": "Sign in to SinoBee.ai to manage skills, commissions and evaluations",
     "popup": "Sign in with CAFECA (popup)",
     "redirect": "Sign in with a full-page redirect",
@@ -440,7 +443,8 @@
       "users": "Users & roles",
       "prices": "Model prices",
       "plans": "Plans",
-      "audit": "Audit log"
+      "audit": "Audit log",
+      "payments": "Payments & refunds"
     },
     "st": {
       "enabled": "Enabled",
@@ -539,6 +543,26 @@
       "action": "Action",
       "target": "Target",
       "detail": "Detail"
+    },
+    "payments": {
+      "mode": "Mode",
+      "merchant": "Oen domain",
+      "notConfigured": "OEN_MERCHANT_ID / OEN_API_TOKEN not set",
+      "last30": "Received, 30 days",
+      "refunded30": "Refunded, 30 days",
+      "all": "All",
+      "when": "When",
+      "user": "User",
+      "what": "For",
+      "status": "Status",
+      "sync": "Check with Oen",
+      "refund": "Refund",
+      "amount": "Refund amount",
+      "reason": "Reason (optional)",
+      "refundGo": "Refund",
+      "cancel": "Cancel",
+      "confirm": "Refund {amount} TWD through Oen? Each transaction can be refunded once.",
+      "help": "Oen notifications are unsigned, so every result is read back with GET /transactions; missed notifications are reconciled by the worker every 3 minutes. One refund per transaction; task refunds are limited to the unspent budget, and refunding a subscription cancels that period and moves later ones up."
     }
   },
   "hubApi": {
@@ -567,7 +591,7 @@
     "newLead": "The platform runs SinoBee in a Docker container dedicated to you. You pay for actual usage — model tokens, virtual machine rental and storage — priced in TWD. If the budget runs out before the task is done, the current results are packaged and CAFECA asks you to add funds or close the task.",
     "steps": {
       "0": "Describe the task, pick a model and a budget",
-      "1": "Pay the budget with CAFECA",
+      "1": "Pay the budget through Oen (card, in TWD)",
       "2": "Runs in your own Docker container",
       "3": "Notified via CAFECA — download within 7 days"
     }
@@ -603,23 +627,14 @@
       "s3": "Storage"
     },
     "estTotal": "Estimated total",
-    "estNote": "Estimated in TWD. You pay actual usage, never more than your budget.",
+    "estNote": "Estimated in TWD. You pay actual usage, never more than your budget; unused budget can be refunded (see the refund policy).",
     "budget": "Budget",
     "budgetHint": "Minimum {min} TWD. When the budget runs out the task pauses and asks you to add funds; results are kept {days} days after completion (longer for subscribers).",
     "submit": "Pay {amount} TWD and submit",
-    "paying": "Waiting for CAFECA…",
+    "paying": "Going to Oen…",
     "payTitle": "SinoBee.ai commission budget {amount} TWD",
-    "modelPrice": "{input} / {output} TWD per 1M input / output tokens"
-  },
-  "pay": {
-    "transport": "Confirm on",
-    "popup": "Popup (this device)",
-    "relay": "CAFECA on my phone",
-    "waiting": "Confirm the payment in CAFECA…",
-    "relayHint": "Sent to your CAFECA — confirm on your phone (or scan the QR code).",
-    "noChannel": "This session has no signing channel, so it cannot pay. Sign in again and allow the signing channel.",
-    "rejected": "You declined the payment in CAFECA.",
-    "relogin": "Sign in again"
+    "modelPrice": "{input} / {output} TWD per 1M input / output tokens",
+    "oenNote": "You will be sent to Oen's payment page (valid 5 minutes) and brought back here afterwards. Oen emails the e-invoice."
   },
   "task": {
     "back": "← Back to commissions",
@@ -656,11 +671,11 @@
     "topUp": "Add funds",
     "payNow": "Pay {amount} TWD",
     "addFunds": "Add {amount} TWD",
-    "payDesc": "SinoBee.ai commission funds {amount} TWD",
     "close": "Close and keep current results",
     "cancel": "Cancel commission",
     "confirmClose": "The task will not continue; current results stay downloadable. Close it?",
-    "confirmCancel": "Cancel this unpaid commission?"
+    "confirmCancel": "Cancel this unpaid commission?",
+    "amount": "Amount"
   },
   "bench": {
     "title": "Model & skill benchmarks",
@@ -722,8 +737,8 @@
     "tokens": "Model tokens",
     "vm": "Virtual machine rental",
     "s3": "Storage",
-    "formulaNote": "All prices are in TWD and paid in TWDC through CAFECA (1 TWDC = 1 TWD); prices are locked when a commission is created.",
-    "tokensBody": "SinoBee records tokens and cost for every model call (vendor list prices, cache discounts included).",
+    "formulaNote": "All prices are in TWD, paid through Oen with an e-invoice; model prices and the FX rate are locked when a commission is created.",
+    "tokensBody": "Billed at the published model prices above: uncached input, cache reads, cache writes and output each at their own price — the same table subscriptions use.",
     "vmBody": "Per second while running: {price} TWD per hour ({cpus} vCPU / {mem} GB RAM per task).",
     "s3Body": "Result storage: {gb} TWD per GB-month, prorated by retention; {put} TWD per 1,000 writes and {get} TWD per 1,000 reads.",
     "modelTable": "Published model prices (TWD per 1M tokens)",
@@ -740,7 +755,7 @@
     "subC": "Commission pricing stays the same.",
     "budgetTitle": "Budgets and top-ups",
     "budget": {
-      "0": "You set a budget and pay with CAFECA when you submit; cost is metered every 15 seconds and the charge never exceeds the budget.",
+      "0": "You set a budget and pay through Oen when you submit; cost is metered every 15 seconds and the charge never exceeds the budget.",
       "1": "If the budget runs out first, the platform packages the current results and CAFECA asks you to add funds or close the task.",
       "2": "After a top-up the run continues where it stopped, in the same container and session.",
       "3": "Without a top-up or close within the download window, the task closes automatically."
@@ -750,14 +765,14 @@
     "planL168": "Every 7 days: about {tokens} tokens",
     "planConcurrency": "{n} requests at a time",
     "planNoRenew": "No auto-renewal; extensions add up",
-    "planSoon": "Oen payments coming soon",
     "planNote": "Limits are rolling windows. Token counts use the cheapest model, {model} (input : output = 3 : 1); other models give fewer tokens.",
     "pIn": "Input",
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",
     "pOut": "Output",
     "tasksTitle": "Commissioned tasks",
-    "seePlans": "See plans"
+    "seePlans": "See plans",
+    "planBuy": "Subscribe"
   },
   "account": {
     "title": "Account",
@@ -765,9 +780,6 @@
     "cafecaAccount": "Identity address",
     "handle": "Handle",
     "kyc": "Verification level",
-    "channel": "Signing channel",
-    "channelOpen": "Open (payments enabled)",
-    "channelClosed": "Not open — sign in again before paying",
     "publisher": "Skill Hub publisher id",
     "publisherHelp": "2–39 lowercase letters, digits or hyphens, e.g. cafeca. Cannot change after you publish.",
     "save": "Save",
@@ -775,9 +787,6 @@
     "subActive": "Active",
     "until": "until",
     "subNone": "Not subscribed: containers and results are kept only {days} days after a task finishes.",
-    "subscribe": "Subscribe for {days} days ({price} TWD)",
-    "extend": "Extend {days} days ({price} TWD)",
-    "subPayTitle": "SinoBee.ai subscription, {days} days",
     "tokens": "Hub API tokens",
     "tokensHelp": "For sinobee skills publish (sinobee keys set sinobee-hub).",
     "newToken": "Create token",
@@ -796,7 +805,9 @@
     "pstatus": {
       "PENDING": "Pending",
       "CONFIRMED": "Confirmed",
-      "FAILED": "Failed"
+      "FAILED": "Failed",
+      "EXPIRED": "Expired",
+      "REFUNDED": "Refunded"
     },
     "devices": "Signed-in SinoBee installs",
     "devicesHelp": "Devices signed in with sinobee login. Signing one out revokes its token immediately.",
@@ -824,8 +835,13 @@
       "PUBLIC": "Public"
     },
     "shareViews": "{n} views",
-    "subMoving": "New plans will be paid through Oen in TWD; purchases are paused until then. Existing subscriptions run until they end.",
-    "seePlans": "See plans"
+    "seePlans": "See plans",
+    "refunded": "{n} refunded",
+    "subStacked": "{n} more period(s) prepaid",
+    "subGrace": "Your subscription has ended. During the grace period results and the container are kept until",
+    "subKeep": "Results and container kept until",
+    "extendPlan": "Extend 30 days or change plan",
+    "choosePlan": "Choose a plan"
   },
   "notifications": {
     "title": "Notifications",
@@ -964,5 +980,74 @@
   "common": {
     "copy": "Copy",
     "copied": "Copied"
+  },
+  "checkout": {
+    "buyer": "Payer and invoice",
+    "name": "Name",
+    "email": "Email (for the e-invoice)",
+    "invoice": "Invoice",
+    "inv": {
+      "member": "Cloud invoice (member carrier)",
+      "mobile": "Mobile barcode carrier",
+      "cert": "Citizen certificate carrier",
+      "company": "Company (tax ID)"
+    },
+    "carrierId": "Carrier number",
+    "taxId": "Tax ID (8 digits)",
+    "companyName": "Company name (optional)",
+    "agree": "I have read and agree to the <terms>Terms of Service</terms>, <refunds>Refund Policy</refunds> and <privacy>Privacy Policy</privacy>, and ask for the service to start right after payment (online services are not subject to the 7-day withdrawal right; refunds follow the Refund Policy).",
+    "redirecting": "Going to Oen…",
+    "oenNote": "Payments are processed by Oen (TWD; card and more). SinoBee.ai never sees your card number. The payment page is valid for 5 minutes."
+  },
+  "subscribe": {
+    "title": "Subscribe to SinoBee.ai",
+    "lead": "30-day periods, no auto-renewal. Buying again adds a period after the current one.",
+    "plan": "Plan",
+    "limits": "About {l6} tokens per 6 h, {l168} per 7 days · {n} requests at a time",
+    "pay": "Pay NT${fee}",
+    "current": "Current plan: {plan}, until",
+    "grace": "Your subscription has ended; the grace period lasts until",
+    "stacks": "The new period starts on {date}, after your current one.",
+    "startsNow": "Starts as soon as the payment completes; 30 days from then."
+  },
+  "payReturn": {
+    "title": {
+      "ok": "Payment complete",
+      "pending": "Confirming your payment…",
+      "failed": "Payment not completed"
+    },
+    "ok": {
+      "SUBSCRIPTION": "Your subscription is active. Oen emails the e-invoice.",
+      "TASK_BUDGET": "{amount} TWD budget received; the task is queued.",
+      "TASK_TOPUP": "{amount} TWD added; the task continues where it stopped."
+    },
+    "pending": "Checking the result with Oen; this page updates by itself.",
+    "charging": "Waiting for your convenience-store or ATM payment (up to 3 days); this page updates afterwards.",
+    "failed": "This payment did not go through and nothing was charged. You can try again.",
+    "err": {
+      "V0002": "The payment page timed out (5 minutes). Please try again.",
+      "V0003": "The result is not final yet; please wait.",
+      "T0001": "The payment failed (including 3-D Secure). Try another card or later.",
+      "T0002": "Wrong security code.",
+      "T0003": "The card has expired.",
+      "T0004": "Insufficient credit limit.",
+      "T0005": "Declined by the issuing bank."
+    },
+    "toTask": "Back to the task",
+    "toAccount": "Back to my account",
+    "retry": "Try again"
+  },
+  "legal": {
+    "nav": "Terms and policies",
+    "effective": "Effective {date}",
+    "terms": {
+      "title": "Terms of Service"
+    },
+    "privacy": {
+      "title": "Privacy Policy"
+    },
+    "refunds": {
+      "title": "Refund Policy"
+    }
   }
 }

@@ -21,7 +21,8 @@
     "db:sqlite-schema": "tsx scripts/sqlite-schema.ts",
     "storage-keeper": "tsx scripts/storage-keeper.ts",
     "storage-migrate": "tsx scripts/storage-migrate.ts",
-    "db:repair": "tsx scripts/db-repair.ts"
+    "db:repair": "tsx scripts/db-repair.ts",
+    "payments:reconcile": "tsx scripts/payments-reconcile.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",

@@ -30,6 +30,8 @@ model User {
   /// kept in sync with role (true for ADMIN and SUPERADMIN); change roles only through src/lib/roles.ts
   isAdmin           Boolean  @default(false)
   role              UserRole @default(USER)
+  /// last buyer details used at checkout {name, email, invoice}, to prefill the next one
+  billing           Json?
   createdAt         DateTime @default(now())
   lastLoginAt       DateTime @default(now())
 
@@ -331,11 +333,18 @@ model Task {
   isPublic       Boolean       @default(false)
   status         TaskStatus    @default(AWAITING_PAYMENT)
 
-  /// total TWDC funded (initial + top-ups)
+  /// total TWD funded (initial + top-ups, minus refunds)
   budget       Decimal @default(0) @db.Decimal(20, 6)
-  /// TWDC charged so far (= 1.5 x raw costs converted at usdTwdRate)
+  /// TWD charged so far: tokens at the published model price + (VM + storage) × markup, see src/lib/pricing.ts
   charged      Decimal @default(0) @db.Decimal(20, 6)
+  /// USD→TWD rate snapshotted when the task was created (the site's base FX rate)
   usdTwdRate   Decimal @default(32) @db.Decimal(12, 6)
+  /// published-price buffer snapshotted at creation (e.g. 1.08); null = legacy task billed with the markup on tokens
+  priceBuffer  Decimal? @db.Decimal(10, 4)
+  /// vendor USD per 1M tokens {input, cacheRead, cacheWrite, output} snapshotted at creation
+  modelPriceUsd Json?
+  cacheReadTokens  BigInt @default(0)
+  cacheWriteTokens BigInt @default(0)
   /// raw provider costs in USD
   tokenCostUsd Decimal @default(0) @db.Decimal(20, 8)
   vmCostUsd    Decimal @default(0) @db.Decimal(20, 8)
@@ -459,6 +468,18 @@ enum PaymentStatus {
   PENDING
   CONFIRMED
   FAILED
+  /// checkout page timed out without a payment
+  EXPIRED
+  /// fully refunded (partial refunds keep CONFIRMED with refundedTwd > 0)
+  REFUNDED
+}
+
+enum PaymentProvider {
+  /// legacy CAFECA TWDC transfers (history only)
+  TWDC
+  OEN
+  /// development only (PAYMENT_MODE=mock)
+  MOCK
 }
 
 model Payment {
@@ -469,10 +490,31 @@ model Payment {
   task        Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
   purpose     PaymentPurpose
   amount      Decimal        @db.Decimal(20, 6)
-  /// amount in token base units (string, to avoid precision loss)
+  /// TWDC: amount in token base units. OEN/MOCK: the integer TWD amount as a string
   amountBase  String
+  /// TWDC: token contract. OEN/MOCK: "TWD"
   token       String
+  /// TWDC: treasury address. OEN: merchant id
   recipient   String
+  provider    PaymentProvider @default(TWDC)
+  /// integer TWD charged through Oen
+  amountTwd   Int?
+  /// Oen internal transaction id (27 chars, used for GET /transactions/:id and in webhooks)
+  oenId          String?   @unique
+  /// Oen transaction number (P…, used for refunds)
+  transactionHid String?   @unique
+  checkoutUrl       String?
+  checkoutExpiresAt DateTime?
+  paidAt         DateTime?
+  /// subscription plan bought (Plan.id)
+  planId         String?
+  /// buyer name / email / invoice info sent to Oen for the e-invoice
+  buyer          Json?
+  refundedTwd    Int       @default(0)
+  refundedAt     DateTime?
+  refundReason   String?
+  /// last Oen transaction status seen (initiated, charging, charged, …)
+  providerStatus String?
   status      PaymentStatus  @default(PENDING)
   txHash      String?        @unique
   error       String?
@@ -489,6 +531,12 @@ model Subscription {
   startsAt  DateTime
   endsAt    DateTime
   paymentId String   @unique
+  /// Plan.id at purchase (plan holds the code)
+  planId      String?
+  /// results and container are kept until graceEndsAt (endsAt + 30 days)
+  graceEndsAt DateTime?
+  /// refunded periods are cancelled; later periods move up
+  cancelledAt DateTime?
   createdAt DateTime @default(now())
 
   @@index([userId, endsAt])

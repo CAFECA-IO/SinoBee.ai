@@ -14,13 +14,16 @@ import { isAdminRole } from "@/lib/roles";
 import { cheapestBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
 import { listPlans } from "@/lib/plans";
 import { icontains } from "@/lib/db";
-import { PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
+import { PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
+import { refundable } from "@/lib/payments";
+import { oenConfigured } from "@/lib/oen";
+import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["pending", "approved", "tools", "reports", "users", "prices", "plans", "audit", "storage"] as const;
+const TABS = ["pending", "approved", "tools", "reports", "users", "payments", "prices", "plans", "audit", "storage"] as const;
 
-export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; q?: string }> }) {
+export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; q?: string; status?: string }> }) {
   setRequestLocale((await params).locale);
   const me = await currentUser();
   if (!me || !isAdminRole(me.role)) notFound();
@@ -44,6 +47,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
         {tab === "storage" && <StorageStatus />}
         {tab === "reports" && <Reports />}
         {tab === "users" && <Users meId={me.id} superAdmin={me.role === "SUPERADMIN"} q={sp.q} />}
+        {tab === "payments" && <Payments status={sp.status} />}
         {tab === "prices" && <Prices />}
         {tab === "plans" && <Plans />}
         {tab === "audit" && <Audit />}
@@ -311,6 +315,51 @@ async function Audit() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const PAY_STATUSES = ["PENDING", "CONFIRMED", "FAILED", "EXPIRED", "REFUNDED"] as const;
+
+async function Payments({ status }: { status?: string }) {
+  const t = await getTranslations("admin.payments");
+  const ta = await getTranslations("account");
+  const st = (PAY_STATUSES as readonly string[]).includes(status ?? "") ? (status as (typeof PAY_STATUSES)[number]) : undefined;
+  const rows = await db.payment.findMany({ where: st ? { status: st } : {}, include: { user: true }, orderBy: { createdAt: "desc" }, take: 100 });
+  const since = new Date(Date.now() - 30 * 86400_000);
+  const sums = await db.payment.aggregate({ where: { status: { in: ["CONFIRMED", "REFUNDED"] }, provider: { not: "TWDC" }, confirmedAt: { gte: since } }, _sum: { amountTwd: true, refundedTwd: true }, _count: { _all: true } });
+  const refundables = await Promise.all(rows.map((p) => refundable(p)));
+  return (
+    <div className="space-y-4">
+      <section className="card grid gap-3 p-5 text-sm sm:grid-cols-4">
+        <div><div className="text-xs text-muted">{t("mode")}</div><div className="font-mono">{config.payments.mode === "mock" ? "mock" : `oen · ${config.oen.env}`}</div></div>
+        <div><div className="text-xs text-muted">{t("merchant")}</div><div className="font-mono">{config.oen.merchantId || "—"} {oenConfigured() ? "✓" : <span className="text-err">{t("notConfigured")}</span>}</div></div>
+        <div><div className="text-xs text-muted">{t("last30")}</div><div className="font-mono">NT${(sums._sum.amountTwd ?? 0).toLocaleString("en-US")} · {sums._count._all}</div></div>
+        <div><div className="text-xs text-muted">{t("refunded30")}</div><div className="font-mono">NT${(sums._sum.refundedTwd ?? 0).toLocaleString("en-US")}</div></div>
+      </section>
+      <div className="flex flex-wrap gap-2 text-sm">
+        <Link href="/admin?tab=payments" className={!st ? "chip !border-accent" : "chip"}>{t("all")}</Link>
+        {PAY_STATUSES.map((s) => <Link key={s} href={`/admin?tab=payments&status=${s}`} className={st === s ? "chip !border-accent" : "chip"}>{ta(`pstatus.${s}`)}</Link>)}
+      </div>
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="text-left text-muted"><tr><th className="p-3">{t("when")}</th><th className="p-3">{t("user")}</th><th className="p-3">{t("what")}</th><th className="p-3 text-right">TWD</th><th className="p-3">{t("status")}</th><th className="p-3">Oen</th><th className="p-3" /></tr></thead>
+          <tbody>
+            {rows.map((p, i) => (
+              <tr key={p.id} className="border-t border-line align-top" data-payment={p.id}>
+                <td className="whitespace-nowrap p-3 text-xs text-muted"><LocalDate value={p.createdAt} /></td>
+                <td className="p-3 text-xs">@{p.user.handle ?? p.user.publisher ?? p.user.account.slice(0, 10)}</td>
+                <td className="p-3 text-xs">{ta(`purpose.${p.purpose}`)}{p.taskId && <> · <Link href={`/tasks/${p.taskId}`} className="text-accent">task</Link></>}</td>
+                <td className="p-3 text-right font-mono">{p.amountTwd ?? Number(p.amount).toFixed(2)}{p.refundedTwd > 0 && <div className="text-xs text-warn">−{p.refundedTwd}</div>}</td>
+                <td className="p-3 text-xs">{ta(`pstatus.${p.status}`)}<div className="text-muted">{p.provider}{p.providerStatus ? ` · ${p.providerStatus}` : ""}</div>{p.error && <div className="text-err">{p.error.slice(0, 80)}</div>}</td>
+                <td className="p-3 font-mono text-xs">{p.transactionHid ?? p.txHash?.slice(0, 12) ?? "—"}</td>
+                <td className="p-3"><PaymentActions id={p.id} refundable={refundables[i]} provider={p.provider} status={p.status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted">{t("help")}</p>
     </div>
   );
 }

@@ -14,11 +14,12 @@ import "dotenv/config";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "../src/lib/db";
 import { config } from "../src/lib/config";
-import { chargeTwdc, s3CostUsd, vmCostUsd } from "../src/lib/pricing";
+import { chargeTwd, s3CostUsd, tokenCostUsd, vmCostUsd, type UsdPrices } from "../src/lib/pricing";
 import { deleteObject, putObject } from "../src/lib/storage";
 import { notify } from "../src/lib/notify";
 import { addDays, containerExpiry, resultsRetentionDays } from "../src/lib/retention";
-import { fmtTwdc } from "../src/lib/money";
+import { fmtTwd } from "../src/lib/money";
+import { reconcilePayments } from "../src/lib/payments";
 import { DockerExecutor, containerName, volumeName } from "./docker-executor";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
@@ -55,10 +56,14 @@ async function claim(n: number): Promise<string[]> {
   return claimed;
 }
 
-function costs(task: { usdTwdRate: unknown; budget: unknown }, tokenUsd: number, vmSeconds: number, s3Usd: number) {
+/** Token cost from the task's price snapshot (published prices); legacy tasks keep SinoBee's own figure */
+function costs(task: { usdTwdRate: unknown; priceBuffer: unknown; modelPriceUsd: unknown }, u: Usage, vmSeconds: number, s3Usd: number) {
   const vmUsd = vmCostUsd(vmSeconds);
-  const charge = chargeTwdc({ tokenUsd, vmUsd, s3Usd }, Number(String(task.usdTwdRate)));
-  return { vmUsd, charge };
+  const snap = task.modelPriceUsd as UsdPrices | null;
+  const tokenUsd = snap ? tokenCostUsd(snap, u) : u.tokenCostUsd;
+  const buffer = task.priceBuffer == null ? null : Number(String(task.priceBuffer));
+  const charge = chargeTwd({ tokenUsd, vmUsd, s3Usd }, Number(String(task.usdTwdRate)), buffer);
+  return { vmUsd, tokenUsd, charge };
 }
 
 async function runTask(id: string) {
@@ -79,13 +84,15 @@ async function runTask(id: string) {
   await event(id, "run.started", continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
 
   const persistUsage = async (u: Usage, vmSeconds: number, s3Usd: number, extra: object = {}) => {
-    const { vmUsd, charge } = costs(task, u.tokenCostUsd, vmSeconds, s3Usd);
+    const { vmUsd, tokenUsd, charge } = costs(task, u, vmSeconds, s3Usd);
     await db.task.update({
       where: { id },
       data: {
         inputTokens: BigInt(u.inputTokens),
         outputTokens: BigInt(u.outputTokens),
-        tokenCostUsd: u.tokenCostUsd.toFixed(8),
+        cacheReadTokens: BigInt(Math.round(u.cacheReadTokens ?? 0)),
+        cacheWriteTokens: BigInt(Math.round(u.cacheWriteTokens ?? 0)),
+        tokenCostUsd: tokenUsd.toFixed(8),
         vmSeconds,
         vmCostUsd: vmUsd.toFixed(8),
         s3CostUsd: s3Usd.toFixed(8),
@@ -110,7 +117,7 @@ async function runTask(id: string) {
     });
   } catch (e) {
     log("executor error", id, e);
-    result = { outcome: "failed" as const, usage: { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), tokenCostUsd: Number(task.tokenCostUsd) }, elapsedSeconds: 0, archive: null, summary: "", error: String(e) };
+    result = { outcome: "failed" as const, usage: { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), cacheReadTokens: Number(task.cacheReadTokens), cacheWriteTokens: Number(task.cacheWriteTokens), tokenCostUsd: Number(task.tokenCostUsd) }, elapsedSeconds: 0, archive: null, summary: "", error: String(e) };
   }
 
   // upload results and bill S3 for the retention window
@@ -136,17 +143,17 @@ async function runTask(id: string) {
   }
   const vmSeconds = prevVmSeconds + result.elapsedSeconds;
   const charge = await persistUsage(result.usage, vmSeconds, s3Usd, { summary: result.summary.slice(0, 20000) || null });
-  const chargedStr = fmtTwdc(Math.min(charge, budget));
+  const chargedStr = fmtTwd(Math.min(charge, budget));
 
   if (result.outcome === "stopped") {
     await db.task.update({ where: { id }, data: { status: "NEEDS_FUNDING", fundingRequestedAt: now, resultsExpireAt: expires, workerId: null } });
-    await event(id, "funding.requested", `Budget used up (${chargedStr} / ${fmtTwdc(budget)} TWD). Partial results saved.`);
+    await event(id, "funding.requested", `Budget used up (${chargedStr} / ${fmtTwd(budget)} TWD). Partial results saved.`);
     await notify(task.userId, {
       type: "task.needs_funding",
       title: `預算已用完 Budget used up: ${task.title}`,
       body: `任務尚未完成，已整理目前成果。請補充經費繼續執行，或結案並下載目前成果（${retentionDays} 天內）。\nThe task is not finished yet. Partial results are ready. Add funds to continue, or close the task and download the results within ${retentionDays} days.`,
       link: `/tasks/${id}`,
-      data: { taskId: id, charged: chargedStr, budget: fmtTwdc(budget), actions: ["top_up", "close"] },
+      data: { taskId: id, charged: chargedStr, budget: fmtTwd(budget), actions: ["top_up", "close"] },
     });
   } else if (result.outcome === "completed") {
     let reportOk = true;
@@ -211,7 +218,9 @@ async function saveEvaluation(task: TaskWithRefs, ev: unknown, summary: string):
 async function cleanup() {
   const now = new Date();
   // 1. results past their download window
-  const expired = await db.artifact.findMany({ where: { deletedAt: null, expiresAt: { lt: now } }, take: 200 });
+  // deletion is paused unless RETENTION_DELETE=1: expired results are only marked (downloads are refused), so a
+  // later subscription can bring them back
+  const expired = config.retention.deleteExpired ? await db.artifact.findMany({ where: { deletedAt: null, expiresAt: { lt: now } }, take: 200 }) : [];
   for (const a of expired) {
     await deleteObject(a.key).catch((e) => log("delete failed", a.key, e));
     await db.artifact.update({ where: { id: a.id }, data: { deletedAt: now } });
@@ -232,6 +241,7 @@ async function cleanup() {
       await db.userContainer.update({ where: { userId: c.userId }, data: { expiresAt: exp } });
       continue;
     }
+    if (!config.retention.deleteExpired) continue; // paused: keep the container
     await executor.removeUserContainer(c.userId);
     await db.userContainer.delete({ where: { userId: c.userId } });
     log("removed container", c.containerName);
@@ -258,6 +268,7 @@ async function loop() {
   void keeperLoop();
   log(`started (mode=${config.runner.mode}, concurrency=${config.runner.concurrency})`);
   let lastCleanup = 0;
+  let lastReconcile = 0;
   while (!stopping) {
     try {
       const ids = await claim(config.runner.concurrency - running.size);
@@ -273,6 +284,11 @@ async function loop() {
       }
       // keep heartbeats fresh for long runs between meter readings
       if (running.size) await db.task.updateMany({ where: { id: { in: [...running] } }, data: { heartbeatAt: new Date() } });
+      if (Date.now() - lastReconcile > 3 * 60_000) {
+        lastReconcile = Date.now();
+        const r = await reconcilePayments().catch((e) => (log("reconcile error", e), null));
+        if (r?.settled) log("payments settled by reconciliation", r.settled);
+      }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();
         await cleanup();

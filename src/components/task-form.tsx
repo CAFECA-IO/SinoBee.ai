@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { usePay, postJson } from "./use-pay";
-import { PayStatus } from "./pay-status";
 import { Toggle } from "./toggle";
-import type { PaymentIntent } from "./cafeca-provider";
+import { AgreeTerms, BuyerFields, emptyBuyer, postJson, useCheckout, type Buyer } from "./checkout";
 
-type Model = { id: string; label: string; vendor: string; input: number; output: number };
+/** published prices, TWD per 1M tokens */
+type Model = { id: string; label: string; vendor: string; input: number; cacheRead?: number; output: number };
 /** all prices in TWD (final): model prices per 1M tokens, VM per hour, storage per GB-month, requests per 1,000 */
 type Pricing = { vmHourly: number; storageGbMonth: number; writesPer1k: number; readsPer1k: number; retentionDays: number; minBudget: number };
 type SkillOpt = { id: string; label: string } | null;
@@ -19,16 +18,19 @@ export function TaskForm({
   pricing,
   skill,
   evalMethods,
+  buyer: savedBuyer,
 }: {
   kind: "TASK" | "EVALUATION";
   models: Model[];
   pricing: Pricing;
   skill: SkillOpt;
   evalMethods?: readonly string[];
+  buyer?: Partial<Buyer> | null;
 }) {
   const t = useTranslations("taskForm");
   const router = useRouter();
-  const { run, busy, error, pendingLink } = usePay();
+  const { go, busy, err } = useCheckout();
+  const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
   const [title, setTitle] = useState("");
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState(models[1]?.id ?? models[0].id);
@@ -54,25 +56,23 @@ export function TaskForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErr("");
-    let taskId = "";
-    const ok = await run(
-      async () => {
-        const r = await postJson<{ task: { id: string }; payment: PaymentIntent }>("/api/tasks", {
-          kind,
-          title,
-          prompt,
-          model,
-          skillVersionId: useSkill && skill ? skill.id : null,
-          isPublic,
-          budget: Number(budget),
-          ...(kind === "EVALUATION" ? { evalMethod, evalCriteria: criteria } : {}),
-        });
-        taskId = r.task.id;
-        return r.payment;
-      },
-      { title: t("payTitle", { amount: budget }), detail: `${title} · ${m.label}` },
-    );
-    if (taskId) router.push(`/tasks/${taskId}${ok ? "" : "?unpaid=1"}`);
+    await go(async () => {
+      const r = await postJson<{ task: { id: string }; payment: { checkoutUrl?: string; error?: string } }>("/api/tasks", {
+        kind,
+        title,
+        prompt,
+        model,
+        skillVersionId: useSkill && skill ? skill.id : null,
+        isPublic,
+        budget: Number(budget),
+        buyer,
+        ...(kind === "EVALUATION" ? { evalMethod, evalCriteria: criteria } : {}),
+      });
+      if (r.payment.checkoutUrl) return r.payment.checkoutUrl;
+      // task saved but the checkout could not start: pay from the task page
+      router.push(`/tasks/${r.task.id}?unpaid=1`);
+      return null;
+    });
   };
 
   return (
@@ -167,15 +167,17 @@ export function TaskForm({
         <div className="card space-y-3 p-5">
           <label className="label">{t("budget")}</label>
           <div className="flex items-center gap-2">
-            <input className="input font-mono" type="number" min={pricing.minBudget} step="1" value={budget} onChange={(e) => setBudget(e.target.value)} required />
+            <input className="input font-mono" type="number" min={pricing.minBudget} step="1" value={budget} onChange={(e) => setBudget(e.target.value.replace(/\D/g, ""))} required />
             <span className="text-sm font-semibold">TWD</span>
           </div>
           <p className="text-xs text-muted">{t("budgetHint", { min: pricing.minBudget, days: pricing.retentionDays })}</p>
-          <PayStatus busy={busy} error={error} pendingLink={pendingLink} />
-          {formErr && <p className="text-sm text-err">{formErr}</p>}
+          <BuyerFields value={buyer} onChange={setBuyer} />
+          <AgreeTerms />
+          {(formErr || err) && <p className="text-sm text-err" role="alert">{formErr || err}</p>}
           <button className="btn-primary w-full !py-3" disabled={busy}>
             {busy ? t("paying") : t("submit", { amount: budget })}
           </button>
+          <p className="text-xs text-muted">{t("oenNote")}</p>
         </div>
       </aside>
     </form>

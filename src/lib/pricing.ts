@@ -1,12 +1,13 @@
 import { config } from "./config";
 
 /**
- * Billing rules (shown on /pricing):
- *   charge = markup × (token cost + AWS VM rental + AWS S3 cost)   — markup defaults to 1.5
- * Token cost is what SinoBee itself records per model call (vendor list prices, incl. cache discounts).
- * VM cost = runtime seconds × hourly on-demand price of one task slot.
- * S3 cost = result size × retention window × GB-month price + request fees.
- * Raw USD costs are converted to TWDC at the rate snapshotted when the task was created.
+ * Billing rules for commissioned tasks (shown on /pricing):
+ *   charge (TWD) = token cost USD × FX × buffer          ← exactly the published model price (same table as subscriptions)
+ *                + (VM rental USD + S3 storage USD) × FX × markup
+ * Token cost = uncached input × input + cache reads × cacheRead + cache writes × cacheWrite + output × output, using the
+ * vendor USD prices snapshotted on the task when it was created (ModelPrice row in force then).
+ * FX (base rate, e.g. 32.5) and buffer (1.08) are the site pricing settings, also snapshotted on the task.
+ * VM cost = runtime seconds × hourly on-demand price of one task slot; S3 = size × retention × GB-month + requests.
  */
 
 export type ModelInfo = {
@@ -38,9 +39,17 @@ export const DEFAULT_MODELS: ModelInfo[] = [
   { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash", vendor: "DeepSeek", input: 0.15, cacheRead: 0.003, cacheWrite: 0.15, output: 0.6 },
 ];
 
-export function tokenCostUsd(m: Pick<ModelInfo, "input" | "output"> | undefined, input: number, output: number): number {
-  if (!m) return 0;
-  return (input * m.input + output * m.output) / 1_000_000;
+export type UsdPrices = { input: number; cacheRead: number; cacheWrite: number; output: number };
+export type TokenUsage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+
+/** Vendor USD cost of token usage. inputTokens is the TOTAL prompt size (cached and cache-write tokens included). */
+export function tokenCostUsd(p: UsdPrices | Pick<ModelInfo, "input" | "output"> | undefined, u: TokenUsage): number {
+  if (!p) return 0;
+  const cr = u.cacheReadTokens ?? 0;
+  const cw = u.cacheWriteTokens ?? 0;
+  const uncached = Math.max(0, u.inputTokens - cr - cw);
+  const q = p as Partial<UsdPrices> & { input: number; output: number };
+  return (uncached * q.input + cr * (q.cacheRead ?? q.input) + cw * (q.cacheWrite ?? q.input) + u.outputTokens * q.output) / 1_000_000;
 }
 
 export function vmCostUsd(seconds: number): number {
@@ -55,18 +64,16 @@ export function s3CostUsd(bytes: number, days: number, puts = 1, gets = 0): numb
 
 export type CostBreakdown = { tokenUsd: number; vmUsd: number; s3Usd: number };
 
-/** TWDC to charge for raw USD costs */
-export function chargeTwdc(c: CostBreakdown, usdTwd = config.pricing.usdTwd, markup = config.pricing.markup): number {
-  const raw = c.tokenUsd + c.vmUsd + c.s3Usd;
-  return Math.ceil(raw * markup * usdTwd * 1e6) / 1e6;
+/**
+ * TWD to charge. `buffer` is the published-price buffer snapshotted on the task; legacy tasks without one (null)
+ * keep their old rule, where the markup also applied to tokens.
+ */
+export function chargeTwd(c: CostBreakdown, fx: number, buffer: number | null, markup = config.pricing.markup): number {
+  const twd = c.tokenUsd * fx * (buffer ?? markup) + (c.vmUsd + c.s3Usd) * fx * markup;
+  return Math.ceil(twd * 1e6) / 1e6;
 }
 
-/** Rough estimate shown before payment */
-export function estimate(model: Pick<ModelInfo, "input" | "output"> | undefined, opts: { inputTokens: number; outputTokens: number; minutes: number; resultMb: number; retentionDays: number }) {
-  const c: CostBreakdown = {
-    tokenUsd: tokenCostUsd(model, opts.inputTokens, opts.outputTokens),
-    vmUsd: vmCostUsd(opts.minutes * 60),
-    s3Usd: s3CostUsd(opts.resultMb * 1024 ** 2, opts.retentionDays, 2, 4),
-  };
-  return { ...c, twdc: chargeTwdc(c) };
+/** Each part in TWD, as shown on the task page */
+export function chargeParts(c: CostBreakdown, fx: number, buffer: number | null, markup = config.pricing.markup) {
+  return { tokens: c.tokenUsd * fx * (buffer ?? markup), vm: c.vmUsd * fx * markup, s3: c.s3Usd * fx * markup };
 }

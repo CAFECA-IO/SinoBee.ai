@@ -3,8 +3,10 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
+import type { Buyer } from "@/components/checkout";
 import { config } from "@/lib/config";
 import { modelLabels } from "@/lib/models";
+import { chargeParts } from "@/lib/pricing";
 import { canView } from "@/lib/tasks/service";
 import { StatusBadge } from "@/components/status-badge";
 import { Markdown } from "@/components/markdown";
@@ -44,12 +46,15 @@ export default async function TaskPage({ params }: P) {
   const up = task.votes.filter((v) => v.value > 0).length;
   const down = task.votes.length - up;
   const myVote = task.votes.find((v) => v.userId === me?.id)?.value ?? 0;
-  const markup = config.pricing.markup;
-  const rate = Number(task.usdTwdRate);
+  const parts = chargeParts(
+    { tokenUsd: Number(task.tokenCostUsd), vmUsd: Number(task.vmCostUsd), s3Usd: Number(task.s3CostUsd) },
+    Number(task.usdTwdRate),
+    task.priceBuffer == null ? null : Number(task.priceBuffer),
+  );
   const rows = [
-    ["tokens", Number(task.tokenCostUsd)],
-    ["vm", Number(task.vmCostUsd)],
-    ["s3", Number(task.s3CostUsd)],
+    ["tokens", parts.tokens],
+    ["vm", parts.vm],
+    ["s3", parts.s3],
   ] as const;
   const live = ["QUEUED", "RUNNING", "AWAITING_PAYMENT"].includes(task.status);
   const who = task.user.publisher ?? task.user.handle ?? `${task.user.account.slice(0, 6)}…${task.user.account.slice(-4)}`;
@@ -148,11 +153,11 @@ export default async function TaskPage({ params }: P) {
               <div className="card space-y-3 p-5">
                 <div className="font-semibold">{t("billing")}</div>
                 <dl className="space-y-1 text-sm">
-                  {rows.map(([k, usd]) => (
+                  {rows.map(([k, twd]) => (
                     <div key={k} className="flex justify-between gap-2">
                       <dt className="text-muted">{t(`cost.${k}`)}</dt>
                       <dd className="text-right font-mono">
-                        {(usd * markup * rate).toFixed(2)}
+                        {twd.toFixed(2)}
                       </dd>
                     </div>
                   ))}
@@ -174,7 +179,7 @@ export default async function TaskPage({ params }: P) {
                 </dl>
                 <p className="text-[11px] text-muted">{t("rateNote")}</p>
               </div>
-              <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} />
+              <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} buyer={(me?.billing ?? null) as Buyer | null} />
             </>
           )}
           {owner && (

@@ -1,32 +1,35 @@
 import { config } from "./config";
-import { currentModels } from "./models";
+import { currentModels, pricingSettings } from "./models";
 
 /**
- * Published prices are in TWD and already final: raw provider cost (USD) × markup × USD/TWD rate.
- * Only these final prices leave the server; the markup and raw costs stay internal.
+ * Published prices are in TWD and final:
+ *   model tokens = vendor USD × FX × buffer (the ModelPrice table, same as subscriptions)
+ *   VM and storage = AWS USD × FX × markup
+ * Only these final prices leave the server.
  */
-export const toTwd = (usd: number) => usd * config.pricing.markup * config.pricing.usdTwd;
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
-/** Unit prices shown on /pricing and used by the estimator (TWD) */
-export function publicPrices() {
+/** VM / storage unit prices shown on /pricing and used by the estimator (TWD) */
+export async function publicPrices() {
+  const { fx } = await pricingSettings();
+  const twd = (usd: number) => usd * config.pricing.markup * fx;
   return {
-    vmHourly: round(toTwd(config.pricing.vmHourlyUsd)),
-    storageGbMonth: round(toTwd(config.pricing.s3GbMonthUsd)),
-    writesPer1k: round(toTwd(config.pricing.s3PutPer1kUsd), 4),
-    readsPer1k: round(toTwd(config.pricing.s3GetPer1kUsd), 4),
+    vmHourly: round(twd(config.pricing.vmHourlyUsd)),
+    storageGbMonth: round(twd(config.pricing.s3GbMonthUsd)),
+    writesPer1k: round(twd(config.pricing.s3PutPer1kUsd), 4),
+    readsPer1k: round(twd(config.pricing.s3GetPer1kUsd), 4),
   };
 }
 
 /** Pricing numbers safe to send to the browser (TWD, final) */
-export function pricingForClient() {
+export async function pricingForClient() {
   return {
-    ...publicPrices(),
+    ...(await publicPrices()),
     retentionDays: config.retention.freeDays,
     minBudget: config.payments.minTaskBudget,
   };
 }
 
-/** Models offered for commissioned tasks with their task prices per 1M tokens in TWD (final), from the ModelPrice table */
+/** Models offered for commissioned tasks with their published prices per 1M tokens (TWD) */
 export const modelsForClient = async () =>
-  (await currentModels()).map(({ modelId, label, vendor, usd }) => ({ id: modelId, label, vendor, input: round(toTwd(usd.input)), output: round(toTwd(usd.output)) }));
+  (await currentModels()).map(({ modelId, label, vendor, twd }) => ({ id: modelId, label, vendor, input: twd.input, cacheRead: twd.cacheRead, output: twd.output }));

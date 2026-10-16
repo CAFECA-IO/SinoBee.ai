@@ -31,7 +31,13 @@ export async function Footer() {
           <a className="block text-muted hover:text-accent" href="https://cafeca.io" target="_blank" rel="noreferrer">CAFECA</a>
         </div>
       </div>
-      <div className="container-x border-t border-line py-5 text-xs text-muted">© 2026 CAFECA · SinoBee is MIT licensed</div>
+      <div className="container-x flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line py-5 text-xs text-muted">
+        <span>© 2026 CAFECA · SinoBee is MIT licensed</span>
+        <span className="flex-1" />
+        <Link className="hover:text-accent" href="/terms">{t("terms")}</Link>
+        <Link className="hover:text-accent" href="/privacy">{t("privacy")}</Link>
+        <Link className="hover:text-accent" href="/refunds">{t("refunds")}</Link>
+      </div>
     </footer>
   );
 }

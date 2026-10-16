@@ -2,7 +2,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { config } from "@/lib/config";
-import { activeSubscription } from "@/lib/retention";
+import { subscriptionState } from "@/lib/subscriptions";
+import { listPlans } from "@/lib/plans";
 import { Link, redirect } from "@/i18n/navigation";
 import { PublisherForm } from "@/components/publisher-form";
 import { TokenManager } from "@/components/token-manager";
@@ -18,8 +19,8 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
   const me = await currentUser();
   if (!me) redirect({ href: "/login?next=/account", locale });
   const t = await getTranslations("account");
-  const [sub, tokens, payments, skills, devices, tools, vault, packs, shares] = await Promise.all([
-    activeSubscription(me!.id),
+  const [st, tokens, payments, skills, devices, tools, vault, packs, shares] = await Promise.all([
+    subscriptionState(me!.id),
     db.apiToken.findMany({ where: { userId: me!.id, revokedAt: null, deviceId: null }, orderBy: { createdAt: "desc" } }),
     db.payment.findMany({ where: { userId: me!.id }, orderBy: { createdAt: "desc" }, take: 30 }),
     db.skill.findMany({ where: { publisherId: me!.id }, include: { versions: { orderBy: { publishedAt: "desc" }, take: 1 } }, orderBy: { updatedAt: "desc" } }),
@@ -29,6 +30,11 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
     db.vaultPack.findMany({ where: { userId: me!.id }, orderBy: { name: "asc" } }),
     db.conversationShare.findMany({ where: { ownerId: me!.id, revokedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
+  const plans = await listPlans();
+  const planName = (id: string | null, code: string) => {
+    const p = plans.find((x) => x.id === id || x.code === code);
+    return p ? (locale.startsWith("zh") ? p.name : p.nameEn) : code;
+  };
   return (
     <div className="container-x max-w-4xl space-y-8 py-12">
       <h1 className="h1">{t("title")}</h1>
@@ -42,8 +48,6 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
           <span>{me!.handle ? `@${me!.handle}` : "—"}</span>
           <span className="text-muted">{t("kyc")}</span>
           <span>{me!.kycLevel != null ? `L${me!.kycLevel}` : "—"}</span>
-          <span className="text-muted">{t("channel")}</span>
-          <span>{me!.channelId ? <span className="text-ok">{t("channelOpen")}</span> : <span className="text-warn">{t("channelClosed")}</span>}</span>
         </div>
       </section>
 
@@ -55,16 +59,20 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
 
       <section id="subscription" className="card space-y-3 p-6">
         <h2 className="h3">{t("subscription")}</h2>
-        {sub ? (
-          <p className="text-sm">
-            <span className="text-ok">✓ {t("subActive")}</span> — {t("until")} <LocalDate value={sub.endsAt} withTime={false} />
+        {st.current ? (
+          <p className="text-sm" data-sub="active">
+            <span className="text-ok">✓ {t("subActive")}</span> {planName(st.current.planId, st.current.plan)} — {t("until")} <LocalDate value={st.endsAt!} withTime={false} />
+            {st.upcoming.length > 0 && <span className="text-muted"> · {t("subStacked", { n: st.upcoming.length })}</span>}
+          </p>
+        ) : st.inGrace ? (
+          <p className="text-sm text-warn" data-sub="grace">
+            {t("subGrace")} <LocalDate value={st.graceEndsAt!} withTime={false} />
           </p>
         ) : (
           <p className="text-sm text-muted">{t("subNone", { days: config.retention.freeDays })}</p>
         )}
-        {/* new plans are sold through Oen (next stage); the old TWDC subscription is closed */}
-        <p className="text-sm text-muted">{t("subMoving")}</p>
-        <Link href="/pricing#plans" className="btn-ghost">{t("seePlans")}</Link>
+        {st.graceEndsAt && <p className="text-xs text-muted">{t("subKeep")} <LocalDate value={st.graceEndsAt} withTime={false} /></p>}
+        <Link href="/subscribe" className="btn-primary">{st.current || st.upcoming.length ? t("extendPlan") : t("choosePlan")}</Link>
       </section>
 
       <section id="devices" className="card space-y-3 p-6">
@@ -153,9 +161,9 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
               <tr key={p.id} className="border-t border-line">
                 <td className="py-2 text-muted"><LocalDate value={p.createdAt} /></td>
                 <td className="py-2">{t(`purpose.${p.purpose}`)}</td>
-                <td className="py-2 font-mono">{Number(p.amount).toFixed(2)} TWD</td>
-                <td className="py-2">{t(`pstatus.${p.status}`)}</td>
-                <td className="max-w-[160px] truncate py-2 font-mono text-xs text-muted" title={p.txHash ?? ""}>{p.txHash ?? "—"}</td>
+                <td className="py-2 font-mono">{p.amountTwd ?? Number(p.amount).toFixed(2)} TWD{p.refundedTwd > 0 && <span className="text-xs text-muted"> ({t("refunded", { n: p.refundedTwd })})</span>}</td>
+                <td className="py-2">{p.status === "PENDING" && p.checkoutUrl && p.checkoutExpiresAt && p.checkoutExpiresAt > new Date() ? <a className="text-accent underline" href={p.checkoutUrl}>{t("pstatus.PENDING")}</a> : t(`pstatus.${p.status}`)}</td>
+                <td className="max-w-[160px] truncate py-2 font-mono text-xs text-muted" title={p.transactionHid ?? p.txHash ?? ""}>{p.transactionHid ?? p.txHash ?? "—"}</td>
               </tr>
             ))}
             {payments.length === 0 && (

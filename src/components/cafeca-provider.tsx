@@ -30,7 +30,6 @@ declare global {
 
 export type Me = { id: string; account: string; handle: string | null; publisher: string | null; isAdmin: boolean; role?: "USER" | "ADMIN" | "SUPERADMIN"; channelId: string | null } | null;
 
-export type PaymentIntent = { id: string; amount: string; amountBase: string; token: string; recipient: string; chainId: number; mode: "chain" | "mock" };
 
 type Ctx = {
   ready: boolean;
@@ -43,8 +42,6 @@ type Ctx = {
   startQr: () => Promise<{ link: string; stop: () => void }>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
-  /** pay a server-created payment intent through the CAFECA signing channel, then confirm it */
-  pay: (p: PaymentIntent, d: Description) => Promise<void>;
 };
 
 const C = createContext<Ctx | null>(null);
@@ -62,13 +59,7 @@ const getNonce = () =>
     .then((r) => r.json())
     .then((j) => j.nonce as string);
 
-const pad = (h: string) => h.replace(/^0x/, "").toLowerCase().padStart(64, "0");
 
-export class PayError extends Error {
-  constructor(public code: "NO_CHANNEL" | "REJECTED" | "FAILED", message: string) {
-    super(message);
-  }
-}
 
 export function CafecaProvider({ wallet, statement, children }: { wallet: string; statement: string; children: ReactNode }) {
   const [sdk, setSdk] = useState<CafecaClient | null>(null);
@@ -153,39 +144,9 @@ export function CafecaProvider({ wallet, statement, children }: { wallet: string
     setMe(null);
   }, []);
 
-  const pay = useCallback(
-    async (p: PaymentIntent, d: Description) => {
-      let txHash: string | undefined;
-      if (p.mode === "chain") {
-        if (!channel) throw new PayError("NO_CHANNEL", "signing channel not open");
-        const data = "0xa9059cbb" + pad(p.recipient) + pad(BigInt(p.amountBase).toString(16)); // ERC-20 transfer(recipient, amount)
-        try {
-          const r = await channel.sendCalls([{ to: p.token, data }], d, { transport, onPending: ({ link }) => setPendingLink(link) });
-          if (!r.success) throw new PayError("FAILED", "transaction failed");
-          txHash = r.txHash;
-        } catch (e) {
-          if (e instanceof PayError) throw e;
-          const code = (e as { code?: string }).code;
-          throw new PayError(code === "rejected" ? "REJECTED" : code === "channel_closed" ? "NO_CHANNEL" : "FAILED", (e as Error).message ?? String(e));
-        } finally {
-          setPendingLink(null);
-        }
-      }
-      // confirmation may need a few seconds for the receipt
-      for (let i = 0; i < 5; i++) {
-        const r = await fetch(`/api/payments/${p.id}/confirm`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ txHash }) });
-        if (r.ok) return;
-        const j = await r.json().catch(() => ({}));
-        if (!String(j.error ?? "").includes("not found yet")) throw new PayError("FAILED", j.error ?? "confirmation failed");
-        await new Promise((res) => setTimeout(res, 3000));
-      }
-      throw new PayError("FAILED", "confirmation timed out — the payment will be checked again when you reload");
-    },
-    [channel, transport],
-  );
 
   return (
-    <C.Provider value={{ ready, me, channel, transport, setTransport, pendingLink, login, startQr, logout, refresh, pay }}>
+    <C.Provider value={{ ready, me, channel, transport, setTransport, pendingLink, login, startQr, logout, refresh }}>
       <Script src={`${wallet}/sdk/cafeca-connect.js`} strategy="afterInteractive" onLoad={() => void onSdk()} onReady={() => void onSdk()} />
       {children}
     </C.Provider>

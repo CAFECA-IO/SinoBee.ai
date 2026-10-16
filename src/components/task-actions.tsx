@@ -3,14 +3,11 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { usePay, postJson } from "./use-pay";
-import { PayStatus } from "./pay-status";
-import type { PaymentIntent } from "./cafeca-provider";
+import { PayForm, postJson, type Buyer } from "./checkout";
 
-export function TaskOwnerActions({ taskId, status, minTopUp, minBudget, title }: { taskId: string; status: string; minTopUp: number; minBudget: number; title: string }) {
+export function TaskOwnerActions({ taskId, status, minTopUp, minBudget, buyer }: { taskId: string; status: string; minTopUp: number; minBudget: number; title: string; buyer?: Partial<Buyer> | null }) {
   const t = useTranslations("task");
   const router = useRouter();
-  const { run, busy, error, pendingLink } = usePay();
   const unpaid = status === "AWAITING_PAYMENT";
   const [amount, setAmount] = useState(String(unpaid ? Math.max(minBudget, 100) : Math.max(minTopUp, 50)));
   const [closing, setClosing] = useState(false);
@@ -18,24 +15,17 @@ export function TaskOwnerActions({ taskId, status, minTopUp, minBudget, title }:
   return (
     <div className="card space-y-3 p-5">
       <div className="font-semibold">{unpaid ? t("payBudget") : t("topUp")}</div>
-      <div className="flex items-center gap-2">
-        <input className="input font-mono" type="number" min={unpaid ? minBudget : minTopUp} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <span className="text-sm font-semibold">TWD</span>
-      </div>
-      <PayStatus busy={busy} error={error} pendingLink={pendingLink} />
-      <button
-        className="btn-primary w-full"
-        disabled={busy}
-        onClick={async () => {
-          const ok = await run(
-            async () => (await postJson<{ payment: PaymentIntent }>(`/api/tasks/${taskId}/topup`, { amount: Number(amount) })).payment,
-            { title: t("payDesc", { amount }), detail: title },
-          );
-          if (ok) router.refresh();
-        }}
-      >
-        {unpaid ? t("payNow", { amount }) : t("addFunds", { amount })}
-      </button>
+      <PayForm
+        buyer={buyer}
+        label={unpaid ? t("payNow", { amount }) : t("addFunds", { amount })}
+        extra={
+          <div className="flex items-center gap-2">
+            <input className="input font-mono" type="number" step="1" min={unpaid ? minBudget : minTopUp} value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} required aria-label={t("amount")} />
+            <span className="text-sm font-semibold">TWD</span>
+          </div>
+        }
+        onPay={async (b) => (await postJson<{ payment: { checkoutUrl: string } }>(`/api/tasks/${taskId}/topup`, { amount: Number(amount), buyer: b })).payment.checkoutUrl}
+      />
       {(status === "NEEDS_FUNDING" || unpaid) && (
         <button
           className="btn-ghost w-full"

@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { currentUser } from "@/lib/auth";
+import type { Buyer } from "@/components/checkout";
 import { redirect } from "@/i18n/navigation";
 import { TaskForm } from "@/components/task-form";
 import { modelsForClient, pricingForClient } from "@/lib/public-config";
@@ -24,7 +25,7 @@ export default async function NewEvaluationPage({ params, searchParams }: { para
       <h1 className="h1">{t("newTitle")}</h1>
       <p className="mt-2 max-w-3xl text-muted">{t("newLead")}</p>
       <div className="mt-10">
-        <TaskForm kind="EVALUATION" models={await modelsForClient()} pricing={pricingForClient()} skill={skill} evalMethods={EVAL_METHODS} />
+        <TaskForm kind="EVALUATION" models={await modelsForClient()} pricing={await pricingForClient()} skill={skill} evalMethods={EVAL_METHODS} buyer={(me?.billing ?? null) as Buyer | null} />
       </div>
     </div>
   );

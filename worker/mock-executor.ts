@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import * as tar from "tar";
 import { modelCatalog } from "../src/lib/models";
+import { tokenCostUsd } from "../src/lib/pricing";
 import type { Executor, RunContext, RunResult, TaskWithRefs, Usage } from "./types";
 
 /**
@@ -18,7 +19,7 @@ export class MockExecutor implements Executor {
     const perStepIn = Number(process.env.MOCK_INPUT_TOKENS_PER_STEP ?? 40_000);
     const perStepOut = Number(process.env.MOCK_OUTPUT_TOKENS_PER_STEP ?? 4_000);
     const m = (await modelCatalog()).get(task.model)?.usd;
-    const usage = progress.get(task.id) ?? { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), tokenCostUsd: Number(task.tokenCostUsd) };
+    const usage: Usage = progress.get(task.id) ?? { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), cacheReadTokens: Number(task.cacheReadTokens), cacheWriteTokens: Number(task.cacheWriteTokens), tokenCostUsd: Number(task.tokenCostUsd) };
     const start = Date.now();
     await ctx.log(`[mock runner] ${ctx.continuation ? "continuing" : "starting"} simulated run on ${task.model}`);
     let stopped = false;
@@ -26,7 +27,9 @@ export class MockExecutor implements Executor {
       await new Promise((r) => setTimeout(r, Number(process.env.MOCK_STEP_MS ?? 1000)));
       usage.inputTokens += perStepIn;
       usage.outputTokens += perStepOut;
-      usage.tokenCostUsd = m ? (usage.inputTokens * m.input + usage.outputTokens * m.output) / 1e6 : 0;
+      // pretend half of every new prompt after the first step was a cache hit
+      if (i > 0) usage.cacheReadTokens = (usage.cacheReadTokens ?? 0) + perStepIn / 2;
+      usage.tokenCostUsd = tokenCostUsd(m, usage);
       progress.set(task.id, usage);
       await ctx.log(`[mock runner] step ${i + 1}/${steps}`);
       if ((await ctx.onUsage({ ...usage }, Math.round((Date.now() - start) / 1000))) === "stop") {

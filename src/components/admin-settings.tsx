@@ -297,3 +297,43 @@ export function PlanEditor({ plan, blended, blendedLabel }: { plan?: PlanProps; 
     </form>
   );
 }
+
+// ───────────── payments ─────────────
+
+export function PaymentActions({ id, refundable, provider, status }: { id: string; refundable: number; provider: string; status: string }) {
+  const t = useTranslations("admin.payments");
+  const [amount, setAmount] = useState(String(refundable));
+  const [reason, setReason] = useState("");
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState("");
+  const router = useRouter();
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {provider === "OEN" && status === "PENDING" && (
+        <button className="btn-ghost !py-1 text-xs" onClick={async () => { setErr((await send(`/api/admin/payments/${id}/sync`, "POST", {})) ?? ""); router.refresh(); }}>{t("sync")}</button>
+      )}
+      {refundable > 0 && !open && <button className="btn-ghost !py-1 text-xs" onClick={() => setOpen(true)}>{t("refund")}</button>}
+      {open && (
+        <span className="flex flex-wrap items-center gap-2 text-xs">
+          <input className="input !w-20 !py-1 font-mono" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} aria-label={t("amount")} />
+          <input className="input !w-48 !py-1" placeholder={t("reason")} value={reason} onChange={(e) => setReason(e.target.value)} aria-label={t("reason")} />
+          <button
+            className="btn-danger !py-1"
+            disabled={!(Number(amount) >= 1 && Number(amount) <= refundable)}
+            onClick={async () => {
+              if (!confirm(t("confirm", { amount }))) return;
+              const e = await send(`/api/admin/payments/${id}/refund`, "POST", { amount: Number(amount), reason: reason || undefined });
+              if (e) return setErr(e);
+              setOpen(false);
+              router.refresh();
+            }}
+          >
+            {t("refundGo")}
+          </button>
+          <button className="btn-ghost !py-1" onClick={() => setOpen(false)}>{t("cancel")}</button>
+        </span>
+      )}
+      {err && <span className="text-xs text-err" role="alert">{err}</span>}
+    </div>
+  );
+}
