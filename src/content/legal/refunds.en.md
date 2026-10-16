@@ -37,7 +37,7 @@ We reply within 7 business days.
 
 ## 5. How refunds are paid
 
-1. Refunds always go back to the original payment method, through Oen:
+1. Refunds always go back to the original payment method, through our payment provider Oen (應援科技股份有限公司, [https://oen.tw/](https://oen.tw/)):
    - Card, Apple Pay, LINE Pay: refunded immediately; it usually takes 7–14 business days to appear, depending on your bank or wallet.
    - Paid convenience-store codes or ATM transfers: we need your bank account details and Oen transfers the money.
 2. Under Oen's rules **each payment can be refunded only once**; after a partial refund the rest cannot be refunded.

@@ -61,6 +61,7 @@ model User {
   toolRatings   ToolRating[]
   adminActions  AdminAudit[]  @relation("auditActor")
   modelPrices   ModelPrice[]
+  usage         UsageLedger[]
 }
 
 enum UserRole {
@@ -542,6 +543,70 @@ model Subscription {
   createdAt DateTime @default(now())
 
   @@index([userId, endsAt])
+}
+
+// ───────────────────────── Model relay (subscriptions) ─────────────────────────
+
+enum UsageStatus {
+  /// reserved while the request runs (counts toward the windows at heldTwd)
+  HELD
+  /// settled from the upstream usage report
+  SETTLED
+  /// settled from our own token count (no usage from upstream, client abort, quota stop)
+  ESTIMATED
+  /// never settled by the request; the sweeper settled it after 10 minutes at the larger of hold and count
+  EXPIRED
+  /// upstream failed before producing output: nothing charged
+  REFUNDED
+}
+
+/**
+ * One relayed model call. The 6 h / 168 h rolling windows sum heldTwd for HELD rows and settledTwd for the
+ * rest, at the time the cost was incurred (settledAt, or createdAt while held).
+ */
+model UsageLedger {
+  id             String      @id @default(cuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// subscription period the call ran under
+  subscriptionId String?
+  planId         String?
+  deviceId       String?
+  modelId        String
+  endpoint       String
+  stream         Boolean     @default(false)
+  status         UsageStatus @default(HELD)
+  heldTwd        Decimal     @default(0)
+  settledTwd     Decimal?   
+  /// published TWD per 1M tokens {input, cacheRead, cacheWrite, output} at hold time
+  priceTwd       Json
+  promptTokens     Int @default(0)
+  outputTokens     Int @default(0)
+  cacheReadTokens  Int @default(0)
+  cacheWriteTokens Int @default(0)
+  /// output tokens the hold covers (estimate + top-ups)
+  heldOutput     Int         @default(0)
+  /// output tokens counted by us while streaming
+  countedOutput  Int         @default(0)
+  error          String?
+  createdAt      DateTime    @default(now())
+  settledAt      DateTime?
+
+  @@index([userId, status])
+  @@index([userId, settledAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+/** Average output length per user and model (last ~50 calls), used to size holds */
+model UserModelStats {
+  userId    String
+  modelId   String
+  avgOutput Float    @default(800)
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, modelId])
 }
 
 // ───────────────────────── Prices & plans ─────────────────────────

@@ -997,7 +997,7 @@
     "companyName": "Company name (optional)",
     "agree": "I have read and agree to the <terms>Terms of Service</terms>, <refunds>Refund Policy</refunds> and <privacy>Privacy Policy</privacy>, and ask for the service to start right after payment (online services are not subject to the 7-day withdrawal right; refunds follow the Refund Policy).",
     "redirecting": "Going to Oen…",
-    "oenNote": "Payments are processed by Oen (TWD; card and more). SinoBee.ai never sees your card number. The payment page is valid for 5 minutes."
+    "oenNote": "Payments are processed by Oen (應援科技股份有限公司) in TWD (card and more). SinoBee.ai never sees your card number. The payment page is valid for 5 minutes."
   },
   "subscribe": {
     "title": "Subscribe to SinoBee.ai",

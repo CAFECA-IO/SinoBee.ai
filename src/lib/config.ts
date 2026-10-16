@@ -24,7 +24,7 @@ export const config = {
     entity: process.env.LEGAL_ENTITY || "CAFECA",
     taxId: process.env.LEGAL_TAX_ID || "",
     address: process.env.LEGAL_ADDRESS || "",
-    email: process.env.LEGAL_EMAIL || "",
+    email: process.env.LEGAL_EMAIL || "contact@cafeca.com.tw",
     /** effective date of the current policies */
     effective: process.env.LEGAL_EFFECTIVE || "2026-10-16",
   },
@@ -164,6 +164,47 @@ export const config = {
     },
     /** keep a mirror copy in local/S3 storage for fast reads (Boltchain stays the system of record) */
     mirror: (process.env.BOLT_MIRROR ?? "1") !== "0",
+  },
+
+  /**
+   * Model relay for subscribers (/api/v1/llm/*). Platform API keys come from the environment at start-up
+   * (docker run -e ANTHROPIC_API_KEY=… etc.); they never leave the server.
+   */
+  llm: {
+    providers: {
+      anthropic: { kind: "anthropic" as const, base: process.env.LLM_BASE_ANTHROPIC || "https://api.anthropic.com", keyEnv: "ANTHROPIC_API_KEY" },
+      openai: { kind: "openai" as const, base: process.env.LLM_BASE_OPENAI || "https://api.openai.com/v1", keyEnv: "OPENAI_API_KEY" },
+      gemini: { kind: "openai" as const, base: process.env.LLM_BASE_GEMINI || "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY" },
+      deepseek: { kind: "openai" as const, base: process.env.LLM_BASE_DEEPSEEK || "https://api.deepseek.com/v1", keyEnv: "DEEPSEEK_API_KEY" },
+    } as Record<string, { kind: "openai" | "anthropic"; base: string; keyEnv: string }>,
+    /** requests per minute per user */
+    get rpm() {
+      return num(process.env.LLM_RPM, 60);
+    },
+    /** largest max_tokens a single request may ask for */
+    get maxOutputTokens() {
+      return num(process.env.LLM_MAX_OUTPUT_TOKENS, 32000);
+    },
+    /** default max_tokens when a non-streaming request does not say */
+    get defaultOutputTokens() {
+      return num(process.env.LLM_DEFAULT_OUTPUT_TOKENS, 8192);
+    },
+    /** first hold for a stream when the user has no history with the model */
+    get defaultAvgOutput() {
+      return num(process.env.LLM_DEFAULT_AVG_OUTPUT, 800);
+    },
+    /** extra output tokens reserved each time a stream outgrows its hold */
+    get topUpTokens() {
+      return num(process.env.LLM_TOPUP_TOKENS, 256);
+    },
+    /** holds older than this are settled by the sweeper */
+    get holdTimeoutMs() {
+      return num(process.env.LLM_HOLD_TIMEOUT_S, 600) * 1000;
+    },
+    /** per-provider daily spend cap in TWD at published prices (0 = off); e.g. LLM_DAILY_LIMIT_TWD_ANTHROPIC */
+    dailyLimit(provider: string) {
+      return num(process.env[`LLM_DAILY_LIMIT_TWD_${provider.toUpperCase()}`], num(process.env.LLM_DAILY_LIMIT_TWD, 0));
+    },
   },
 
   hub: {

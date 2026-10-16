@@ -20,6 +20,7 @@ import { notify } from "../src/lib/notify";
 import { addDays, containerExpiry, resultsRetentionDays } from "../src/lib/retention";
 import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
+import { sweepHolds } from "../src/lib/llm/quota";
 import { DockerExecutor, containerName, volumeName } from "./docker-executor";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
@@ -288,6 +289,8 @@ async function loop() {
         lastReconcile = Date.now();
         const r = await reconcilePayments().catch((e) => (log("reconcile error", e), null));
         if (r?.settled) log("payments settled by reconciliation", r.settled);
+        const swept = await sweepHolds().catch((e) => (log("hold sweep error", e), 0));
+        if (swept) log("expired model holds settled", swept);
       }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();

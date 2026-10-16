@@ -997,7 +997,7 @@
     "companyName": "公司名稱（選填）",
     "agree": "我已閱讀並同意<terms>服務條款</terms>、<refunds>退款政策</refunds>與<privacy>隱私權政策</privacy>，並同意付款後立即開始提供服務（線上服務不適用七日解除權，退款依退款政策辦理）。",
     "redirecting": "前往 Oen 付款…",
-    "oenNote": "付款由 Oen 應援科技處理（新臺幣計價，信用卡等）；SinoBee.ai 不會取得你的卡號。付款頁 5 分鐘內有效。"
+    "oenNote": "付款由應援科技股份有限公司（Oen）處理（新臺幣計價，信用卡等）；SinoBee.ai 不會取得你的卡號。付款頁 5 分鐘內有效。"
   },
   "subscribe": {
     "title": "訂閱 SinoBee.ai",

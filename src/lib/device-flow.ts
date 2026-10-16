@@ -12,7 +12,8 @@ import { HttpError } from "./errors";
  * 3. SinoBee polls /api/v1/device/token until it receives an `sbh_` access token bound to a Device
  */
 
-export const SCOPES = ["skills:publish", "tools:write", "vault:rw", "shares:write"] as const;
+/** llm: use the subscription model relay (/api/v1/llm/*) */
+export const SCOPES = ["skills:publish", "tools:write", "vault:rw", "shares:write", "llm"] as const;
 export type Scope = (typeof SCOPES)[number];
 export const DEFAULT_SCOPES: Scope[] = [...SCOPES];
 
