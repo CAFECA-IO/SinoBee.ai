@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev -p 3000",
+    "prebuild": "node -e \"require('fs').rmSync('.next/dev/types',{recursive:true,force:true})\"",
     "build": "npm run db:generate && next build",
     "start": "next start -p 3000",
     "swarm": "tsx scripts/swarm.ts",

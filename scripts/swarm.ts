@@ -19,7 +19,7 @@
  */
 import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { boltchainEnv, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
 
@@ -132,6 +132,8 @@ async function main() {
 
   if (!dev && (args.has("--build") || !existsSync(path.join(root, ".next", "BUILD_ID")))) {
     log("swarm", "building the site (production)…");
+    // stale route types from an earlier `next dev` break type checking after a route is removed
+    rmSync(path.join(root, ".next", "dev", "types"), { recursive: true, force: true });
     await run("swarm", bin("next"), ["build"]);
   }
 
