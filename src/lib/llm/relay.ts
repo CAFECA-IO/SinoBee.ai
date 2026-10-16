@@ -23,16 +23,10 @@ type Fmt = "openai" | "anthropic";
 
 /** sbh_ device token from `sinobee login` with the llm scope (Authorization: Bearer … or x-api-key: …) */
 export async function llmAuth(req: Request) {
-  let r = req;
-  const key = req.headers.get("x-api-key");
-  if (!req.headers.get("authorization") && key) {
-    const h = new Headers(req.headers);
-    h.set("authorization", `Bearer ${key}`);
-    r = new Request(req.url, { method: req.method, headers: h });
-  }
-  const a = await bearerAuth(r);
+  const a = await bearerAuth(req);
   if (!a) throw new HttpError(401, "invalid or missing SinoBee.ai token — run `sinobee login`");
   if (!a.scopes.includes("llm")) throw new HttpError(403, "token lacks the llm scope — run `sinobee login` again");
+  if (config.llm.requireSignature && !a.signed) throw new HttpError(401, "this site only accepts signed requests from SinoBee — update SinoBee and run `sinobee login`");
   return a;
 }
 
@@ -61,7 +55,7 @@ export async function resolveModel(name: unknown, fmt: Fmt): Promise<{ model: Mo
   const p = config.llm.providers[provider];
   if (!p) throw new HttpError(400, `provider ${provider} is not available through the relay`);
   if (p.kind !== fmt) throw new HttpError(400, fmt === "openai" ? `${m.modelId} uses the Anthropic format: POST /api/v1/llm/anthropic/v1/messages` : `${m.modelId} uses the OpenAI format: POST /api/v1/llm/chat/completions`);
-  if (!process.env[p.keyEnv]) throw new QuotaError("provider", `${provider} models are temporarily unavailable`);
+  if (!p.key) throw new QuotaError("provider", `${provider} models are temporarily unavailable`);
   return { model: m, provider, upstreamName: m.modelId.split("/").slice(1).join("/") };
 }
 
@@ -104,7 +98,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     const ctx = await quotaContext(auth.user.id);
     const { model, provider, upstreamName } = await resolveModel(body.model, fmt);
     const p = config.llm.providers[provider];
-    const key = process.env[p.keyEnv]!;
+    const key = p.key;
 
     if (endpoint === "embeddings") {
       const payload = { ...pick(body, ["input", "dimensions", "encoding_format"]), model: upstreamName };
@@ -379,7 +373,7 @@ export async function modelList() {
         name: m.label,
         format: config.llm.providers[m.modelId.split("/")[0]].kind,
         price_twd_per_1m: m.twd,
-        available: !!process.env[config.llm.providers[m.modelId.split("/")[0]].keyEnv],
+        available: !!config.llm.providers[m.modelId.split("/")[0]].key,
       })),
   };
 }

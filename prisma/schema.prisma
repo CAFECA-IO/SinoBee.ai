@@ -130,6 +130,8 @@ model ApiToken {
   /// set for tokens issued to a SinoBee install through the device flow
   deviceId   String?
   device     Device?   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  /// "pat" (personal / legacy device token), "access" (15 minutes, signed requests), "refresh" (device-bound)
+  kind       String    @default("pat")
   expiresAt  DateTime?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
@@ -147,6 +149,8 @@ model Device {
   platform   String?
   /// X25519 public key of this install; the vault key is wrapped to it so the user need not retype the passphrase
   publicKey  String?
+  /// Ed25519 public key (raw 32 bytes, base64): every request with this device's tokens must be signed with it
+  signingKey String?
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   revokedAt  DateTime?
@@ -174,6 +178,8 @@ model DeviceAuth {
   platform       String?
   /// X25519 public key the device will use for its vault key
   publicKey      String?
+  /// Ed25519 request-signing key of the device
+  signingKey     String?
   ip             String?
   status         DeviceAuthStatus @default(PENDING)
   userId         String?
@@ -541,6 +547,16 @@ model Subscription {
   createdAt DateTime @default(now())
 
   @@index([userId, endsAt])
+}
+
+/// Nonces of signed device requests seen in the last few minutes (replay protection)
+model RequestNonce {
+  deviceId  String
+  nonce     String
+  createdAt DateTime @default(now())
+
+  @@id([deviceId, nonce])
+  @@index([createdAt])
 }
 
 // ───────────────────────── Model relay (subscriptions) ─────────────────────────

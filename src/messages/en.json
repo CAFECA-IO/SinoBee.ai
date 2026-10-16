@@ -426,7 +426,7 @@
     "pending": "Pending",
     "approved": "Listed",
     "empty": "Nothing here.",
-    "noKey": "HUB_SIGNING_KEY is not set, so approved versions cannot be signed. Run npm run hub:keygen.",
+    "noKey": "No skill signing key yet; it is generated when the site restarts (Settings → Skill Hub signing).",
     "note": "Review note (optional)",
     "approve": "Approve & sign",
     "reject": "Reject",
@@ -444,7 +444,8 @@
       "prices": "Model prices",
       "plans": "Plans",
       "audit": "Audit log",
-      "payments": "Payments & refunds"
+      "payments": "Payments & refunds",
+      "settings": "Settings"
     },
     "st": {
       "enabled": "Enabled",
@@ -563,6 +564,47 @@
       "cancel": "Cancel",
       "confirm": "Refund {amount} TWD through Oen? Each transaction can be refunded once.",
       "help": "Oen notifications are unsigned, so every result is read back with GET /transactions; missed notifications are reconciled by the worker every 3 minutes. One refund per transaction; task refunds are limited to the unspent budget, and refunding a subscription cancels that period and moves later ones up."
+    },
+    "settings": {
+      "help": "Settings live in the database; secrets are encrypted with AES-256-GCM. Values set by environment variables are locked and must be changed there. Empty keys and passwords are generated automatically.",
+      "readOnly": "Only the super admin can change settings.",
+      "keyFile": "Encryption key: {file} (fingerprint {fp}). Back this file up separately; without it the encrypted settings cannot be read.",
+      "webhook": "Payment notification URL for the Oen CRM:",
+      "check": "Check Oen settings",
+      "checkOk": "Token and domain are valid",
+      "on": "On",
+      "replace": "Enter a new value to replace it",
+      "enter": "Enter",
+      "generated": "Generated",
+      "set": "Set {hint}",
+      "restart": "Takes effect after a restart",
+      "publicKey": "Public key",
+      "address": "Address",
+      "saved": "Saved",
+      "save": "Save",
+      "clear": "Clear",
+      "confirmClear": "Clear it and fall back to the default (or a new generated value when needed)?",
+      "rotate": "Generate a new signing key",
+      "confirmRotate": "Generate a new skill signing key? The old public key stays published; signed skills keep verifying.",
+      "source": {
+        "env": "Env {env} (locked)",
+        "db": "Database",
+        "default": "Default",
+        "unset": "Not set"
+      },
+      "group": {
+        "payments": "Payments",
+        "apiKeys": "Model and tool API keys",
+        "llm": "Model relay",
+        "cafeca": "CAFECA and admins",
+        "legal": "Company details (policies)",
+        "pricing": "VM and storage pricing",
+        "retention": "Retention and subscriptions",
+        "storage": "Mirror storage",
+        "boltchain": "Boltchain",
+        "hub": "Skill Hub signing",
+        "runner": "Task runner"
+      }
     }
   },
   "hubApi": {

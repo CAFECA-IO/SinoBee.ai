@@ -1,232 +1,317 @@
+import { sv, svBool, svList, svNum } from "./settings/cache";
+
 /**
- * Central runtime configuration (all values from environment variables).
- * See .env.example for documentation of each variable.
+ * Central runtime configuration.
+ *
+ * Bootstrap values come from the environment (.env): DATABASE_URL / SQLITE_PATH, PUBLIC_ORIGIN, OWNER_ACCOUNT,
+ * DEV_LOGIN, SECRETS_KEY. Everything else is a setting (src/lib/settings/registry.ts) kept in the database —
+ * secrets encrypted — and edited in /admin → Settings; a variable set in the process environment still wins.
+ * All getters read an in-memory cache, so they are cheap and synchronous.
  */
-const num = (v: string | undefined, d: number) => (v !== undefined && v !== "" && !Number.isNaN(Number(v)) ? Number(v) : d);
-const list = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
 export const config = {
   /** Public origin of this site, e.g. https://sinobee.ai — must match exactly what users sign */
-  origin: (process.env.PUBLIC_ORIGIN ?? "http://localhost:3000").replace(/\/$/, ""),
-  /** CAFECA wallet origin (Sign in with CAFECA, signing channel, payments) */
-  cafecaWallet: (process.env.CAFECA_WALLET ?? "https://cafeca.io").replace(/\/$/, ""),
-  cafecaRpcUrl: process.env.CAFECA_RPC_URL || undefined,
+  get origin() {
+    return (process.env.PUBLIC_ORIGIN ?? "http://localhost:3000").replace(/\/$/, "");
+  },
+  /** CAFECA wallet origin (Sign in with CAFECA, signing channel) */
+  get cafecaWallet() {
+    return sv("cafeca.wallet").replace(/\/$/, "");
+  },
+  get cafecaRpcUrl() {
+    return sv("cafeca.rpcUrl") || undefined;
+  },
   /** Optional webhook used to push notifications to users through CAFECA */
-  cafecaNotifyUrl: process.env.CAFECA_NOTIFY_URL || undefined,
-  cafecaNotifyToken: process.env.CAFECA_NOTIFY_TOKEN || undefined,
+  get cafecaNotifyUrl() {
+    return sv("cafeca.notifyUrl") || undefined;
+  },
+  get cafecaNotifyToken() {
+    return sv("cafeca.notifyToken") || undefined;
+  },
   /**
    * Site owner (CAFECA account, lowercase). Its first sign-in makes it SUPERADMIN. When empty, a one-time claim code
    * is printed in the server log at startup instead (see src/lib/roles.ts).
    */
-  ownerAccount: (process.env.OWNER_ACCOUNT ?? "").trim().toLowerCase() || undefined,
+  get ownerAccount() {
+    return (process.env.OWNER_ACCOUNT ?? "").trim().toLowerCase() || undefined;
+  },
+  set ownerAccount(v: string | undefined) {
+    // tests switch the owner on and off
+    if (v) process.env.OWNER_ACCOUNT = v;
+    else delete process.env.OWNER_ACCOUNT;
+  },
   /** Shown in the Terms, Privacy and Refund policies (/terms, /privacy, /refunds) */
   legal: {
-    entity: process.env.LEGAL_ENTITY || "CAFECA",
-    taxId: process.env.LEGAL_TAX_ID || "",
-    address: process.env.LEGAL_ADDRESS || "",
-    email: process.env.LEGAL_EMAIL || "contact@cafeca.com.tw",
-    /** effective date of the current policies */
-    effective: process.env.LEGAL_EFFECTIVE || "2026-10-16",
+    get entity() {
+      return sv("legal.entity");
+    },
+    get website() {
+      return sv("legal.website");
+    },
+    get taxId() {
+      return sv("legal.taxId");
+    },
+    get address() {
+      return sv("legal.address");
+    },
+    get email() {
+      return sv("legal.email");
+    },
+    get effective() {
+      return sv("legal.effective");
+    },
   },
   /** Accounts that start as ADMIN when they first sign in (later role changes in /admin are never overwritten) */
-  adminAccounts: list(process.env.ADMIN_ACCOUNTS).map((a) => a.toLowerCase()),
-
-  payments: {
-    /**
-     * "oen": Oen checkout in TWD (https://developer.oen.tw). "mock": a local fake checkout page (development only;
-     * refused when NODE_ENV=production).
-     */
-    mode: (process.env.PAYMENT_MODE === "mock" ? "mock" : "oen") as "oen" | "mock",
-    minTaskBudget: num(process.env.MIN_TASK_BUDGET_TWD, 30),
-    minTopUp: num(process.env.MIN_TOPUP_TWD, 10),
+  get adminAccounts() {
+    return svList("admins.initial").map((a) => a.toLowerCase());
   },
 
-  /**
-   * Oen payments. The API token is read from the environment at start-up only (pass it on the command line, e.g.
-   * `docker run -e OEN_API_TOKEN=…` or `OEN_API_TOKEN=… npm start`); never write it into .env or the repository.
-   */
+  payments: {
+    /** payment provider in /admin → Settings (only Oen today) */
+    get provider() {
+      return sv("payments.provider") as "oen";
+    },
+    /** "oen" = the provider's real checkout; "mock" = local fake checkout (development only) */
+    get mode() {
+      return (sv("payments.mode") === "mock" ? "mock" : "oen") as "oen" | "mock";
+    },
+    get minTaskBudget() {
+      return svNum("payments.minTaskBudget");
+    },
+    get minTopUp() {
+      return svNum("payments.minTopUp");
+    },
+  },
+
+  /** Oen payments (https://developer.oen.tw) */
   oen: {
     get env() {
-      return (process.env.OEN_ENV === "production" ? "production" : "testing") as "production" | "testing";
+      return (sv("oen.env") === "production" ? "production" : "testing") as "production" | "testing";
     },
     /** your Oen domain, e.g. "sinobee" for https://sinobee.oen.tw */
     get merchantId() {
-      return process.env.OEN_MERCHANT_ID ?? "";
+      return sv("oen.merchantId");
     },
     get token() {
-      return process.env.OEN_API_TOKEN ?? "";
+      return sv("oen.token");
     },
-    /** overrides for tests / proxies */
     get apiBase() {
-      return (process.env.OEN_API_BASE || (this.env === "production" ? "https://payment-api.oen.tw" : "https://payment-api.testing.oen.tw")).replace(/\/$/, "");
+      return (sv("oen.apiBase") || (this.env === "production" ? "https://payment-api.oen.tw" : "https://payment-api.testing.oen.tw")).replace(/\/$/, "");
     },
     get checkoutBase() {
-      return (process.env.OEN_CHECKOUT_BASE || `https://${this.merchantId}.${this.env === "production" ? "" : "testing."}oen.tw`).replace(/\/$/, "");
+      return (sv("oen.checkoutBase") || `https://${this.merchantId}.${this.env === "production" ? "" : "testing."}oen.tw`).replace(/\/$/, "");
     },
-    /** extra payment methods besides card: comma separated cvs,atm,linePay */
+    /** extra payment methods besides card */
     get methods() {
-      return list(process.env.OEN_PAYMENT_METHODS);
+      return svList("oen.methods");
     },
   },
 
   pricing: {
     /** Markup on VM and storage costs (model tokens are billed at the published price instead) */
-    markup: num(process.env.PRICE_MARKUP, 1.5),
+    get markup() {
+      return svNum("pricing.markup");
+    },
     /** legacy USD→TWD default; the live base FX rate is set in /admin (Model prices) */
-    usdTwd: num(process.env.USD_TWD_RATE, 32.5),
-    /** AWS EC2 on-demand price for one task slot (USD/hour). Default: m7i.xlarge ap-northeast-1 reference */
-    vmHourlyUsd: num(process.env.AWS_VM_HOURLY_USD, 0.2604),
-    /** AWS S3 Standard storage (USD per GB-month) and request prices (USD per 1,000) */
-    s3GbMonthUsd: num(process.env.AWS_S3_GB_MONTH_USD, 0.025),
-    s3PutPer1kUsd: num(process.env.AWS_S3_PUT_PER_1K_USD, 0.0047),
-    s3GetPer1kUsd: num(process.env.AWS_S3_GET_PER_1K_USD, 0.00037),
+    usdTwd: 32.5,
+    get vmHourlyUsd() {
+      return svNum("pricing.vmHourlyUsd");
+    },
+    get s3GbMonthUsd() {
+      return svNum("pricing.s3GbMonthUsd");
+    },
+    get s3PutPer1kUsd() {
+      return svNum("pricing.s3PutPer1kUsd");
+    },
+    get s3GetPer1kUsd() {
+      return svNum("pricing.s3GetPer1kUsd");
+    },
   },
 
   retention: {
-    /** "1" deletes expired results and idle containers; default "0" only marks them expired (deletion paused) */
+    /** delete expired results and idle containers; off = only mark them expired (deletion paused) */
     get deleteExpired() {
-      return process.env.RETENTION_DELETE === "1";
+      return svBool("retention.delete");
     },
-    /** non-subscribers: containers and results are kept this many days after a task finishes */
-    freeDays: num(process.env.RETENTION_FREE_DAYS, 7),
-    /** subscribers: results kept this many days (containers kept while subscribed) */
-    subscriberDays: num(process.env.RETENTION_SUBSCRIBER_DAYS, 90),
+    get freeDays() {
+      return svNum("retention.freeDays");
+    },
+    get subscriberDays() {
+      return svNum("retention.subscriberDays");
+    },
   },
 
   subscription: {
     /** results and containers stay this many days after the last subscription period ends */
-    graceDays: num(process.env.SUBSCRIPTION_GRACE_DAYS, 30),
+    get graceDays() {
+      return svNum("subscription.graceDays");
+    },
   },
 
   storage: {
-    /** "local" (dev) or "s3" */
-    driver: (process.env.STORAGE_DRIVER ?? "local") as "local" | "s3",
-    get localDir() {
-      return process.env.STORAGE_LOCAL_DIR ?? "./data/storage";
+    get driver() {
+      return (sv("storage.driver") === "s3" ? "s3" : "local") as "local" | "s3";
     },
-    s3Bucket: process.env.S3_BUCKET ?? "",
-    s3Region: process.env.AWS_REGION ?? "ap-northeast-1",
+    get localDir() {
+      return sv("storage.localDir");
+    },
+    get s3Bucket() {
+      return sv("storage.s3Bucket");
+    },
+    get s3Region() {
+      return sv("storage.s3Region");
+    },
+    /** explicit credentials; empty → the AWS default chain (instance role, ~/.aws) */
+    get s3Credentials() {
+      const accessKeyId = sv("storage.s3AccessKeyId");
+      const secretAccessKey = sv("storage.s3SecretAccessKey");
+      return accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined;
+    },
   },
 
   /**
    * Boltchain storage (SwarmStorage deals) and notarization (Certificates). Every stored object is
    * sealed with bolt-vault and kept by storage providers; the site wallet pays in BOLT.
-   * Enabled when BOLT_RPC_URL, BOLT_WALLET_KEY and BOLT_MASTER_KEY are all set (read on use).
+   * Enabled when a node RPC is set (the wallet and master keys are generated automatically).
    */
   boltchain: {
     get enabled() {
-      return !!(process.env.BOLT_RPC_URL && process.env.BOLT_WALLET_KEY && process.env.BOLT_MASTER_KEY);
+      return !!(sv("boltchain.rpcUrl") && sv("boltchain.walletKey") && sv("boltchain.masterKey"));
     },
     /** JSON-RPC of the site's own node, started with --rpc-storage (it serves bolt_hostBlocks / bolt_getBlocks) */
     get rpcUrl() {
-      return process.env.BOLT_RPC_URL ?? "http://127.0.0.1:8545";
+      return sv("boltchain.rpcUrl") || "http://127.0.0.1:8545";
     },
     get chainId() {
-      return num(process.env.BOLT_CHAIN_ID, 8018);
+      return svNum("boltchain.chainId");
     },
     /** site wallet private key (pays deals and certificates) */
     get walletKey() {
-      return process.env.BOLT_WALLET_KEY ?? "";
+      return sv("boltchain.walletKey");
     },
     /** 32-byte key (hex or base64) that encrypts each object's vault key; destroying an object key crypto-shreds it */
     get masterKey() {
-      return process.env.BOLT_MASTER_KEY ?? "";
+      return sv("boltchain.masterKey");
     },
     /** Certificates contract (ADR 0016); empty → content hashes are not notarized */
     get certificates() {
-      return (process.env.BOLT_CERTIFICATES ?? "").toLowerCase();
+      return sv("boltchain.certificates").toLowerCase();
     },
     get explorer() {
-      return (process.env.BOLT_EXPLORER_URL ?? "https://boltchain.cafeca.io").replace(/\/$/, "");
+      return sv("boltchain.explorer").replace(/\/$/, "");
     },
     get replicas() {
-      return num(process.env.BOLT_REPLICAS, 3);
+      return svNum("boltchain.replicas");
     },
     /** epochs bought per deal / per renewal (testnet epoch ≈ 1–2 h) */
     get epochs() {
-      return num(process.env.BOLT_DEAL_EPOCHS, 720);
+      return svNum("boltchain.epochs");
     },
-    /** seconds per epoch, to turn "keep until" dates into epochs (testnet: 600 blocks ≈ 1 h under PoS) */
+    /** seconds per epoch, to turn "keep until" dates into epochs */
     get epochSeconds() {
-      return num(process.env.BOLT_EPOCH_SECONDS, 3600);
+      return svNum("boltchain.epochSeconds");
     },
     /** alert admins when the site wallet holds less than this (wei); default 10 BOLT */
     get lowBalanceWei() {
-      return process.env.BOLT_LOW_BALANCE_WEI || "10000000000000000000";
+      return sv("boltchain.lowBalanceWei");
     },
     /** renew when fewer than this many epochs remain */
     get renewBelow() {
-      return num(process.env.BOLT_RENEW_BELOW_EPOCHS, 48);
+      return svNum("boltchain.renewBelow");
     },
-    /** highest price accepted, BOLT per GiB per epoch (wei = BOLT × 1e18); empty → no cap */
+    /** highest price accepted, BOLT per GiB per epoch (wei); empty → no cap */
     get maxPriceWei() {
-      return process.env.BOLT_MAX_PRICE_WEI ?? "";
+      return sv("boltchain.maxPriceWei");
     },
     /** keep a mirror copy in local/S3 storage for fast reads (Boltchain stays the system of record) */
-    mirror: (process.env.BOLT_MIRROR ?? "1") !== "0",
+    get mirror() {
+      return svBool("boltchain.mirror");
+    },
   },
 
-  /**
-   * Model relay for subscribers (/api/v1/llm/*). Platform API keys come from the environment at start-up
-   * (docker run -e ANTHROPIC_API_KEY=… etc.); they never leave the server.
-   */
+  /** Model relay for subscribers (/api/v1/llm/*); platform keys are settings (apiKeys.*) */
   llm: {
     providers: {
-      anthropic: { kind: "anthropic" as const, base: process.env.LLM_BASE_ANTHROPIC || "https://api.anthropic.com", keyEnv: "ANTHROPIC_API_KEY" },
-      openai: { kind: "openai" as const, base: process.env.LLM_BASE_OPENAI || "https://api.openai.com/v1", keyEnv: "OPENAI_API_KEY" },
-      gemini: { kind: "openai" as const, base: process.env.LLM_BASE_GEMINI || "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY" },
-      deepseek: { kind: "openai" as const, base: process.env.LLM_BASE_DEEPSEEK || "https://api.deepseek.com/v1", keyEnv: "DEEPSEEK_API_KEY" },
-    } as Record<string, { kind: "openai" | "anthropic"; base: string; keyEnv: string }>,
-    /** requests per minute per user */
+      anthropic: { kind: "anthropic" as const, get base() { return sv("llm.base.anthropic"); }, get key() { return sv("apiKeys.anthropic"); } },
+      openai: { kind: "openai" as const, get base() { return sv("llm.base.openai"); }, get key() { return sv("apiKeys.openai"); } },
+      gemini: { kind: "openai" as const, get base() { return sv("llm.base.gemini"); }, get key() { return sv("apiKeys.gemini"); } },
+      deepseek: { kind: "openai" as const, get base() { return sv("llm.base.deepseek"); }, get key() { return sv("apiKeys.deepseek"); } },
+    } as Record<string, { kind: "openai" | "anthropic"; readonly base: string; readonly key: string }>,
     get rpm() {
-      return num(process.env.LLM_RPM, 60);
+      return svNum("llm.rpm");
     },
-    /** largest max_tokens a single request may ask for */
     get maxOutputTokens() {
-      return num(process.env.LLM_MAX_OUTPUT_TOKENS, 32000);
+      return svNum("llm.maxOutputTokens");
     },
-    /** default max_tokens when a non-streaming request does not say */
     get defaultOutputTokens() {
-      return num(process.env.LLM_DEFAULT_OUTPUT_TOKENS, 8192);
+      return svNum("llm.defaultOutputTokens");
     },
-    /** first hold for a stream when the user has no history with the model */
     get defaultAvgOutput() {
-      return num(process.env.LLM_DEFAULT_AVG_OUTPUT, 800);
+      return svNum("llm.defaultAvgOutput");
     },
-    /** extra output tokens reserved each time a stream outgrows its hold */
     get topUpTokens() {
-      return num(process.env.LLM_TOPUP_TOKENS, 256);
+      return svNum("llm.topUpTokens");
     },
-    /** holds older than this are settled by the sweeper */
     get holdTimeoutMs() {
-      return num(process.env.LLM_HOLD_TIMEOUT_S, 600) * 1000;
+      return svNum("llm.holdTimeoutS") * 1000;
     },
-    /** per-provider daily spend cap in TWD at published prices (0 = off); e.g. LLM_DAILY_LIMIT_TWD_ANTHROPIC */
+    /** only accept requests signed with a device key (P5) */
+    get requireSignature() {
+      return svBool("llm.requireSignature");
+    },
+    /** per-provider daily spend cap in TWD at published prices (0 = off); LLM_DAILY_LIMIT_TWD_<PROVIDER> overrides */
     dailyLimit(provider: string) {
-      return num(process.env[`LLM_DAILY_LIMIT_TWD_${provider.toUpperCase()}`], num(process.env.LLM_DAILY_LIMIT_TWD, 0));
+      const per = Number(process.env[`LLM_DAILY_LIMIT_TWD_${provider.toUpperCase()}`]);
+      return Number.isFinite(per) && per > 0 ? per : svNum("llm.dailyLimitTwd");
     },
   },
 
   hub: {
-    /** base64 PKCS8 DER ed25519 private key used to sign approved skill versions */
-    signingKey: process.env.HUB_SIGNING_KEY ?? "",
+    /** base64 PKCS8 DER ed25519 private key used to sign approved skill versions (generated automatically) */
+    get signingKey() {
+      return sv("hub.signingKey");
+    },
+    /** earlier public keys, still published so existing signatures verify */
+    get previousKeys() {
+      return svList("hub.previousKeys");
+    },
     maxBundleBytes: 20 * 1024 * 1024,
     maxFiles: 500,
   },
 
   runner: {
     /** "docker": real SinoBee containers. "mock": simulated runs (development) */
-    mode: (process.env.RUNNER_MODE ?? "docker") as "docker" | "mock",
-    image: process.env.SINOBEE_IMAGE ?? "sinobee:latest",
-    concurrency: num(process.env.RUNNER_CONCURRENCY, 2),
-    cpus: num(process.env.RUNNER_CPUS, 2),
-    memoryMb: num(process.env.RUNNER_MEMORY_MB, 4096),
-    /** Environment variables passed from the worker into user containers (model API keys, search keys) */
-    passEnv: list(process.env.RUNNER_PASS_ENV ?? "OPENAI_API_KEY,ANTHROPIC_API_KEY,GEMINI_API_KEY,DEEPSEEK_API_KEY,OPENROUTER_API_KEY,BRAVE_API_KEY,TAVILY_API_KEY"),
-    /** docker network for user containers (create it with egress rules you want) */
-    network: process.env.RUNNER_NETWORK || undefined,
-    pollSeconds: num(process.env.RUNNER_POLL_SECONDS, 10),
-    maxTaskHours: num(process.env.RUNNER_MAX_TASK_HOURS, 12),
+    get mode() {
+      return (sv("runner.mode") === "mock" ? "mock" : "docker") as "docker" | "mock";
+    },
+    get image() {
+      return sv("runner.image");
+    },
+    get concurrency() {
+      return svNum("runner.concurrency");
+    },
+    get cpus() {
+      return svNum("runner.cpus");
+    },
+    get memoryMb() {
+      return svNum("runner.memoryMb");
+    },
+    /** API keys passed into user containers: env name → value (only the ones that are set) */
+    get containerEnv(): [string, string][] {
+      const keys = ["anthropic", "openai", "gemini", "deepseek", "openrouter", "brave", "tavily"];
+      const env: Record<string, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY", deepseek: "DEEPSEEK_API_KEY", openrouter: "OPENROUTER_API_KEY", brave: "BRAVE_API_KEY", tavily: "TAVILY_API_KEY" };
+      return keys.map((k) => [env[k], sv(`apiKeys.${k}`)] as [string, string]).filter(([, v]) => !!v);
+    },
+    /** docker network for user containers (create it with the egress rules you want) */
+    get network() {
+      return sv("runner.network") || undefined;
+    },
+    get pollSeconds() {
+      return svNum("runner.pollSeconds");
+    },
+    get maxTaskHours() {
+      return svNum("runner.maxTaskHours");
+    },
   },
 };
 

@@ -46,8 +46,8 @@ const view = (p: Row): PlanView => ({
 });
 
 export const DEFAULT_PLANS = [
-  { code: "low", name: "低用量", nameEn: "Light", feeTwd: 840, multiplier: 3, concurrency: 2, sortOrder: 10 },
-  { code: "high", name: "高用量", nameEn: "Heavy", feeTwd: 3675, multiplier: 1.5, concurrency: 6, sortOrder: 20 },
+  { code: "low", name: "Pro", nameEn: "Pro", feeTwd: 840, multiplier: 3, concurrency: 2, sortOrder: 10 },
+  { code: "high", name: "Ultra", nameEn: "Ultra", feeTwd: 3675, multiplier: 1.5, concurrency: 6, sortOrder: 20 },
 ];
 
 export async function ensurePlans() {

@@ -121,15 +121,15 @@ test("deals are renewed before they end", async () => {
 
 test("without a mirror the local copy is removed once stored, and reads come from Boltchain", async () => {
   const prev = process.env.BOLT_MIRROR;
-  (config.boltchain as { mirror: boolean }).mirror = false;
+  process.env.BOLT_MIRROR = "0";
   try {
     await storage.putObject("shares/s1/share.json", Buffer.from('{"m":1}'), "application/json");
     await keeper.storePending();
     assert.equal(existsSync(path.join(dir, "storage", "shares/s1/share.json")), false);
     assert.equal((await storage.getObject("shares/s1/share.json")).toString(), '{"m":1}');
   } finally {
-    (config.boltchain as { mirror: boolean }).mirror = true;
-    process.env.BOLT_MIRROR = prev;
+    if (prev === undefined) delete process.env.BOLT_MIRROR;
+    else process.env.BOLT_MIRROR = prev;
   }
 });
 

@@ -16,6 +16,7 @@ import { compareVersions, parseSkillMd } from "../src/lib/skills/spec";
 import { ensureModelPrices } from "../src/lib/models";
 import { ensurePlans } from "../src/lib/plans";
 import { initialRole, isAdminRole } from "../src/lib/roles";
+import { generateMissing, loadSettings } from "../src/lib/settings/store";
 
 /** A skill folder as an upload: SKILL.md alone, or a .tar.gz bundle when it has scripts, references or assets */
 async function upload(dir: string, name: string): Promise<{ data: Buffer; filename: string }> {
@@ -33,6 +34,8 @@ async function upload(dir: string, name: string): Promise<{ data: Buffer; filena
 }
 
 async function main() {
+  await loadSettings({ refreshEveryMs: 0 });
+  await generateMissing();
   await ensureModelPrices();
   await ensurePlans();
   console.log("model prices and plans ready (edit them in /admin)");

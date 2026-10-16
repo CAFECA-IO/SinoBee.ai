@@ -26,8 +26,8 @@ before(async () => {
   await llm.start();
   ({ db } = await import("../src/lib/db"));
   ({ config } = await import("../src/lib/config"));
-  config.llm.providers.openai.base = llm.url;
-  config.llm.providers.anthropic.base = llm.url;
+  process.env.LLM_BASE_OPENAI = llm.url;
+  process.env.LLM_BASE_ANTHROPIC = llm.url;
   relay = await import("../src/lib/llm/relay");
   quota = await import("../src/lib/llm/quota");
   plans = await import("../src/lib/plans");

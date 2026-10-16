@@ -1,11 +1,13 @@
 /**
  * npm run swarm — run the whole SinoBee.ai stack on one port (default 10023):
  *   1. apply database migrations (PostgreSQL if DATABASE_URL is set, otherwise SQLite)
- *   2. seed the official skills (idempotent)
- *   3. build the site if needed (production mode)
- *   4. start the web server on :10023 and the task worker, with prefixed logs
- *   0. Boltchain: fill the BOLT_* settings in .env (new site wallet + master key on first run) and
- *      start a local node in docker (`sinobee-boltchain`, RPC on 127.0.0.1:8545 with --rpc-storage)
+ *   2. settings: move registered variables out of .env into the database (secrets encrypted), and generate
+ *      missing keys (skill signing key, Boltchain site wallet and master key) — see /admin → Settings
+ *   3. Boltchain: start a local node in docker (`sinobee-boltchain`, RPC on 127.0.0.1:8545 with --rpc-storage)
+ *      unless a node RPC is configured
+ *   4. seed the official skills (idempotent)
+ *   5. build the site if needed (production mode)
+ *   6. start the web server on :10023 and the task worker, with prefixed logs
  *
  * Options:
  *   npm run swarm -- --dev        next dev instead of a production build (hot reload, DEV_LOGIN works)
@@ -21,7 +23,7 @@ import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
-import { boltchainEnv, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
+import { DEFAULT_CERTIFICATES, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = new Set(process.argv.slice(2));
@@ -68,14 +70,14 @@ function run(who: keyof typeof color, cmd: string, argv: string[], env: Record<s
 const children: ChildProcess[] = [];
 let nodeStarted = false;
 
-/** Boltchain settings + local node (see scripts/boltchain-node.ts) */
+/** Local Boltchain node unless one is configured (see scripts/boltchain-node.ts) */
 async function boltchain() {
+  const { sv } = await import("../src/lib/settings/cache");
   const blog = (l: string) => log("bolt", l);
   const rpcPort = Number(process.env.BOLT_NODE_RPC_PORT || 8545);
-  const env = boltchainEnv(root, rpcPort, blog);
-  Object.assign(process.env, env);
-  const url = env.BOLT_RPC_URL;
-  const addr = siteAddress(env.BOLT_WALLET_KEY ?? "");
+  const url = sv("boltchain.rpcUrl") || `http://127.0.0.1:${rpcPort}`;
+  const addr = siteAddress(sv("boltchain.walletKey"));
+  if (addr) blog(`site wallet ${addr}`);
   if (!isLocalRpc(url)) {
     blog(`using the Boltchain node at ${url}`);
     await waitForNode(url, addr, blog, 15_000);
@@ -83,13 +85,24 @@ async function boltchain() {
   }
   if (!dockerAvailable()) {
     blog("docker is not available: Boltchain storage is off for this run (objects stay in local/S3 storage)");
-    delete process.env.BOLT_RPC_URL;
     return;
   }
   await startNode(root, Number(new URL(url).port || rpcPort), blog, { rebuild: args.has("--rebuild-node") });
   nodeStarted = true;
   await waitForNode(url, addr, blog);
+  // tell the web server and the worker where the node is for this run (not stored: the node lives with the swarm)
+  if (!sv("boltchain.rpcUrl")) process.env.BOLT_RPC_URL = url;
+  if (!sv("boltchain.certificates")) process.env.BOLT_CERTIFICATES = DEFAULT_CERTIFICATES;
 }
+
+/** Move .env settings into the database and create missing keys */
+async function settings() {
+  const store = await import("../src/lib/settings/store");
+  await store.loadSettings({ refreshEveryMs: 0 });
+  await store.importEnvFile(path.join(root, ".env"), (l) => log("swarm", l));
+  await store.generateMissing((l) => log("swarm", l));
+}
+
 let stopping = false;
 function stopAll(code = 0) {
   if (stopping) return;
@@ -114,6 +127,14 @@ function start(who: "web" | "worker", cmd: string, argv: string[], env: Record<s
 }
 
 async function main() {
+  const db = /^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "") ? "PostgreSQL" : `SQLite (${process.env.SQLITE_PATH || "./data/sinobee.db"})`;
+  log("swarm", `database: ${db}`);
+
+  await run("swarm", bin("prisma"), ["generate", "--schema", "prisma/schema.prisma"]);
+  await run("swarm", bin("prisma"), ["generate", "--schema", "prisma/sqlite/schema.prisma"]);
+  await run("swarm", bin("prisma"), ["migrate", "deploy"]);
+  await settings();
+
   if (!args.has("--no-boltchain")) {
     try {
       await boltchain();
@@ -122,12 +143,6 @@ async function main() {
       delete process.env.BOLT_RPC_URL;
     }
   }
-  const db = /^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "") ? "PostgreSQL" : `SQLite (${process.env.SQLITE_PATH || "./data/sinobee.db"})`;
-  log("swarm", `database: ${db}`);
-
-  await run("swarm", bin("prisma"), ["generate", "--schema", "prisma/schema.prisma"]);
-  await run("swarm", bin("prisma"), ["generate", "--schema", "prisma/sqlite/schema.prisma"]);
-  await run("swarm", bin("prisma"), ["migrate", "deploy"]);
   await run("swarm", bin("tsx"), ["prisma/seed.ts"]);
 
   if (!dev && (args.has("--build") || !existsSync(path.join(root, ".next", "BUILD_ID")))) {

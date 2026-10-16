@@ -20,7 +20,7 @@ import { db } from "./db";
  * (crypto-shred) and cancel the deal.
  */
 let s3: S3Client | null = null;
-const client = () => (s3 ??= new S3Client({ region: config.storage.s3Region }));
+const client = () => (s3 ??= new S3Client({ region: config.storage.s3Region, credentials: config.storage.s3Credentials }));
 
 const safeKey = (key: string) => {
   if (!/^[A-Za-z0-9._\/-]+$/.test(key) || key.includes("..")) throw new Error("invalid storage key");

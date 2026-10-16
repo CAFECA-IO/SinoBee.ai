@@ -1,16 +1,15 @@
 /**
  * Local Boltchain node for `npm run swarm`:
- *   - fills the Boltchain settings in .env once (RPC, chain id, a new site wallet, master key,
- *     Certificates contract) — existing values are never overwritten;
+ *   - the site wallet and master key are settings generated automatically and kept encrypted in the database
+ *     (/admin → Settings → Boltchain); this only provides the node;
  *   - builds the node image (docker/boltchain) and runs it as the `sinobee-boltchain` container
  *     (JSON-RPC with --rpc-storage published on 127.0.0.1 only, data in a docker volume);
  *   - a fresh node starts from the latest epoch-end snapshot of the public testnet instead of genesis.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, copyFileSync, chmodSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { privateKeyToAccount } from "viem/accounts";
 
 export const BOLT_REF = process.env.BOLTCHAIN_REF || "b4fba15";
 export const IMAGE = `sinobee-boltchain:${BOLT_REF}`;
@@ -25,58 +24,10 @@ const EPOCH_SLOTS = 600;
 
 type Log = (line: string) => void;
 
-// ---------------- .env ----------------
+// ---------------- settings ----------------
 
-/** Sets keys in .env that are missing or empty; keeps everything else (comments, order, values) */
-export function ensureEnvValues(file: string, values: Record<string, string>): string[] {
-  let text = existsSync(file) ? readFileSync(file, "utf8") : "";
-  const changed: string[] = [];
-  for (const [k, v] of Object.entries(values)) {
-    const rx = new RegExp(`^${k}=(.*)$`, "m");
-    const m = rx.exec(text);
-    if (m && m[1].trim() !== "") continue;
-    if (m) text = text.replace(rx, `${k}=${v}`);
-    else text += `${text.endsWith("\n") || text === "" ? "" : "\n"}${k}=${v}\n`;
-    changed.push(k);
-  }
-  if (changed.length) {
-    writeFileSync(file, text);
-    try {
-      chmodSync(file, 0o600); // it now holds the site wallet key
-    } catch {
-      /* best effort */
-    }
-  }
-  return changed;
-}
-
-/**
- * Boltchain settings for a local node. Returns the values to put in process.env.
- * A remote BOLT_RPC_URL (not localhost) means "use that node": nothing is started.
- */
-export function boltchainEnv(root: string, rpcPort: number, log: Log) {
-  const file = path.join(root, ".env");
-  if (!existsSync(file) && existsSync(path.join(root, ".env.example"))) copyFileSync(path.join(root, ".env.example"), file);
-  const changed = ensureEnvValues(file, {
-    BOLT_RPC_URL: `http://127.0.0.1:${rpcPort}`,
-    BOLT_CHAIN_ID: "8018",
-    BOLT_WALLET_KEY: generatePrivateKey(),
-    BOLT_MASTER_KEY: randomBytes(32).toString("hex"),
-    BOLT_CERTIFICATES: TESTNET_CERTIFICATES,
-    BOLT_EXPLORER_URL: "https://boltchain.cafeca.io",
-  });
-  if (changed.length) log(`.env: set ${changed.join(", ")}${changed.includes("BOLT_WALLET_KEY") ? " (new site wallet — back up .env)" : ""}`);
-  const env = Object.fromEntries(
-    readFileSync(file, "utf8")
-      .split("\n")
-      .map((l) => /^(BOLT_[A-Z_]+)=(.*)$/.exec(l.trim()))
-      .filter((m): m is RegExpExecArray => !!m)
-      .map((m) => [m[1], m[2].trim().replace(/^["']|["']$/g, "")]),
-  ) as Record<string, string>;
-  // values exported in the shell win over .env (same as dotenv)
-  for (const k of Object.keys(env)) if (process.env[k]) env[k] = process.env[k]!;
-  return env;
-}
+/** public testnet Certificates contract, used when the site has none configured */
+export const DEFAULT_CERTIFICATES = TESTNET_CERTIFICATES;
 
 export const isLocalRpc = (url: string) => {
   try {

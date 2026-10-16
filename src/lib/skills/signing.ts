@@ -5,20 +5,23 @@ import { config } from "@/lib/config";
  * Hub signatures: ed25519 over the ASCII content hash ("sha256:<hex>"), base64.
  * SinoBee pins the raw 32-byte public keys (base64) published at /.well-known/sinobee-hub-keys.json.
  */
-let cached: { priv: KeyObject; pubRaw: string } | null | undefined;
+let cached: { src: string; priv: KeyObject; pubRaw: string } | null = null;
 
+/** The key is a setting (generated automatically, rotatable in /admin), so re-derive when it changes */
 function keys() {
-  if (cached !== undefined) return cached;
-  if (!config.hub.signingKey) return (cached = null);
-  const priv = createPrivateKey({ key: Buffer.from(config.hub.signingKey, "base64"), format: "der", type: "pkcs8" });
+  const src = config.hub.signingKey;
+  if (!src) return null;
+  if (cached?.src === src) return cached;
+  const priv = createPrivateKey({ key: Buffer.from(src, "base64"), format: "der", type: "pkcs8" });
   const spki = createPublicKey(priv).export({ format: "der", type: "spki" });
   // ed25519 SPKI DER = 12-byte header + 32-byte raw key
-  return (cached = { priv, pubRaw: Buffer.from(spki.subarray(spki.length - 32)).toString("base64") });
+  return (cached = { src, priv, pubRaw: Buffer.from(spki.subarray(spki.length - 32)).toString("base64") });
 }
 
+/** Current key first, then earlier keys that existing signatures were made with */
 export function hubPublicKeys(): string[] {
   const k = keys();
-  return k ? [k.pubRaw] : [];
+  return [...new Set([...(k ? [k.pubRaw] : []), ...config.hub.previousKeys])];
 }
 
 export function signContentHash(hash: string): string | null {

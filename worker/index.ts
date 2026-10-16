@@ -21,13 +21,16 @@ import { addDays, containerExpiry, resultsRetentionDays } from "../src/lib/reten
 import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
 import { sweepHolds } from "../src/lib/llm/quota";
+import { purgeNonces } from "../src/lib/device-sign";
 import { DockerExecutor, containerName, volumeName } from "./docker-executor";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
+import { loadSettings } from "../src/lib/settings/store";
 import type { Executor, TaskWithRefs, Usage } from "./types";
 
 const WORKER_ID = `${process.env.HOSTNAME ?? "worker"}-${randomUUID().slice(0, 8)}`;
-const executor: Executor = config.runner.mode === "mock" ? new MockExecutor() : new DockerExecutor();
+// chosen after the settings are loaded (runner.mode is a setting)
+let executor: Executor;
 const running = new Set<string>();
 let stopping = false;
 
@@ -291,6 +294,7 @@ async function loop() {
         if (r?.settled) log("payments settled by reconciliation", r.settled);
         const swept = await sweepHolds().catch((e) => (log("hold sweep error", e), 0));
         if (swept) log("expired model holds settled", swept);
+        await purgeNonces().catch(() => undefined);
       }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();
@@ -310,5 +314,10 @@ for (const sig of ["SIGINT", "SIGTERM"] as const)
     setTimeout(() => process.exit(0), 2000);
   });
 
-if (process.argv.includes("--cleanup-once")) cleanup().then(() => process.exit(0));
-else loop();
+async function main() {
+  await loadSettings();
+  executor = config.runner.mode === "mock" ? new MockExecutor() : new DockerExecutor();
+  if (process.argv.includes("--cleanup-once")) await cleanup().then(() => process.exit(0));
+  else await loop();
+}
+void main();

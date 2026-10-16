@@ -48,7 +48,7 @@ test("checkout: whole TWD, product lines match the amount, buyer and invoice sen
   const tx = await txOf(c.id);
   assert.equal(tx.body.amount, 3675);
   assert.equal(tx.body.orderId, c.id);
-  assert.deepEqual(tx.body.productDetails, [{ productionCode: "SUB-HIGH", description: "SinoBee.ai 訂閱（高用量，30 天）", quantity: 1, unit: "期", unitPrice: 3675 }]);
+  assert.deepEqual(tx.body.productDetails, [{ productionCode: "SUB-HIGH", description: "SinoBee.ai 訂閱（Ultra，30 天）", quantity: 1, unit: "期", unitPrice: 3675 }]);
   assert.deepEqual(tx.body.invoiceInfo, { invoiceType: "company", buyerIdentifier: "12345678", buyerName: "CAFECA", email: "ming@example.com" });
   assert.equal((await db.user.findUniqueOrThrow({ where: { id: alice.id } })).billing && true, true, "buyer details remembered");
   await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "TASK_TOPUP", amountTwd: 10.5, buyer }), /whole TWD/);

@@ -1,6 +1,16 @@
-/** Runs once when the server starts: prints the owner claim code when the site has no owner yet (see src/lib/roles.ts). */
+/**
+ * Runs once when the server starts: loads the settings (and creates missing keys), then prints the owner claim
+ * code when the site has no owner yet (see src/lib/roles.ts).
+ */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  try {
+    const { loadSettings, generateMissing } = await import("./lib/settings/store");
+    await loadSettings();
+    await generateMissing();
+  } catch (e) {
+    console.warn("settings not loaded (is the database migrated?):", e instanceof Error ? e.message : e);
+  }
   try {
     const { issueClaimCode } = await import("./lib/roles");
     await issueClaimCode();

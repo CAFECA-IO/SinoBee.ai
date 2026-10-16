@@ -16,12 +16,14 @@ import { listPlans } from "@/lib/plans";
 import { icontains } from "@/lib/db";
 import { PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
 import { refundable } from "@/lib/payments";
+import { settingsForAdmin } from "@/lib/settings/store";
+import { OenCheck, RotateHubKey, SettingsGroup, type SettingItem } from "@/components/admin-site-settings";
 import { oenConfigured } from "@/lib/oen";
 import { config } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["pending", "approved", "tools", "reports", "users", "payments", "prices", "plans", "audit", "storage"] as const;
+const TABS = ["pending", "approved", "tools", "reports", "users", "payments", "prices", "plans", "settings", "audit", "storage"] as const;
 
 export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; q?: string; status?: string }> }) {
   setRequestLocale((await params).locale);
@@ -50,6 +52,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
         {tab === "payments" && <Payments status={sp.status} />}
         {tab === "prices" && <Prices />}
         {tab === "plans" && <Plans />}
+        {tab === "settings" && <SiteSettings superAdmin={me.role === "SUPERADMIN"} locale={(await params).locale} />}
         {tab === "audit" && <Audit />}
       </div>
     );
@@ -360,6 +363,33 @@ async function Payments({ status }: { status?: string }) {
         </table>
       </div>
       <p className="text-xs text-muted">{t("help")}</p>
+    </div>
+  );
+}
+
+async function SiteSettings({ superAdmin, locale }: { superAdmin: boolean; locale: string }) {
+  const t = await getTranslations("admin.settings");
+  const v = settingsForAdmin();
+  const zh = locale.startsWith("zh");
+  const items: SettingItem[] = v.items.map((i) => ({ ...i, label: zh ? i.label.zh : i.label.en, help: i.help ? (zh ? i.help.zh : i.help.en) : undefined }));
+  const provider = items.find((i) => i.key === "payments.provider")?.value ?? "oen";
+  const of = (g: string) => items.filter((i) => i.group === g && (!i.provider || i.provider === provider));
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted">{superAdmin ? t("help") : t("readOnly")}</p>
+      <p className="rounded-xl bg-panel-2 p-3 text-xs text-muted">{t("keyFile", { file: v.keyFile, fp: v.fingerprint })}</p>
+      <SettingsGroup title={t("group.payments")} items={of("payments")} canEdit={superAdmin}>
+        <div className="flex flex-wrap items-center gap-3 border-t border-line p-4 text-sm">
+          <span className="text-muted">{t("webhook")}</span>
+          <code className="break-all font-mono text-xs">{config.origin}/api/payments/oen/webhook</code>
+          <OenCheck />
+        </div>
+      </SettingsGroup>
+      {(["apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const).map((g) => (
+        <SettingsGroup key={g} title={t(`group.${g}`)} items={of(g)} canEdit={superAdmin}>
+          {g === "hub" && superAdmin && <div className="border-t border-line p-4"><RotateHubKey /></div>}
+        </SettingsGroup>
+      ))}
     </div>
   );
 }

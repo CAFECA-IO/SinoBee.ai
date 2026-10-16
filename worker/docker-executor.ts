@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import Docker from "dockerode";
 import { PassThrough, Readable } from "node:stream";
 import { createGzip } from "node:zlib";
@@ -53,8 +54,8 @@ async function ensureContainer(task: TaskWithRefs): Promise<Docker.Container> {
   const env = [
     "SINOBEE_APPROVAL=auto",
     `SINOBEE_MODEL=${task.model}`,
-    `SINOBEE_SERVER_TOKEN=${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`,
-    ...config.runner.passEnv.filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`),
+    `SINOBEE_SERVER_TOKEN=${randomBytes(24).toString("base64url")}`,
+    ...config.runner.containerEnv.map(([k, v]) => `${k}=${v}`),
   ];
   const created = await docker.createContainer({
     name,

@@ -4,7 +4,8 @@ import { applySignInRole, initialRole, isAdminRole } from "./roles";
 import { config } from "./config";
 import { randomToken, sha256Hex } from "./crypto";
 import type { VerifiedSignIn } from "./cafeca";
-import type { User } from "@/generated/prisma/client";
+import type { Device, User } from "@/generated/prisma/client";
+import { verifySignedRequest } from "./device-sign";
 import { HttpError } from "./errors";
 
 export const SESSION_COOKIE = "sb_session";
@@ -105,22 +106,45 @@ export async function requireSuperAdmin(): Promise<CurrentUser> {
   return u;
 }
 
-/** Bearer token auth for Hub API v1 (`sinobee login` device tokens or `sinobee keys set sinobee-hub`) */
-export async function bearerAuth(req: Request) {
+type BearerAuth = { user: User; token: ApiTokenRow; scopes: string[]; device: Device | null; signed: boolean };
+type ApiTokenRow = NonNullable<Awaited<ReturnType<typeof db.apiToken.findUnique>>>;
+/** one verification per request (routes may ask more than once; a signed request's nonce can only be used once) */
+const seen = new WeakMap<Request, Promise<BearerAuth | null>>();
+
+/**
+ * Bearer token auth for API v1 (`sinobee login` device tokens or personal tokens). Tokens of a device that
+ * registered an Ed25519 key only work on requests signed with that key (see device-sign.ts); refresh tokens are
+ * never accepted here. Anthropic-style clients may send the token as `x-api-key`.
+ */
+export function bearerAuth(req: Request): Promise<BearerAuth | null> {
+  let p = seen.get(req);
+  if (!p) {
+    p = checkBearer(req);
+    seen.set(req, p);
+  }
+  return p;
+}
+
+async function checkBearer(req: Request): Promise<BearerAuth | null> {
   const h = req.headers.get("authorization") ?? "";
-  const m = /^Bearer\s+(sbh_[A-Za-z0-9_-]{20,})$/.exec(h);
-  if (!m) return null;
-  const tok = await db.apiToken.findUnique({ where: { tokenHash: sha256Hex(m[1]) }, include: { user: true, device: true } });
-  if (!tok || tok.revokedAt) return null;
+  const raw = /^Bearer\s+(sbh_[A-Za-z0-9_-]{20,})$/.exec(h)?.[1] ?? (/^sbh_[A-Za-z0-9_-]{20,}$/.test(req.headers.get("x-api-key") ?? "") ? req.headers.get("x-api-key")! : null);
+  if (!raw) return null;
+  const tok = await db.apiToken.findUnique({ where: { tokenHash: sha256Hex(raw) }, include: { user: true, device: true } });
+  if (!tok || tok.revokedAt || tok.kind === "refresh") return null;
   const now = new Date();
   if (tok.expiresAt && tok.expiresAt < now) return null;
   if (tok.device?.revokedAt) return null;
+  let signed = false;
+  if (tok.device?.signingKey) {
+    await verifySignedRequest(req, { id: tok.device.id, signingKey: tok.device.signingKey });
+    signed = true;
+  }
   // throttle bookkeeping writes to once a minute
   if (!tok.lastUsedAt || now.getTime() - tok.lastUsedAt.getTime() > 60_000) {
     await db.apiToken.update({ where: { id: tok.id }, data: { lastUsedAt: now } });
     if (tok.deviceId) await db.device.update({ where: { id: tok.deviceId }, data: { lastSeenAt: now } });
   }
-  return { user: tok.user, token: tok, scopes: tok.scopes.split(/\s+/).filter(Boolean), device: tok.device };
+  return { user: tok.user, token: tok, scopes: tok.scopes.split(/\s+/).filter(Boolean), device: tok.device, signed };
 }
 
 export async function userFromBearer(req: Request) {

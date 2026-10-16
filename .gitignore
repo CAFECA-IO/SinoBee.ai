@@ -3,6 +3,7 @@ node_modules
 out
 .env
 .env.local
+.env.bak-*
 src/generated
 data/
 *.tsbuildinfo

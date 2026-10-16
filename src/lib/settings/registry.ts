@@ -1,0 +1,140 @@
+/**
+ * Every runtime setting the site has. Values live in the database (SiteSetting "cfg.<key>"); secrets are encrypted
+ * there (see box.ts). Precedence: a variable set in the real process environment (docker -e, shell) wins and is
+ * shown as locked in /admin → Settings; then the database; then the default.
+ *
+ * Only bootstrap values stay in .env: DATABASE_URL / SQLITE_PATH, PUBLIC_ORIGIN, OWNER_ACCOUNT, DEV_LOGIN,
+ * SWARM_PORT, BOLT_NODE_* (local node container) and optionally SECRETS_KEY.
+ */
+
+export type SettingType = "text" | "url" | "number" | "secret" | "select" | "bool" | "list";
+
+export type SettingDef = {
+  key: string;
+  /** legacy / override environment variable */
+  env?: string;
+  type: SettingType;
+  group: SettingGroup;
+  /** payment provider the field belongs to (fields differ per provider) */
+  provider?: string;
+  default?: string;
+  options?: string[];
+  label: { zh: string; en: string };
+  help?: { zh: string; en: string };
+  /** generated automatically when empty (keys, passwords) */
+  generate?: "ed25519-pkcs8" | "hex32" | "evm-key";
+  /** only takes effect after a restart */
+  restart?: boolean;
+};
+
+export const GROUPS = ["payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const;
+export type SettingGroup = (typeof GROUPS)[number];
+
+/** payment providers offered in /admin → Settings → Payments; each lists its own fields below */
+export const PAYMENT_PROVIDERS = [{ id: "oen", name: "Oen 應援科技（oen.tw）" }] as const;
+
+const L = (zh: string, en: string) => ({ zh, en });
+
+export const SETTINGS: SettingDef[] = [
+  // ───── payments ─────
+  { key: "payments.provider", env: "PAYMENT_PROVIDER", type: "select", group: "payments", default: "oen", options: ["oen"], label: L("金流服務", "Payment provider") },
+  { key: "payments.mode", env: "PAYMENT_MODE", type: "select", group: "payments", default: "oen", options: ["oen", "mock"], label: L("模式", "Mode"), help: L("mock：本機模擬結帳頁，只在開發環境有效", "mock: local fake checkout, development only") },
+  { key: "payments.minTaskBudget", env: "MIN_TASK_BUDGET_TWD", type: "number", group: "payments", default: "30", label: L("委託最低預算（TWD）", "Minimum task budget (TWD)") },
+  { key: "payments.minTopUp", env: "MIN_TOPUP_TWD", type: "number", group: "payments", default: "10", label: L("最低補充經費（TWD）", "Minimum top-up (TWD)") },
+  { key: "oen.env", env: "OEN_ENV", type: "select", group: "payments", provider: "oen", default: "testing", options: ["testing", "production"], label: L("環境", "Environment"), help: L("正式環境需先向 Oen 申請伺服器固定 IP 白名單", "production needs the server IP on Oen's allowlist") },
+  { key: "oen.merchantId", env: "OEN_MERCHANT_ID", type: "text", group: "payments", provider: "oen", label: L("網域名稱（merchantId）", "Domain (merchantId)"), help: L("例如應援頁 https://sinobee.oen.tw 就填 sinobee", "e.g. sinobee for https://sinobee.oen.tw") },
+  { key: "oen.token", env: "OEN_API_TOKEN", type: "secret", group: "payments", provider: "oen", label: L("API Token", "API token"), help: L("CRM「總設定 → 開發者 → 應援金流設定 → 存取 Token」產生", "Generated in the Oen CRM: Settings → Developer → Access token") },
+  { key: "oen.methods", env: "OEN_PAYMENT_METHODS", type: "list", group: "payments", provider: "oen", options: ["cvs", "atm", "linePay"], label: L("加開付款方式", "Extra payment methods"), help: L("信用卡一定提供", "Card is always offered") },
+  { key: "oen.apiBase", env: "OEN_API_BASE", type: "url", group: "payments", provider: "oen", label: L("API 網址（留空用預設）", "API URL (empty = default)") },
+  { key: "oen.checkoutBase", env: "OEN_CHECKOUT_BASE", type: "url", group: "payments", provider: "oen", label: L("結帳頁網址（留空用預設）", "Checkout URL (empty = default)") },
+
+  // ───── platform API keys (relay + task containers) ─────
+  { key: "apiKeys.anthropic", env: "ANTHROPIC_API_KEY", type: "secret", group: "apiKeys", label: L("Anthropic", "Anthropic") },
+  { key: "apiKeys.openai", env: "OPENAI_API_KEY", type: "secret", group: "apiKeys", label: L("OpenAI", "OpenAI") },
+  { key: "apiKeys.gemini", env: "GEMINI_API_KEY", type: "secret", group: "apiKeys", label: L("Google Gemini", "Google Gemini") },
+  { key: "apiKeys.deepseek", env: "DEEPSEEK_API_KEY", type: "secret", group: "apiKeys", label: L("DeepSeek", "DeepSeek") },
+  { key: "apiKeys.openrouter", env: "OPENROUTER_API_KEY", type: "secret", group: "apiKeys", label: L("OpenRouter（委託容器）", "OpenRouter (task containers)") },
+  { key: "apiKeys.brave", env: "BRAVE_API_KEY", type: "secret", group: "apiKeys", label: L("Brave Search（委託容器）", "Brave Search (task containers)") },
+  { key: "apiKeys.tavily", env: "TAVILY_API_KEY", type: "secret", group: "apiKeys", label: L("Tavily（委託容器）", "Tavily (task containers)") },
+
+  // ───── model relay ─────
+  { key: "llm.rpm", env: "LLM_RPM", type: "number", group: "llm", default: "60", label: L("每用戶每分鐘請求數", "Requests per minute per user") },
+  { key: "llm.maxOutputTokens", env: "LLM_MAX_OUTPUT_TOKENS", type: "number", group: "llm", default: "32000", label: L("單次 max_tokens 上限", "Max max_tokens per request") },
+  { key: "llm.defaultOutputTokens", env: "LLM_DEFAULT_OUTPUT_TOKENS", type: "number", group: "llm", default: "8192", label: L("非串流預設 max_tokens", "Default max_tokens (non-stream)") },
+  { key: "llm.defaultAvgOutput", env: "LLM_DEFAULT_AVG_OUTPUT", type: "number", group: "llm", default: "800", label: L("首次預估輸出 tokens", "First-hold output estimate") },
+  { key: "llm.topUpTokens", env: "LLM_TOPUP_TOKENS", type: "number", group: "llm", default: "256", label: L("串流追加預扣 tokens", "Stream top-up tokens") },
+  { key: "llm.holdTimeoutS", env: "LLM_HOLD_TIMEOUT_S", type: "number", group: "llm", default: "600", label: L("預扣逾時（秒）", "Hold timeout (s)") },
+  { key: "llm.dailyLimitTwd", env: "LLM_DAILY_LIMIT_TWD", type: "number", group: "llm", default: "0", label: L("每家供應商每日支出上限（TWD，0 = 不限）", "Daily spend cap per provider (TWD, 0 = off)") },
+  { key: "llm.requireSignature", env: "LLM_REQUIRE_SIGNATURE", type: "bool", group: "llm", default: "0", label: L("要求裝置簽章", "Require device signatures"), help: L("開啟後只接受 SinoBee 以裝置金鑰簽章的請求（舊版用戶端需更新）", "Only accept requests signed with a device key (older clients must update)") },
+  { key: "llm.base.anthropic", env: "LLM_BASE_ANTHROPIC", type: "url", group: "llm", default: "https://api.anthropic.com", label: L("Anthropic API 網址", "Anthropic API URL") },
+  { key: "llm.base.openai", env: "LLM_BASE_OPENAI", type: "url", group: "llm", default: "https://api.openai.com/v1", label: L("OpenAI API 網址", "OpenAI API URL") },
+  { key: "llm.base.gemini", env: "LLM_BASE_GEMINI", type: "url", group: "llm", default: "https://generativelanguage.googleapis.com/v1beta/openai", label: L("Gemini API 網址", "Gemini API URL") },
+  { key: "llm.base.deepseek", env: "LLM_BASE_DEEPSEEK", type: "url", group: "llm", default: "https://api.deepseek.com/v1", label: L("DeepSeek API 網址", "DeepSeek API URL") },
+
+  // ───── CAFECA ─────
+  { key: "cafeca.wallet", env: "CAFECA_WALLET", type: "url", group: "cafeca", default: "https://cafeca.io", label: L("CAFECA 錢包網址", "CAFECA wallet URL"), restart: true },
+  { key: "cafeca.rpcUrl", env: "CAFECA_RPC_URL", type: "url", group: "cafeca", label: L("CAFECA 鏈 RPC（選填）", "CAFECA chain RPC (optional)") },
+  { key: "cafeca.notifyUrl", env: "CAFECA_NOTIFY_URL", type: "url", group: "cafeca", label: L("通知 Webhook", "Notification webhook") },
+  { key: "cafeca.notifyToken", env: "CAFECA_NOTIFY_TOKEN", type: "secret", group: "cafeca", label: L("通知 Webhook Token", "Notification webhook token") },
+  { key: "admins.initial", env: "ADMIN_ACCOUNTS", type: "list", group: "cafeca", label: L("首次登入即為管理者的帳號", "Accounts that start as admin") },
+
+  // ───── legal ─────
+  { key: "legal.entity", env: "LEGAL_ENTITY", type: "text", group: "legal", default: "卡菲卡金融科技股份有限公司", label: L("公司名稱", "Company name") },
+  { key: "legal.website", env: "LEGAL_WEBSITE", type: "url", group: "legal", default: "https://cafeca.com.tw", label: L("公司網站", "Company website") },
+  { key: "legal.taxId", env: "LEGAL_TAX_ID", type: "text", group: "legal", label: L("統一編號", "Tax ID") },
+  { key: "legal.address", env: "LEGAL_ADDRESS", type: "text", group: "legal", label: L("地址", "Address") },
+  { key: "legal.email", env: "LEGAL_EMAIL", type: "text", group: "legal", default: "contact@cafeca.com.tw", label: L("客服信箱", "Support email") },
+  { key: "legal.effective", env: "LEGAL_EFFECTIVE", type: "text", group: "legal", default: "2026-10-16", label: L("條款生效日", "Policies effective date") },
+
+  // ───── pricing (VM and storage; model prices are in /admin → Model prices) ─────
+  { key: "pricing.markup", env: "PRICE_MARKUP", type: "number", group: "pricing", default: "1.5", label: L("VM 與儲存加成", "VM and storage markup") },
+  { key: "pricing.vmHourlyUsd", env: "AWS_VM_HOURLY_USD", type: "number", group: "pricing", default: "0.2604", label: L("VM 每小時（USD）", "VM per hour (USD)") },
+  { key: "pricing.s3GbMonthUsd", env: "AWS_S3_GB_MONTH_USD", type: "number", group: "pricing", default: "0.025", label: L("S3 每 GB 月（USD）", "S3 per GB-month (USD)") },
+  { key: "pricing.s3PutPer1kUsd", env: "AWS_S3_PUT_PER_1K_USD", type: "number", group: "pricing", default: "0.0047", label: L("S3 每千次寫入（USD）", "S3 per 1k writes (USD)") },
+  { key: "pricing.s3GetPer1kUsd", env: "AWS_S3_GET_PER_1K_USD", type: "number", group: "pricing", default: "0.00037", label: L("S3 每千次讀取（USD）", "S3 per 1k reads (USD)") },
+
+  // ───── retention / subscription ─────
+  { key: "retention.freeDays", env: "RETENTION_FREE_DAYS", type: "number", group: "retention", default: "7", label: L("未訂閱成果保留天數", "Free results kept (days)") },
+  { key: "retention.subscriberDays", env: "RETENTION_SUBSCRIBER_DAYS", type: "number", group: "retention", default: "90", label: L("訂閱者成果最少保留天數", "Subscriber minimum (days)") },
+  { key: "retention.delete", env: "RETENTION_DELETE", type: "bool", group: "retention", default: "0", label: L("刪除到期成果與容器", "Delete expired results and containers"), help: L("關閉時只標記到期（暫緩刪除）", "Off: only mark expired") },
+  { key: "subscription.graceDays", env: "SUBSCRIPTION_GRACE_DAYS", type: "number", group: "retention", default: "30", label: L("到期寬限天數", "Grace period (days)") },
+
+  // ───── storage ─────
+  { key: "storage.driver", env: "STORAGE_DRIVER", type: "select", group: "storage", default: "local", options: ["local", "s3"], label: L("鏡像儲存", "Mirror storage"), restart: true },
+  { key: "storage.localDir", env: "STORAGE_LOCAL_DIR", type: "text", group: "storage", default: "./data/storage", label: L("本機目錄", "Local directory"), restart: true },
+  { key: "storage.s3Bucket", env: "S3_BUCKET", type: "text", group: "storage", label: L("S3 Bucket", "S3 bucket") },
+  { key: "storage.s3Region", env: "AWS_REGION", type: "text", group: "storage", default: "ap-northeast-1", label: L("AWS 區域", "AWS region"), restart: true },
+  { key: "storage.s3AccessKeyId", env: "AWS_ACCESS_KEY_ID", type: "secret", group: "storage", label: L("AWS Access Key ID（留空用主機角色）", "AWS access key ID (empty = instance role)"), restart: true },
+  { key: "storage.s3SecretAccessKey", env: "AWS_SECRET_ACCESS_KEY", type: "secret", group: "storage", label: L("AWS Secret Access Key", "AWS secret access key"), restart: true },
+
+  // ───── Boltchain ─────
+  { key: "boltchain.rpcUrl", env: "BOLT_RPC_URL", type: "url", group: "boltchain", label: L("節點 RPC", "Node RPC"), help: L("npm run swarm 會自動啟動本機節點並帶入", "npm run swarm starts a local node and sets it") },
+  { key: "boltchain.chainId", env: "BOLT_CHAIN_ID", type: "number", group: "boltchain", default: "8018", label: L("Chain ID", "Chain ID") },
+  { key: "boltchain.walletKey", env: "BOLT_WALLET_KEY", type: "secret", group: "boltchain", generate: "evm-key", label: L("網站錢包私鑰（自動產生）", "Site wallet key (generated)") },
+  { key: "boltchain.masterKey", env: "BOLT_MASTER_KEY", type: "secret", group: "boltchain", generate: "hex32", label: L("物件金鑰主密鑰（自動產生）", "Object master key (generated)") },
+  { key: "boltchain.certificates", env: "BOLT_CERTIFICATES", type: "text", group: "boltchain", label: L("Certificates 合約（留空不存證）", "Certificates contract (empty = no notarization)") },
+  { key: "boltchain.explorer", env: "BOLT_EXPLORER_URL", type: "url", group: "boltchain", default: "https://boltchain.cafeca.io", label: L("區塊瀏覽器", "Explorer") },
+  { key: "boltchain.replicas", env: "BOLT_REPLICAS", type: "number", group: "boltchain", default: "3", label: L("副本數", "Replicas") },
+  { key: "boltchain.epochs", env: "BOLT_DEAL_EPOCHS", type: "number", group: "boltchain", default: "720", label: L("每次購買 epoch 數", "Epochs per deal") },
+  { key: "boltchain.epochSeconds", env: "BOLT_EPOCH_SECONDS", type: "number", group: "boltchain", default: "3600", label: L("每 epoch 秒數", "Seconds per epoch") },
+  { key: "boltchain.lowBalanceWei", env: "BOLT_LOW_BALANCE_WEI", type: "text", group: "boltchain", default: "10000000000000000000", label: L("低餘額警示（wei）", "Low balance alert (wei)") },
+  { key: "boltchain.renewBelow", env: "BOLT_RENEW_BELOW_EPOCHS", type: "number", group: "boltchain", default: "48", label: L("剩餘 epoch 低於此值時續約", "Renew below (epochs)") },
+  { key: "boltchain.maxPriceWei", env: "BOLT_MAX_PRICE_WEI", type: "text", group: "boltchain", label: L("最高價格（wei / GiB / epoch）", "Max price (wei / GiB / epoch)") },
+  { key: "boltchain.mirror", env: "BOLT_MIRROR", type: "bool", group: "boltchain", default: "1", label: L("保留鏡像副本", "Keep a mirror copy") },
+
+  // ───── Skill Hub ─────
+  { key: "hub.signingKey", env: "HUB_SIGNING_KEY", type: "secret", group: "hub", generate: "ed25519-pkcs8", label: L("技能簽章私鑰（自動產生）", "Skill signing key (generated)") },
+  { key: "hub.previousKeys", type: "list", group: "hub", label: L("舊公鑰（仍可驗證）", "Previous public keys (still accepted)") },
+
+  // ───── runner ─────
+  { key: "runner.mode", env: "RUNNER_MODE", type: "select", group: "runner", default: "docker", options: ["docker", "mock"], label: L("執行方式", "Runner"), restart: true },
+  { key: "runner.image", env: "SINOBEE_IMAGE", type: "text", group: "runner", default: "sinobee:latest", label: L("SinoBee 映像檔", "SinoBee image") },
+  { key: "runner.concurrency", env: "RUNNER_CONCURRENCY", type: "number", group: "runner", default: "2", label: L("同時執行任務數", "Concurrent tasks"), restart: true },
+  { key: "runner.cpus", env: "RUNNER_CPUS", type: "number", group: "runner", default: "2", label: L("每任務 vCPU", "vCPU per task") },
+  { key: "runner.memoryMb", env: "RUNNER_MEMORY_MB", type: "number", group: "runner", default: "4096", label: L("每任務記憶體（MB）", "Memory per task (MB)") },
+  { key: "runner.network", env: "RUNNER_NETWORK", type: "text", group: "runner", label: L("容器網路", "Container network") },
+  { key: "runner.pollSeconds", env: "RUNNER_POLL_SECONDS", type: "number", group: "runner", default: "10", label: L("輪詢秒數", "Poll seconds"), restart: true },
+  { key: "runner.maxTaskHours", env: "RUNNER_MAX_TASK_HOURS", type: "number", group: "runner", default: "12", label: L("任務最長時數", "Max task hours") },
+];
+
+export const SETTING = Object.fromEntries(SETTINGS.map((d) => [d.key, d])) as Record<string, SettingDef>;

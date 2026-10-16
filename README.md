@@ -34,8 +34,7 @@ prisma/sqlite/            SQLite schema (generated) + migrations
 ```bash
 npm install
 npm run db:generate             # Prisma clients for PostgreSQL and SQLite
-cp .env.example .env            # then set: DEV_LOGIN=1  PAYMENT_MODE=mock  RUNNER_MODE=mock
-npx tsx scripts/hub-keygen.ts   # paste HUB_SIGNING_KEY into .env
+cp .env.example .env            # then set DEV_LOGIN=1; for local testing export PAYMENT_MODE=mock RUNNER_MODE=mock
 npm run db:migrate              # DATABASE_URL empty → creates ./data/sinobee.db (SQLite)
 npm run db:seed                 # publishes SinoBee's bundled skills as cafeca/*
 npm run dev                     # http://localhost:3000
@@ -111,8 +110,9 @@ Keep the models portable: no scalar lists (`String[]`), no raw SQL; use `icontai
 # 1. SinoBee image used for user containers
 git clone https://github.com/CAFECA-IO/SinoBee && docker build -t sinobee:latest SinoBee
 # 2. configure
-cp .env.example .env   # PUBLIC_ORIGIN=https://sinobee.ai, TREASURY_ADDRESS, OWNER_ACCOUNT, HUB_SIGNING_KEY,
-                       # STORAGE_DRIVER=s3 + S3_BUCKET, model API keys, CAFECA_NOTIFY_URL …
+cp .env.example .env   # only bootstrap values: PUBLIC_ORIGIN=https://sinobee.ai, OWNER_ACCOUNT, DATABASE_URL
+                       # everything else (Oen, model API keys, S3, CAFECA…) → /admin → Settings, encrypted in the DB;
+                       # keys and passwords are generated automatically. Back up data/secrets.key (or set SECRETS_KEY).
 # 3. run
 docker compose up -d --build
 docker compose run --rm migrate      # migrations + seed

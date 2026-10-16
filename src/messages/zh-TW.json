@@ -426,7 +426,7 @@
     "pending": "待審核",
     "approved": "已上架",
     "empty": "沒有項目。",
-    "noKey": "尚未設定 HUB_SIGNING_KEY，無法簽署審核通過的版本。執行 npm run hub:keygen 產生。",
+    "noKey": "技能簽章金鑰尚未產生；重新啟動網站時會自動產生（系統設定 → Skill Hub 簽章）。",
     "note": "審核備註（選填）",
     "approve": "通過並簽章",
     "reject": "退回",
@@ -444,7 +444,8 @@
       "prices": "模型定價",
       "plans": "訂閱方案",
       "audit": "操作紀錄",
-      "payments": "付款與退款"
+      "payments": "付款與退款",
+      "settings": "系統設定"
     },
     "st": {
       "enabled": "啟用",
@@ -563,6 +564,47 @@
       "cancel": "取消",
       "confirm": "透過 Oen 退款 {amount} TWD？每筆交易只能退款一次。",
       "help": "Oen 付款通知沒有簽章，系統一律以 GET /transactions 回查為準；漏掉的通知由 worker 每 3 分鐘對帳補上。每筆交易只能退款一次；委託的退款上限是尚未使用的預算，訂閱退款會取消該期並讓後續期間往前遞補。"
+    },
+    "settings": {
+      "help": "設定存放在資料庫，密鑰類以 AES-256-GCM 加密；由環境變數設定的值會鎖定，需在環境變數修改。金鑰與密碼留空時會自動產生。",
+      "readOnly": "只有超級管理者可以修改設定。",
+      "keyFile": "加密金鑰：{file}（指紋 {fp}）。請另外備份這個檔案，遺失後已加密的設定無法解開。",
+      "webhook": "在 Oen CRM 填入的付款通知網址：",
+      "check": "檢查 Oen 設定",
+      "checkOk": "Token 與網域正確，連線正常",
+      "on": "開啟",
+      "replace": "輸入新值以取代",
+      "enter": "輸入",
+      "generated": "已自動產生",
+      "set": "已設定 {hint}",
+      "restart": "重新啟動後生效",
+      "publicKey": "公鑰",
+      "address": "地址",
+      "saved": "已儲存",
+      "save": "儲存",
+      "clear": "清除",
+      "confirmClear": "清除後改用預設值（或在需要時重新自動產生）。確定？",
+      "rotate": "產生新的簽章金鑰",
+      "confirmRotate": "產生新的技能簽章金鑰？舊公鑰仍會公布，已簽章的技能不受影響。",
+      "source": {
+        "env": "環境變數 {env}（鎖定）",
+        "db": "資料庫",
+        "default": "預設值",
+        "unset": "未設定"
+      },
+      "group": {
+        "payments": "金流設定",
+        "apiKeys": "模型與工具 API 金鑰",
+        "llm": "模型轉接",
+        "cafeca": "CAFECA 與管理者",
+        "legal": "公司資訊（條款與政策）",
+        "pricing": "VM 與儲存計價",
+        "retention": "保存與訂閱",
+        "storage": "鏡像儲存",
+        "boltchain": "Boltchain",
+        "hub": "Skill Hub 簽章",
+        "runner": "委託任務執行"
+      }
     }
   },
   "hubApi": {

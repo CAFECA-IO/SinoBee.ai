@@ -13,6 +13,7 @@ export async function legalText(doc: LegalDoc, locale: string): Promise<string> 
   const zh = loc === "zh-TW";
   const contact = [
     `- ${zh ? "公司" : "Company"}：${L.entity}${L.taxId ? `（${zh ? "統一編號" : "tax ID"} ${L.taxId}）` : ""}`,
+    L.website ? `- ${zh ? "網站" : "Website"}：[${L.website.replace(/^https?:\/\//, "")}](${L.website})` : "",
     L.address ? `- ${zh ? "地址" : "Address"}：${L.address}` : "",
     `- Email：${L.email ? `[${L.email}](mailto:${L.email})` : zh ? "（客服信箱待公告）" : "(support email to be announced)"}`,
   ]
@@ -20,7 +21,7 @@ export async function legalText(doc: LegalDoc, locale: string): Promise<string> 
     .join("\n");
   const vars: Record<string, string> = {
     site: "SinoBee.ai",
-    entity: L.entity,
+    entity: L.website ? `[${L.entity}](${L.website})` : L.entity,
     contact,
     graceDays: String(config.subscription.graceDays),
     freeDays: String(config.retention.freeDays),

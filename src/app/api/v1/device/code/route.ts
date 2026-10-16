@@ -13,10 +13,12 @@ export const POST = handle(async (req: Request) => {
       platform: z.string().trim().max(80).optional(),
       scope: z.string().max(200).optional(),
       public_key: z.string().max(64).optional(),
+      /** Ed25519 public key: requests will be signed, tokens are short-lived with a refresh token */
+      signing_key: z.string().max(64).optional(),
     })
     .parse(raw);
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  return json(await startDeviceAuth({ deviceName: body.device_name, platform: body.platform, scope: body.scope, ip, publicKey: body.public_key }), {
+  return json(await startDeviceAuth({ deviceName: body.device_name, platform: body.platform, scope: body.scope, ip, publicKey: body.public_key, signingKey: body.signing_key }), {
     headers: { "cache-control": "no-store" },
   });
 });
