@@ -16,7 +16,7 @@ import { LocalDate } from "@/components/date";
 import { ReportRow } from "@/components/report-row";
 import { modelLabels } from "@/lib/models";
 import { BoltchainBadge } from "@/components/boltchain-badge";
-import { SkillTagBadge } from "@/components/skill-tag";
+import { SkillMarks, skillMarks } from "@/components/skill-tag";
 import { skillTag } from "@/lib/skills/official";
 
 export const dynamic = "force-dynamic";
@@ -82,8 +82,8 @@ export default async function SkillPage({ params, searchParams }: P) {
           <header>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-mono text-3xl font-bold">{skill.name}</h1>
-              <SkillTagBadge tag={tag} label={tSkills(`tag.${tag}`)} />
-              <StatusBadge status={ver.status} />
+              <SkillMarks marks={skillMarks(tag, { ...ver, anchorCode: null }, (k) => tSkills(`mark.${k}`))} size="md" />
+              {!["APPROVED", "PENDING_REVIEW"].includes(ver.status) && <StatusBadge status={ver.status} />}
               {ver.anchorCode && <BoltchainBadge code={ver.anchorCode} title={t("anchorHelp")} />}
             </div>
             <p className="mt-3 text-lg text-muted">{skill.description}</p>

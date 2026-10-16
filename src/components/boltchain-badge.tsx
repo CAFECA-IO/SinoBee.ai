@@ -28,13 +28,3 @@ export function BoltchainBadge({ code, title, className = "" }: { code: string; 
     </a>
   );
 }
-
-/** compact, non-link mark for cards that are links themselves */
-export function BoltchainMark({ title }: { title: string }) {
-  return (
-    <span title={title} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-accent">
-      <Bolt className="h-3 w-3" />
-      BOLTCHAIN
-    </span>
-  );
-}

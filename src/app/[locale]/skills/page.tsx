@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db, icontains } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
+import { skillMarks } from "@/components/skill-tag";
 import { OFFICIAL, OFFICIAL_PUBLISHER, isOfficialSkill, skillTag, type OfficialName } from "@/lib/skills/official";
 import { CopyButton } from "@/components/copy-button";
 import { Icon, type IconName } from "@/components/icon";
@@ -56,7 +57,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
   };
   const [total, skills, tagCounts, all, publishers] = await Promise.all([
     db.skill.count({ where }),
-    db.skill.findMany({ where, include: { publisher: true, versions: { where: { status: "APPROVED" }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
+    db.skill.findMany({ where, include: { publisher: true, versions: { where: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
     db.skillTag.groupBy({ by: ["tag"], _count: { tag: true }, orderBy: { _count: { tag: "desc" } }, take: 18 }),
     db.skill.aggregate({ where: LISTED, _count: { _all: true }, _sum: { downloads: true } }),
     db.skill.groupBy({ by: ["publisherId"], where: LISTED }),
@@ -207,7 +208,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
             {skills.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {skills.map((s) => (
-                  <SkillCard key={s.id} skill={s} tag={skillTag(s, s.versions[0])} tagLabel={(k) => t(`tag.${k}`)} anchored={s.versions[0]?.anchorCode ? t("anchoredMark") : undefined}
+                  <SkillCard key={s.id} skill={s} official={isOfficial(s)} marks={skillMarks(skillTag(s, s.versions[0]), s.versions[0], (k) => t(`mark.${k}`))}
                     title={isOfficial(s) ? t(`official.${s.name}.title`) : undefined} />
                 ))}
               </div>

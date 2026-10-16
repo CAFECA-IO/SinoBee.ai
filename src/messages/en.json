@@ -370,11 +370,13 @@
     "apiDocs": "Hub API docs",
     "prev": "Previous",
     "next": "Next",
-    "anchoredMark": "The latest version's bundle and SKILL.md hashes are notarized on Boltchain",
-    "tag": {
-      "official": "Official",
-      "verified": "Verified",
-      "community": "Community"
+    "mark": {
+      "official": "Official skill",
+      "verified": "Verified publisher, signed",
+      "community": "Community skill",
+      "approved": "Reviewed",
+      "pending": "Awaiting review",
+      "boltchain": "Notarized on Boltchain"
     }
   },
   "skill": {
