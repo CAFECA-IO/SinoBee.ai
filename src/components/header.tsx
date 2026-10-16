@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { Logo } from "./logo";
 import { UserMenu } from "./user-menu";
+import { LocaleSelect } from "./locale-select";
 import { Icon, type IconName } from "./icon";
 import { AGENT_URL } from "@/lib/links";
 
@@ -21,10 +22,8 @@ const NAV: { href: string; key: string; icon: IconName }[] = [
 export function Header() {
   const t = useTranslations("nav");
   const path = usePathname();
-  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const active = (h: string) => path === h || path.startsWith(h + "/");
-  const other = locale === "zh-TW" ? "en" : "zh-TW";
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
       <div className="container-x flex h-16 items-center gap-4">
@@ -42,12 +41,10 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1">
+          <LocaleSelect />
           <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("tryAgent")} data-tip={t("tryAgent")} className="icon-btn solid">
             <Icon name="rocket" />
           </a>
-          <Link href={path} locale={other} aria-label={other === "en" ? "English" : "中文"} data-tip={other === "en" ? "English" : "中文"} className="icon-btn">
-            <Icon name="globe" />
-          </Link>
           <UserMenu />
           <button className="icon-btn md:hidden" onClick={() => setOpen(!open)} aria-label={t("menu")} aria-expanded={open}>
             <Icon name="menu" />

@@ -126,10 +126,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </figure>
           ))}
         </div>
-        <p className="mt-3 text-xs text-muted">{t("casesNote")}</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {MORE_CASES.map((k) => (
-            <div key={k} className="card flex flex-col p-5">
+            <div key={k} className="card flex flex-col overflow-hidden">
+              <Image src={`/screenshots/usecase-${k}.png`} alt={t(`more.${k}.title`)} width={1600} height={1075} className="h-auto w-full border-b border-line" />
+              <div className="flex flex-1 flex-col p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
                   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -142,9 +143,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <div className="mt-4 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm">
                 <span className="text-muted">{t("trySay")}</span>「{t(`more.${k}.prompt`)}」
               </div>
+              </div>
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-muted">{t("casesNote")}</p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("ctaTry")} data-tip={t("ctaTry")} className="icon-btn solid lg"><Icon name="rocket" /></a>
           <span className="text-sm text-muted">{t("casesTry")}</span>
