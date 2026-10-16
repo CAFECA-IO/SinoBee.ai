@@ -2,6 +2,7 @@ import { Link } from "@/i18n/navigation";
 import type { Skill, User } from "@/generated/prisma/client";
 import { Stars } from "./stars";
 import { Icon } from "./icon";
+import { SkillIcon } from "./skill-icon";
 import { SkillMarks, type Mark } from "./skill-tag";
 
 /**
@@ -18,7 +19,7 @@ export function SkillCard({ skill, title, marks = [] }: {
     <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
       <div className="flex min-w-0 items-start gap-3">
         <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
-          <Icon name="hub" />
+          <SkillIcon />
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold leading-snug group-hover:text-accent">{title ?? skill.name}</div>

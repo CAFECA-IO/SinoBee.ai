@@ -1,8 +1,8 @@
 /** Line icons (24×24, stroke = currentColor) shared by buttons and menus. */
 const PATHS = {
   download: "M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2",
-  // skills: a fist gripping a lightning bolt
-  hub: "M17.5 1.5 13.2 6.2h3.3L14.8 8M10.6 17l-1.5 2.2h3.3L7.2 23M6.6 8h7.4a2.6 2.6 0 0 1 2.6 2.6v3.4a3 3 0 0 1-3 3H6.6a1.12 1.12 0 0 1 0-2.25 1.12 1.12 0 0 1 0-2.25 1.12 1.12 0 0 1 0-2.25 1.12 1.12 0 0 1 0-2.25zM6.6 10.25h3.4M6.6 12.5h3.4M6.6 14.75h3.4M8.6 8.1c2.6 0 4.9.6 4.9 2.3 0 1.3-1.4 1.9-3.4 2",
+  // skills: a robot head over an open book (line version; the colored one is SkillIcon)
+  hub: "M12 2.5v2M8 4.5h8a3 3 0 0 1 3 3v1.5a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3zM9.8 8h.01M14.2 8h.01M3 13.5V21c3-.8 6-.4 9 1 3-1.4 6-1.8 9-1v-7.5M12 15v7",
   tool: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z",
   share: "M18 8a3 3 0 1 0-3-3M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4",
   task: "M9 6V4h6v2M4 7h16v12H4zM4 12h16",
