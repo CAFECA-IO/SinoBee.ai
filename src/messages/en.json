@@ -445,7 +445,8 @@
       "plans": "Plans",
       "audit": "Audit log",
       "payments": "Payments & refunds",
-      "settings": "Settings"
+      "settings": "Settings",
+      "overview": "Overview"
     },
     "st": {
       "enabled": "Enabled",
@@ -604,6 +605,87 @@
         "boltchain": "Boltchain",
         "hub": "Skill Hub signing",
         "runner": "Task runner"
+      },
+      "sections": "Sections",
+      "search": "Search by name, key or environment variable…",
+      "onlyTodo": "Needs attention only ({n})",
+      "noMatch": "No matching settings.",
+      "dirty": "{n} unsaved",
+      "discard": "Discard",
+      "saving": "Saving…",
+      "saveN": "Save {n} changes",
+      "needed": "Needed",
+      "empty": "(empty)",
+      "hide": "Hide",
+      "show": "Show",
+      "copy": "Copy",
+      "groupHelp": {
+        "payments": "Payment provider and task amount limits.",
+        "apiKeys": "Platform model and search keys, used by the relay and task containers.",
+        "llm": "Relay limits for subscribers and upstream URLs.",
+        "legal": "Shown in the Terms, Privacy and Refund policies.",
+        "cafeca": "Sign-in, notifications and initial admins.",
+        "pricing": "VM and storage pricing for tasks (model prices are under Model prices).",
+        "retention": "How long results and containers are kept; subscription grace.",
+        "storage": "Where result files are mirrored.",
+        "boltchain": "Distributed storage and notarization.",
+        "hub": "Key that signs approved skills.",
+        "runner": "Resources and image of task containers."
+      }
+    },
+    "nav": {
+      "start": "Start",
+      "content": "Content review",
+      "business": "Business",
+      "system": "System"
+    },
+    "overview": {
+      "checklist": "Go-live checklist",
+      "todo": "To do",
+      "fix": "Fix",
+      "open": "Open",
+      "stat": {
+        "activeSubscriptions": "Active subscriptions",
+        "revenue30": "Received, 30 days",
+        "refunds30": "Refunded, 30 days",
+        "relay24h": "Model relay, 24 h",
+        "users": "Users"
+      },
+      "todoItem": {
+        "pending": "Skills awaiting review",
+        "tools": "Tools awaiting review",
+        "reports": "Open reports",
+        "payments": "Payments unconfirmed for 15+ minutes"
+      },
+      "check": {
+        "payments": {
+          "title": "Payments: Oen domain and API token",
+          "fix": "Enter the Oen domain and API token, then press Check Oen settings."
+        },
+        "paymentsLive": {
+          "title": "Payments use production",
+          "fix": "Switch to production after testing (needs the server IP on Oen's allowlist)."
+        },
+        "modelKeys": {
+          "title": "Model API keys",
+          "fix": "Add at least one provider key so subscribers can use models."
+        },
+        "legal": {
+          "title": "Company details (tax ID, address)",
+          "fix": "Add the tax ID and address shown in the policies."
+        },
+        "hubKey": {
+          "title": "Skill signing key",
+          "fix": "Generated automatically when the site restarts."
+        },
+        "boltchain": {
+          "title": "Boltchain storage",
+          "fix": "Set a node RPC, or start a local node with npm run swarm."
+        },
+        "signatures": {
+          "title": "Relay accepts signed devices only",
+          "fix": "Once users have updated SinoBee, turn on Require device signatures."
+        }
       }
     }
   },

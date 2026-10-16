@@ -17,45 +17,90 @@ import { icontains } from "@/lib/db";
 import { PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
 import { refundable } from "@/lib/payments";
 import { settingsForAdmin } from "@/lib/settings/store";
-import { OenCheck, RotateHubKey, SettingsGroup, type SettingItem } from "@/components/admin-site-settings";
+import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type SettingsSection } from "@/components/admin-site-settings";
 import { oenConfigured } from "@/lib/oen";
 import { config } from "@/lib/config";
+import { Icon } from "@/components/icon";
+import { adminCounts, adminStats, settingsHealth } from "@/lib/admin-overview";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["pending", "approved", "tools", "reports", "users", "payments", "prices", "plans", "settings", "audit", "storage"] as const;
+const NAV = [
+  { group: "start", items: [{ id: "overview", icon: "grid" }] },
+  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }] },
+  { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
+  { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
+] as const;
+const TABS = NAV.flatMap((g) => g.items.map((i) => i.id));
 
 export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; q?: string; status?: string }> }) {
-  setRequestLocale((await params).locale);
+  const { locale } = await params;
+  setRequestLocale(locale);
   const me = await currentUser();
   if (!me || !isAdminRole(me.role)) notFound();
   const t = await getTranslations("admin");
   const sp = await searchParams;
-  const raw = sp.tab ?? "pending";
-  const tab = (TABS as readonly string[]).includes(raw) ? raw : "pending";
-  const tabs = (
-    <div className="flex flex-wrap gap-2">
-      {TABS.map((k) => (
-        <Link key={k} href={k === "pending" ? "/admin" : `/admin?tab=${k}`} className={tab === k ? "btn-primary" : "btn-ghost"}>{t(`tab.${k}`)}</Link>
-      ))}
+  const raw = sp.tab ?? "overview";
+  const tab = (TABS as readonly string[]).includes(raw) ? raw : "overview";
+  const counts = await adminCounts();
+  const superAdmin = me.role === "SUPERADMIN";
+  let body: React.ReactNode;
+  if (tab === "overview") body = <Overview counts={counts} />;
+  else if (tab === "pending" || tab === "approved") body = <SkillReviews tab={tab} />;
+  else if (tab === "tools") body = <ToolReviews />;
+  else if (tab === "storage") body = <StorageStatus />;
+  else if (tab === "reports") body = <Reports />;
+  else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
+  else if (tab === "payments") body = <Payments status={sp.status} />;
+  else if (tab === "prices") body = <Prices />;
+  else if (tab === "plans") body = <Plans />;
+  else if (tab === "settings") body = <SiteSettings superAdmin={superAdmin} locale={locale} />;
+  else body = <Audit />;
+  return (
+    <div className="container-x grid grid-cols-1 gap-8 py-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
+        <div className="mb-4 flex items-center gap-2">
+          <Icon name="shield" />
+          <span className="font-bold">{t("title")}</span>
+          <span className="badge bg-panel-2 text-muted">{t(`users.role.${me.role}`)}</span>
+        </div>
+        <nav aria-label={t("title")} className="flex gap-4 overflow-x-auto pb-2 lg:block lg:space-y-5 lg:overflow-visible">
+          {NAV.map((g) => (
+            <div key={g.group} className="shrink-0">
+              <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">{t(`nav.${g.group}`)}</div>
+              <ul className="flex gap-1 lg:flex-col">
+                {g.items.map((i) => {
+                  const n = "count" in i ? counts[i.count as keyof typeof counts] : 0;
+                  const active = tab === i.id;
+                  return (
+                    <li key={i.id}>
+                      <Link
+                        href={i.id === "overview" ? "/admin" : `/admin?tab=${i.id}`}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm ${active ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                      >
+                        <Icon name={i.icon} className="h-4 w-4" />
+                        <span className="flex-1">{t(`tab.${i.id}`)}</span>
+                        {n > 0 && <span className={`rounded-full px-1.5 text-[11px] font-semibold ${i.id === "settings" ? "bg-warn-soft text-warn" : "bg-accent text-accent-ink"}`}>{n}</span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </aside>
+      <main className="min-w-0 space-y-6">
+        <h1 className="h2">{t(`tab.${tab}`)}</h1>
+        {body}
+      </main>
     </div>
   );
-  if (tab !== "pending" && tab !== "approved")
-    return (
-      <div className="container-x space-y-6 py-12">
-        <h1 className="h1">{t("title")}</h1>
-        {tabs}
-        {tab === "tools" && <ToolReviews />}
-        {tab === "storage" && <StorageStatus />}
-        {tab === "reports" && <Reports />}
-        {tab === "users" && <Users meId={me.id} superAdmin={me.role === "SUPERADMIN"} q={sp.q} />}
-        {tab === "payments" && <Payments status={sp.status} />}
-        {tab === "prices" && <Prices />}
-        {tab === "plans" && <Plans />}
-        {tab === "settings" && <SiteSettings superAdmin={me.role === "SUPERADMIN"} locale={(await params).locale} />}
-        {tab === "audit" && <Audit />}
-      </div>
-    );
+}
+
+async function SkillReviews({ tab }: { tab: "pending" | "approved" }) {
+  const t = await getTranslations("admin");
   const versions = await db.skillVersion.findMany({
     where: tab === "pending" ? { status: "PENDING_REVIEW" } : { status: "APPROVED" },
     include: { skill: { include: { publisher: true } } },
@@ -64,10 +109,8 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   });
   const keys = hubPublicKeys();
   return (
-    <div className="container-x space-y-6 py-12">
-      <h1 className="h1">{t("title")}</h1>
+    <div className="space-y-6">
       {!keys.length && <p className="rounded-xl bg-warn-soft p-4 text-sm text-warn">{t("noKey")}</p>}
-      {tabs}
       {versions.length === 0 && <p className="text-muted">{t("empty")}</p>}
       <div className="space-y-4">
         {versions.map((v) => (
@@ -373,23 +416,92 @@ async function SiteSettings({ superAdmin, locale }: { superAdmin: boolean; local
   const zh = locale.startsWith("zh");
   const items: SettingItem[] = v.items.map((i) => ({ ...i, label: zh ? i.label.zh : i.label.en, help: i.help ? (zh ? i.help.zh : i.help.en) : undefined }));
   const provider = items.find((i) => i.key === "payments.provider")?.value ?? "oen";
-  const of = (g: string) => items.filter((i) => i.group === g && (!i.provider || i.provider === provider));
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted">{superAdmin ? t("help") : t("readOnly")}</p>
-      <p className="rounded-xl bg-panel-2 p-3 text-xs text-muted">{t("keyFile", { file: v.keyFile, fp: v.fingerprint })}</p>
-      <SettingsGroup title={t("group.payments")} items={of("payments")} canEdit={superAdmin}>
-        <div className="flex flex-wrap items-center gap-3 border-t border-line p-4 text-sm">
+  const shown = items.filter((i) => !i.provider || i.provider === provider);
+  const webhook = `${config.origin}/api/payments/oen/webhook`;
+  const sections: SettingsSection[] = (["payments", "apiKeys", "llm", "legal", "cafeca", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const).map((g) => ({
+    id: g,
+    title: t(`group.${g}`),
+    description: t(`groupHelp.${g}`),
+    extra:
+      g === "payments" ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-line bg-panel-2/50 px-4 py-3 text-sm">
           <span className="text-muted">{t("webhook")}</span>
-          <code className="break-all font-mono text-xs">{config.origin}/api/payments/oen/webhook</code>
+          <code className="break-all font-mono text-xs">{webhook}</code>
+          <CopyText text={webhook} />
+          <span className="flex-1" />
           <OenCheck />
         </div>
-      </SettingsGroup>
-      {(["apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const).map((g) => (
-        <SettingsGroup key={g} title={t(`group.${g}`)} items={of(g)} canEdit={superAdmin}>
-          {g === "hub" && superAdmin && <div className="border-t border-line p-4"><RotateHubKey /></div>}
-        </SettingsGroup>
-      ))}
+      ) : g === "hub" && superAdmin ? (
+        <div className="border-t border-line px-4 py-3"><RotateHubKey /></div>
+      ) : undefined,
+  }));
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">{superAdmin ? t("help") : t("readOnly")}</p>
+      <p className="flex flex-wrap items-center gap-2 rounded-xl bg-panel-2 p-3 text-xs text-muted"><Icon name="shield" className="h-4 w-4" />{t("keyFile", { file: v.keyFile, fp: v.fingerprint })}</p>
+      <SettingsBoard sections={sections} items={shown} canEdit={superAdmin} />
+    </div>
+  );
+}
+
+async function Overview({ counts }: { counts: Awaited<ReturnType<typeof adminCounts>> }) {
+  const t = await getTranslations("admin.overview");
+  const stats = await adminStats();
+  const checks = settingsHealth();
+  const tiles = [
+    ["activeSubscriptions", stats.activeSubscriptions.toLocaleString("en-US")],
+    ["revenue30", `NT$${stats.revenue30.toLocaleString("en-US")}`],
+    ["refunds30", `NT$${stats.refunds30.toLocaleString("en-US")}`],
+    ["relay24h", `${stats.relayCalls24h.toLocaleString("en-US")} · NT$${stats.relayCost24h.toFixed(2)}`],
+    ["users", stats.users.toLocaleString("en-US")],
+  ] as const;
+  const todo = [
+    ["pending", counts.pending],
+    ["tools", counts.tools],
+    ["reports", counts.reports],
+    ["payments", counts.payments],
+  ] as const;
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {tiles.map(([k, v]) => (
+          <div key={k} className="card p-4">
+            <div className="text-xs text-muted">{t(`stat.${k}`)}</div>
+            <div className="mt-1 text-xl font-bold tabular-nums">{v}</div>
+          </div>
+        ))}
+      </section>
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="card">
+          <h2 className="h3 p-4">{t("checklist")}</h2>
+          <ul>
+            {checks.map((c) => (
+              <li key={c.id} className="flex items-start gap-3 border-t border-line px-4 py-3 text-sm" data-check={c.id}>
+                <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full ${c.ok ? "bg-accent-soft text-ok" : c.level === "error" ? "bg-err-soft text-err" : "bg-warn-soft text-warn"}`}>
+                  <Icon name={c.ok ? "check" : "alert"} className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">{t(`check.${c.id}.title`)}{c.detail && <span className="ml-2 font-mono text-xs text-muted">{c.detail}</span>}</div>
+                  {!c.ok && <div className="text-xs text-muted">{t(`check.${c.id}.fix`)}</div>}
+                </div>
+                {!c.ok && <Link href={`/admin?tab=settings#set-${c.group}`} className="btn-ghost !py-1 text-xs">{t("fix")}</Link>}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="card">
+          <h2 className="h3 p-4">{t("todo")}</h2>
+          <ul>
+            {todo.map(([k, n]) => (
+              <li key={k} className="flex items-center gap-3 border-t border-line px-4 py-3 text-sm">
+                <span className="flex-1">{t(`todoItem.${k}`)}</span>
+                <span className={`font-mono font-semibold ${n ? "text-ink" : "text-muted"}`}>{n}</span>
+                <Link href={`/admin?tab=${k}`} className="btn-ghost !py-1 text-xs">{t("open")}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </div>
   );
 }

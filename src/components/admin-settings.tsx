@@ -186,7 +186,7 @@ export function PriceEditor({ row, fx, buffer, isNew = false }: { row?: PriceRow
           <input className="input w-28" placeholder={t("vendor")} value={vendor} onChange={(e) => setVendor(e.target.value)} aria-label={t("vendor")} />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("enabled")}</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" role="switch" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("enabled")}</label>
           <label className="flex items-center gap-1.5 text-muted">{t("sort")} <input className="input w-20" inputMode="numeric" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} /></label>
         </div>
       </div>
@@ -280,7 +280,7 @@ export function PlanEditor({ plan, blended, blendedLabel }: { plan?: PlanProps; 
         {field("multiplier", t("multiplier"), "w-24")}
         {field("concurrency", t("concurrency"), "w-20")}
         {field("sortOrder", t("sort"), "w-20")}
-        <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("active")}</label>
+        <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("active")}</label>
       </div>
       <div className="grid gap-2 text-sm sm:grid-cols-3" aria-live="polite">
         <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">{t("maxCost")}</div><div className="font-mono" data-calc="max">NT$ {lim.maxCostTwd.toLocaleString("en-US")}</div></div>

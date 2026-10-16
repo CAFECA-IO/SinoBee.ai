@@ -445,7 +445,8 @@
       "plans": "訂閱方案",
       "audit": "操作紀錄",
       "payments": "付款與退款",
-      "settings": "系統設定"
+      "settings": "系統設定",
+      "overview": "總覽"
     },
     "st": {
       "enabled": "啟用",
@@ -604,6 +605,87 @@
         "boltchain": "Boltchain",
         "hub": "Skill Hub 簽章",
         "runner": "委託任務執行"
+      },
+      "sections": "設定分類",
+      "search": "搜尋設定名稱、代碼或環境變數…",
+      "onlyTodo": "只看需處理（{n}）",
+      "noMatch": "沒有符合的設定。",
+      "dirty": "{n} 項尚未儲存",
+      "discard": "放棄變更",
+      "saving": "儲存中…",
+      "saveN": "儲存 {n} 項變更",
+      "needed": "需設定",
+      "empty": "（空白）",
+      "hide": "隱藏",
+      "show": "顯示",
+      "copy": "複製",
+      "groupHelp": {
+        "payments": "收款服務與委託金額門檻。",
+        "apiKeys": "平台使用的模型與搜尋金鑰；供模型轉接與委託容器使用。",
+        "llm": "訂閱用戶的模型轉接限制與上游網址。",
+        "legal": "顯示在服務條款、隱私權政策與退款政策。",
+        "cafeca": "登入、通知與初始管理者。",
+        "pricing": "委託任務的虛擬機與儲存計價（模型價格在「模型定價」）。",
+        "retention": "成果與容器保存期限、訂閱寬限期。",
+        "storage": "成果檔案的鏡像儲存位置。",
+        "boltchain": "分散式儲存與存證。",
+        "hub": "技能審核通過後的簽章金鑰。",
+        "runner": "委託任務容器的資源與映像檔。"
+      }
+    },
+    "nav": {
+      "start": "開始",
+      "content": "內容審核",
+      "business": "營運",
+      "system": "系統"
+    },
+    "overview": {
+      "checklist": "上線檢查",
+      "todo": "待處理",
+      "fix": "前往設定",
+      "open": "查看",
+      "stat": {
+        "activeSubscriptions": "訂閱中",
+        "revenue30": "近 30 天收款",
+        "refunds30": "近 30 天退款",
+        "relay24h": "24 小時模型轉接",
+        "users": "用戶數"
+      },
+      "todoItem": {
+        "pending": "技能待審核",
+        "tools": "工具待審核",
+        "reports": "未處理檢舉",
+        "payments": "超過 15 分鐘未確認的付款"
+      },
+      "check": {
+        "payments": {
+          "title": "金流：Oen 網域與 API Token",
+          "fix": "填入 Oen 網域名稱與 API Token，再按「檢查 Oen 設定」。"
+        },
+        "paymentsLive": {
+          "title": "金流使用正式環境",
+          "fix": "測試完成後切換為 production（需先申請固定 IP 白名單）。"
+        },
+        "modelKeys": {
+          "title": "模型 API 金鑰",
+          "fix": "至少填入一家模型供應商的 API 金鑰，訂閱用戶才能使用模型。"
+        },
+        "legal": {
+          "title": "公司資訊（統一編號、地址）",
+          "fix": "補上統一編號與地址，會顯示在條款與政策頁。"
+        },
+        "hubKey": {
+          "title": "技能簽章金鑰",
+          "fix": "重新啟動網站會自動產生。"
+        },
+        "boltchain": {
+          "title": "Boltchain 儲存",
+          "fix": "設定節點 RPC，或以 npm run swarm 啟動本機節點。"
+        },
+        "signatures": {
+          "title": "模型轉接只接受裝置簽章",
+          "fix": "用戶都更新 SinoBee 後，開啟「要求裝置簽章」。"
+        }
       }
     }
   },

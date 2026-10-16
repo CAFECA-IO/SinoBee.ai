@@ -76,7 +76,7 @@ export function AgreeTerms() {
   const t = useTranslations("checkout");
   return (
     <label className="flex items-start gap-2 text-xs text-muted">
-      <input type="checkbox" className="mt-0.5" required name="agree" />
+      <input type="checkbox" role="switch" className="mt-0.5" required name="agree" />
       <span>
         {t.rich("agree", {
           terms: (c) => <Link href="/terms" className="text-accent underline" target="_blank">{c}</Link>,

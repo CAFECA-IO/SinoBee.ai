@@ -25,6 +25,8 @@ export type SettingDef = {
   generate?: "ed25519-pkcs8" | "hex32" | "evm-key";
   /** only takes effect after a restart */
   restart?: boolean;
+  /** should be filled before going live (shown as "needs attention" in /admin) */
+  required?: boolean;
 };
 
 export const GROUPS = ["payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const;
@@ -42,8 +44,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "payments.minTaskBudget", env: "MIN_TASK_BUDGET_TWD", type: "number", group: "payments", default: "30", label: L("委託最低預算（TWD）", "Minimum task budget (TWD)") },
   { key: "payments.minTopUp", env: "MIN_TOPUP_TWD", type: "number", group: "payments", default: "10", label: L("最低補充經費（TWD）", "Minimum top-up (TWD)") },
   { key: "oen.env", env: "OEN_ENV", type: "select", group: "payments", provider: "oen", default: "testing", options: ["testing", "production"], label: L("環境", "Environment"), help: L("正式環境需先向 Oen 申請伺服器固定 IP 白名單", "production needs the server IP on Oen's allowlist") },
-  { key: "oen.merchantId", env: "OEN_MERCHANT_ID", type: "text", group: "payments", provider: "oen", label: L("網域名稱（merchantId）", "Domain (merchantId)"), help: L("例如應援頁 https://sinobee.oen.tw 就填 sinobee", "e.g. sinobee for https://sinobee.oen.tw") },
-  { key: "oen.token", env: "OEN_API_TOKEN", type: "secret", group: "payments", provider: "oen", label: L("API Token", "API token"), help: L("CRM「總設定 → 開發者 → 應援金流設定 → 存取 Token」產生", "Generated in the Oen CRM: Settings → Developer → Access token") },
+  { key: "oen.merchantId", env: "OEN_MERCHANT_ID", type: "text", group: "payments", provider: "oen", required: true, label: L("網域名稱（merchantId）", "Domain (merchantId)"), help: L("例如應援頁 https://sinobee.oen.tw 就填 sinobee", "e.g. sinobee for https://sinobee.oen.tw") },
+  { key: "oen.token", env: "OEN_API_TOKEN", type: "secret", group: "payments", provider: "oen", required: true, label: L("API Token", "API token"), help: L("CRM「總設定 → 開發者 → 應援金流設定 → 存取 Token」產生", "Generated in the Oen CRM: Settings → Developer → Access token") },
   { key: "oen.methods", env: "OEN_PAYMENT_METHODS", type: "list", group: "payments", provider: "oen", options: ["cvs", "atm", "linePay"], label: L("加開付款方式", "Extra payment methods"), help: L("信用卡一定提供", "Card is always offered") },
   { key: "oen.apiBase", env: "OEN_API_BASE", type: "url", group: "payments", provider: "oen", label: L("API 網址（留空用預設）", "API URL (empty = default)") },
   { key: "oen.checkoutBase", env: "OEN_CHECKOUT_BASE", type: "url", group: "payments", provider: "oen", label: L("結帳頁網址（留空用預設）", "Checkout URL (empty = default)") },
@@ -81,8 +83,8 @@ export const SETTINGS: SettingDef[] = [
   // ───── legal ─────
   { key: "legal.entity", env: "LEGAL_ENTITY", type: "text", group: "legal", default: "卡菲卡金融科技股份有限公司", label: L("公司名稱", "Company name") },
   { key: "legal.website", env: "LEGAL_WEBSITE", type: "url", group: "legal", default: "https://cafeca.com.tw", label: L("公司網站", "Company website") },
-  { key: "legal.taxId", env: "LEGAL_TAX_ID", type: "text", group: "legal", label: L("統一編號", "Tax ID") },
-  { key: "legal.address", env: "LEGAL_ADDRESS", type: "text", group: "legal", label: L("地址", "Address") },
+  { key: "legal.taxId", env: "LEGAL_TAX_ID", type: "text", group: "legal", required: true, label: L("統一編號", "Tax ID") },
+  { key: "legal.address", env: "LEGAL_ADDRESS", type: "text", group: "legal", required: true, label: L("地址", "Address") },
   { key: "legal.email", env: "LEGAL_EMAIL", type: "text", group: "legal", default: "contact@cafeca.com.tw", label: L("客服信箱", "Support email") },
   { key: "legal.effective", env: "LEGAL_EFFECTIVE", type: "text", group: "legal", default: "2026-10-16", label: L("條款生效日", "Policies effective date") },
 
