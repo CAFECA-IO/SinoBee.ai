@@ -11,3 +11,5 @@ next-env.d.ts
 # AI coding-agent skills installed locally
 .agents/
 .claude/skills/
+.windsurf/skills/
+skills-lock.json
