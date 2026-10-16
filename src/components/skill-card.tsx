@@ -5,10 +5,10 @@ import { Icon } from "./icon";
 import { SkillMarks, type Mark } from "./skill-tag";
 
 /**
- * title: a localized display name (official skills); official: show the official icon;
+ * title: a localized display name (official skills); official: kept for callers (the 官方 mark carries it);
  * marks: 官方 / 社群, 已審核 / 待審核 and Boltchain as icons (text on hover) — see skillMarks()
  */
-export function SkillCard({ skill, title, official, marks = [] }: {
+export function SkillCard({ skill, title, marks = [] }: {
   skill: Skill & { publisher: User };
   title?: string;
   official?: boolean;
@@ -18,7 +18,7 @@ export function SkillCard({ skill, title, official, marks = [] }: {
     <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
       <div className="flex min-w-0 items-start gap-3">
         <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
-          <Icon name={official ? "badge" : "hub"} />
+          <Icon name="hub" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold leading-snug group-hover:text-accent">{title ?? skill.name}</div>
