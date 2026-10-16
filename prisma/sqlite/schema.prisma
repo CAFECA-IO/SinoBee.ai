@@ -660,7 +660,7 @@ model Plan {
   name        String
   nameEn      String
   feeTwd      Decimal 
-  /// fee ÷ max cost; must be ≥ 1.5
+  /// max usage ÷ fee (usage at published prices); margin = price buffer ÷ multiplier
   multiplier  Decimal 
   maxCostTwd  Decimal 
   l6Twd       Decimal 

@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
 import { savePlan } from "@/lib/plans";
 
-/** Create or update a plan. Refused when fee ÷ max cost (the multiplier) is under 1.5; L6/L168 are derived. */
+/** Create or update a plan. multiplier = max usage ÷ fee (0–100); L6/L168 are derived. Profit comes from the price buffer. */
 export const POST = handle(async (req: Request) => {
   const admin = await requireAdmin();
   const b = z

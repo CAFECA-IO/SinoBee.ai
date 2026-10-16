@@ -658,7 +658,7 @@ model Plan {
   name        String
   nameEn      String
   feeTwd      Decimal  @db.Decimal(20, 2)
-  /// fee ÷ max cost; must be ≥ 1.5
+  /// max usage ÷ fee (usage at published prices); margin = price buffer ÷ multiplier
   multiplier  Decimal  @db.Decimal(10, 4)
   maxCostTwd  Decimal  @db.Decimal(20, 2)
   l6Twd       Decimal  @db.Decimal(20, 2)

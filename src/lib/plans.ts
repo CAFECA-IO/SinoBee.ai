@@ -1,20 +1,22 @@
 import { db } from "./db";
 import { HttpError } from "./errors";
 import { audit } from "./roles";
-import { MIN_MULTIPLIER, planLimits as limits } from "./price-math";
+import { MAX_MULTIPLIER, planLimits as limits } from "./price-math";
 
 /**
  * Subscription plans (30-day periods, no auto-renewal).
  *
- *   max cost V  = fee ÷ multiplier          (TWD at published model prices, the most a user can spend in 30 days)
+ *   max usage V = fee × multiplier          (TWD at published model prices, the most a user can use in 30 days)
  *   L168        = V ÷ 4.8                   (rolling 7-day limit)
  *   L6          = L168 ÷ 10                 (rolling 6-hour limit)
  *
  * 30 days hold four full 168 h windows plus 48 h; 48 h hold 8 six-hour windows, so a user who maxes every window
- * spends 4·L168 + min(L168, 8·L6) = 4·L168 + 0.8·L168 = 4.8·L168 = V. The multiplier (fee ÷ V) must stay ≥ 1.5,
- * i.e. the fee earns at least 50% over the worst-case cost.
+ * uses 4·L168 + min(L168, 8·L6) = 4·L168 + 0.8·L168 = 4.8·L168 = V.
+ *
+ * Published prices = vendor cost × buffer, so the worst-case vendor cost is V ÷ buffer and the margin is
+ * buffer ÷ multiplier (see planMargin). The admin keeps the buffer high enough; plans themselves are not capped.
  */
-export { MIN_MULTIPLIER } from "./price-math";
+export { MAX_MULTIPLIER } from "./price-math";
 
 export function planLimits(feeTwd: number, multiplier: number) {
   if (!(feeTwd > 0)) throw new HttpError(400, "fee must be positive");
@@ -46,8 +48,8 @@ const view = (p: Row): PlanView => ({
 });
 
 export const DEFAULT_PLANS = [
-  { code: "low", name: "Pro", nameEn: "Pro", feeTwd: 840, multiplier: 3, concurrency: 2, sortOrder: 10 },
-  { code: "high", name: "Ultra", nameEn: "Ultra", feeTwd: 3675, multiplier: 1.5, concurrency: 6, sortOrder: 20 },
+  { code: "low", name: "Pro", nameEn: "Pro", feeTwd: 840, multiplier: 1.5, concurrency: 2, sortOrder: 10 },
+  { code: "high", name: "Ultra", nameEn: "Ultra", feeTwd: 3675, multiplier: 5, concurrency: 6, sortOrder: 20 },
 ];
 
 export async function ensurePlans() {
@@ -73,12 +75,12 @@ export type PlanInput = {
   sortOrder?: number;
 };
 
-/** Create or update a plan. Refuses a multiplier under 1.5 (fee ÷ max cost). L6/L168 are always recomputed. */
+/** Create or update a plan (multiplier = max usage ÷ fee, 0 < m ≤ 100). L6/L168 are always recomputed. */
 export async function savePlan(actorId: string, p: PlanInput): Promise<PlanView> {
   if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(p.code)) throw new HttpError(400, "code must be a short slug");
   if (!p.name.trim() || !p.nameEn.trim()) throw new HttpError(400, "name is required");
   if (!(Number.isFinite(p.feeTwd) && p.feeTwd >= 1 && p.feeTwd <= 1_000_000)) throw new HttpError(400, "fee out of range");
-  if (!Number.isFinite(p.multiplier) || p.multiplier < MIN_MULTIPLIER) throw new HttpError(400, `fee ÷ max cost must be at least ${MIN_MULTIPLIER}`);
+  if (!(Number.isFinite(p.multiplier) && p.multiplier > 0 && p.multiplier <= MAX_MULTIPLIER)) throw new HttpError(400, `multiplier must be between 0 and ${MAX_MULTIPLIER}`);
   if (!(Number.isInteger(p.concurrency) && p.concurrency >= 1 && p.concurrency <= 64)) throw new HttpError(400, "concurrency must be 1–64");
   const fee = Math.round(p.feeTwd * 100) / 100;
   const data = {

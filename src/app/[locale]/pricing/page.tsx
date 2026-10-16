@@ -40,6 +40,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                 </div>
               </div>
               <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
+                <li className="font-semibold text-ink" data-usage>{t("planUsage", { mult: pl.multiplier, value: pl.maxCostTwd.toLocaleString("en-US") })}</li>
                 <li>{t("planL6", { tokens: tok(pl.l6Twd) })}</li>
                 <li>{t("planL168", { tokens: tok(pl.l168Twd) })}</li>
                 <li>{t("planConcurrency", { n: pl.concurrency })}</li>

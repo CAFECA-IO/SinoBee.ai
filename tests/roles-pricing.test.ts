@@ -1,6 +1,7 @@
 import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import { useTestDb } from "./helpers/testdb";
+import { bufferFor, planMargin } from "../src/lib/price-math";
 
 useTestDb();
 delete process.env.OWNER_ACCOUNT;
@@ -170,24 +171,29 @@ test("published price = vendor USD × FX × buffer; history and scheduled change
   await models.savePricingSettings(admin.id, { fx: 32.5, buffer: 1.08 });
 });
 
-test("plans: L6/L168 derived from fee and multiplier; under 1.5× cannot be saved", async () => {
+test("plans: allowance = fee × usage multiplier (Pro 1.5×, Ultra 5×); margin = buffer ÷ multiplier", async () => {
   await reset();
   await db.plan.deleteMany();
   const admin = await signIn(acc("b"));
   const list = await plans.listPlans();
   const low = list.find((p) => p.code === "low")!;
   const high = list.find((p) => p.code === "high")!;
-  assert.deepEqual([low.feeTwd, low.multiplier, low.maxCostTwd, low.l168Twd, low.l6Twd], [840, 3, 280, 58.33, 5.83]);
-  assert.deepEqual([high.feeTwd, high.multiplier, high.maxCostTwd, high.l168Twd, high.l6Twd], [3675, 1.5, 2450, 510.42, 51.04]);
-  assert.ok(Math.abs(high.l168Twd / low.l168Twd - 8.75) < 0.01, "high has 8.75× the quota of low");
-  // maxing every window over 30 days spends exactly the max cost
-  const l168 = 2450 / 4.8;
-  assert.ok(Math.abs(4 * l168 + Math.min(l168, 8 * (l168 / 10)) - 2450) < 1e-9);
+  assert.deepEqual([low.feeTwd, low.multiplier, low.maxCostTwd, low.l168Twd, low.l6Twd], [840, 1.5, 1260, 262.5, 26.25]);
+  assert.deepEqual([high.feeTwd, high.multiplier, high.maxCostTwd, high.l168Twd, high.l6Twd], [3675, 5, 18375, 3828.13, 382.81]);
+  // maxing every window over 30 days uses exactly the allowance
+  const l168 = 18375 / 4.8;
+  assert.ok(Math.abs(4 * l168 + Math.min(l168, 8 * (l168 / 10)) - 18375) < 1e-9);
+  // the buffer, not the plan, decides the margin
+  assert.ok(Math.abs(planMargin(1.5, 1.08) - 0.72) < 1e-9);
+  assert.equal(planMargin(5, 7.5), 1.5);
+  assert.equal(bufferFor([1.5, 5]), 5);
+  assert.equal(bufferFor([1.5, 5], 1.5), 7.5);
 
-  await assert.rejects(plans.savePlan(admin.id, { ...high, multiplier: 1.49 }), /at least 1.5/);
-  assert.equal((await plans.listPlans()).find((p) => p.code === "high")!.multiplier, 1.5, "unchanged after refusal");
-  const saved = await plans.savePlan(admin.id, { ...low, feeTwd: 900, multiplier: 3 });
-  assert.deepEqual([saved.maxCostTwd, saved.l168Twd, saved.l6Twd], [300, 62.5, 6.25]);
+  await assert.rejects(plans.savePlan(admin.id, { ...high, multiplier: 0 }), /between 0 and 100/);
+  await assert.rejects(plans.savePlan(admin.id, { ...high, multiplier: 101 }), /between 0 and 100/);
+  assert.equal((await plans.listPlans()).find((p) => p.code === "high")!.multiplier, 5, "unchanged after refusal");
+  const saved = await plans.savePlan(admin.id, { ...low, feeTwd: 900, multiplier: 2 });
+  assert.deepEqual([saved.maxCostTwd, saved.l168Twd, saved.l6Twd], [1800, 375, 37.5]);
   await assert.rejects(plans.savePlan(admin.id, { code: "high", name: "x", nameEn: "x", feeTwd: 1, multiplier: 2, concurrency: 1, active: true }), /exists/);
   assert.ok(await db.adminAudit.findFirst({ where: { action: "plan.update", targetId: low.id } }));
 });

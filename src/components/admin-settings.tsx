@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { MIN_MULTIPLIER, formatPrice, planLimits, publishedTwd } from "@/lib/price-math";
+import { HEALTHY_MARGIN, MAX_MULTIPLIER, bufferFor, formatPrice, planLimits, planMargin, publishedTwd } from "@/lib/price-math";
 
 const KINDS = ["input", "cacheRead", "cacheWrite", "output"] as const;
 type Kind = (typeof KINDS)[number];
@@ -96,7 +96,8 @@ export type PriceRowProps = {
   sortOrder: number;
 };
 
-export function PricingSettingsForm({ fx, buffer }: { fx: number; buffer: number }) {
+/** `planMultipliers`: active plans' usage multipliers, to show the buffer they need */
+export function PricingSettingsForm({ fx, buffer, planMultipliers = [] }: { fx: number; buffer: number; planMultipliers?: number[] }) {
   const t = useTranslations("admin.prices");
   const [f, setF] = useState(String(fx));
   const [b, setB] = useState(String(buffer));
@@ -134,6 +135,11 @@ export function PricingSettingsForm({ fx, buffer }: { fx: number; buffer: number
       <button className="btn-primary" disabled={!changed}>{t("applyAll")}</button>
       {ok && <span className="text-sm text-ok">✓</span>}
       {err && <span className="text-sm text-err" role="alert">{err}</span>}
+      {planMultipliers.length > 0 && (
+        <p className={`basis-full text-xs ${Number(b) < bufferFor(planMultipliers) ? "text-err" : Number(b) < bufferFor(planMultipliers, HEALTHY_MARGIN) ? "text-warn" : "text-muted"}`} data-calc="buffer-need">
+          {t("bufferNeed", { mult: Math.max(...planMultipliers), even: bufferFor(planMultipliers), healthy: bufferFor(planMultipliers, HEALTHY_MARGIN) })}
+        </p>
+      )}
     </form>
   );
 }
@@ -228,15 +234,15 @@ export type PlanProps = {
   sortOrder: number;
 };
 
-/** `blended`: TWD per 1M tokens of the cheapest model (3:1), for the token preview */
-export function PlanEditor({ plan, blended, blendedLabel }: { plan?: PlanProps; blended: number; blendedLabel: string }) {
+/** `blended`: TWD per 1M tokens of the cheapest model (3:1), for the token preview; `buffer`: current price buffer */
+export function PlanEditor({ plan, blended, blendedLabel, buffer }: { plan?: PlanProps; blended: number; blendedLabel: string; buffer: number }) {
   const t = useTranslations("admin.plans");
   const [v, setV] = useState({
     code: plan?.code ?? "",
     name: plan?.name ?? "",
     nameEn: plan?.nameEn ?? "",
     feeTwd: String(plan?.feeTwd ?? ""),
-    multiplier: String(plan?.multiplier ?? "3"),
+    multiplier: String(plan?.multiplier ?? "1.5"),
     concurrency: String(plan?.concurrency ?? 2),
     sortOrder: String(plan?.sortOrder ?? 100),
   });
@@ -247,7 +253,9 @@ export function PlanEditor({ plan, blended, blendedLabel }: { plan?: PlanProps; 
   const fee = Number(v.feeTwd);
   const mult = Number(v.multiplier);
   const lim = planLimits(fee, mult);
-  const tooLow = !(mult >= MIN_MULTIPLIER);
+  const badMult = !(mult > 0 && mult <= MAX_MULTIPLIER);
+  const margin = planMargin(mult, buffer);
+  const marginTone = margin < 1 ? "text-err" : margin < HEALTHY_MARGIN ? "text-warn" : "text-ok";
   const tok = (twd: number) => (blended > 0 ? Math.round((twd / blended) * 1e6).toLocaleString("en-US") : "—");
   const field = (k: keyof typeof v, label: string, cls = "w-28", mono = true) => (
     <label className="space-y-1 text-sm">
@@ -282,15 +290,22 @@ export function PlanEditor({ plan, blended, blendedLabel }: { plan?: PlanProps; 
         {field("sortOrder", t("sort"), "w-20")}
         <label className="flex items-center gap-1.5 pb-2 text-sm"><input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("active")}</label>
       </div>
-      <div className="grid gap-2 text-sm sm:grid-cols-3" aria-live="polite">
-        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">{t("maxCost")}</div><div className="font-mono" data-calc="max">NT$ {lim.maxCostTwd.toLocaleString("en-US")}</div></div>
+      <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4" aria-live="polite">
+        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">{t("maxCost")}</div><div className="font-mono" data-calc="max">NT$ {lim.maxCostTwd.toLocaleString("en-US")}</div><div className="text-xs text-muted">{t("vendorCost", { twd: (buffer > 0 ? lim.maxCostTwd / buffer : 0).toLocaleString("en-US", { maximumFractionDigits: 2 }) })}</div></div>
         <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">L6</div><div className="font-mono" data-calc="l6">NT$ {lim.l6Twd.toLocaleString("en-US")}</div><div className="text-xs text-muted">≈ {tok(lim.l6Twd)} tokens</div></div>
         <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">L168</div><div className="font-mono" data-calc="l168">NT$ {lim.l168Twd.toLocaleString("en-US")}</div><div className="text-xs text-muted">≈ {tok(lim.l168Twd)} tokens</div></div>
+        <div className="rounded-xl bg-panel-2 p-3">
+          <div className="text-xs text-muted">{t("margin")}</div>
+          <div className={`font-mono font-semibold ${marginTone}`} data-calc="margin">{badMult ? "—" : `${margin.toFixed(2)}×`}</div>
+          <div className="text-xs text-muted">{t("marginHow", { buffer, mult: badMult ? "—" : mult })}</div>
+        </div>
       </div>
       <p className="text-xs text-muted">{t("formula", { model: blendedLabel })}</p>
-      {tooLow && <p className="text-sm text-err" role="alert">{t("tooLow", { min: MIN_MULTIPLIER })}</p>}
+      {badMult && <p className="text-sm text-err" role="alert">{t("badMult", { max: MAX_MULTIPLIER })}</p>}
+      {!badMult && margin < 1 && <p className="text-sm text-err" role="alert">{t("loss", { need: Math.round(mult * 100) / 100, healthy: Math.round(mult * HEALTHY_MARGIN * 100) / 100 })}</p>}
+      {!badMult && margin >= 1 && margin < HEALTHY_MARGIN && <p className="text-sm text-warn">{t("thin", { healthy: Math.round(mult * HEALTHY_MARGIN * 100) / 100 })}</p>}
       <div className="flex items-center gap-3">
-        <button className="btn-primary" disabled={tooLow || !(fee > 0) || !v.code || !v.name || !v.nameEn}>{plan ? t("save") : t("add")}</button>
+        <button className="btn-primary" disabled={badMult || !(fee > 0) || !v.code || !v.name || !v.nameEn}>{plan ? t("save") : t("add")}</button>
         {ok && <span className="text-sm text-ok">✓ {t("saved")}</span>}
         {err && <span className="text-sm text-err" role="alert">{err}</span>}
       </div>

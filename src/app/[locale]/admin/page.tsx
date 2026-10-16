@@ -286,13 +286,13 @@ async function Users({ meId, superAdmin, q }: { meId: string; superAdmin: boolea
 
 async function Prices() {
   const t = await getTranslations("admin.prices");
-  const [rows, scheduled, s] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings()]);
+  const [rows, scheduled, s, plans] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings(), listPlans({ activeOnly: true })]);
   return (
     <div className="space-y-6">
       <section className="card space-y-3 p-5">
         <h2 className="h3">{t("formulaTitle")}</h2>
         <p className="text-sm text-muted">{t("formula", { fx: s.fx, buffer: s.buffer })}</p>
-        <PricingSettingsForm fx={s.fx} buffer={s.buffer} />
+        <PricingSettingsForm fx={s.fx} buffer={s.buffer} planMultipliers={plans.map((p) => p.multiplier)} />
       </section>
       {scheduled.length > 0 && (
         <section className="card p-5 text-sm">
@@ -324,17 +324,17 @@ async function Prices() {
 
 async function Plans() {
   const t = await getTranslations("admin.plans");
-  const [plans, cheap] = await Promise.all([listPlans(), cheapestBlended()]);
+  const [plans, cheap, s] = await Promise.all([listPlans(), cheapestBlended(), pricingSettings()]);
   const blended = cheap?.blendedTwd ?? 0;
   const label = cheap?.model.label ?? "—";
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">{t("help")}</p>
       {plans.map((p) => (
-        <PlanEditor key={p.id} blended={blended} blendedLabel={label} plan={{ id: p.id, code: p.code, name: p.name, nameEn: p.nameEn, feeTwd: p.feeTwd, multiplier: p.multiplier, concurrency: p.concurrency, active: p.active, sortOrder: p.sortOrder }} />
+        <PlanEditor key={p.id} buffer={s.buffer} blended={blended} blendedLabel={label} plan={{ id: p.id, code: p.code, name: p.name, nameEn: p.nameEn, feeTwd: p.feeTwd, multiplier: p.multiplier, concurrency: p.concurrency, active: p.active, sortOrder: p.sortOrder }} />
       ))}
       <h2 className="h3 pt-4">{t("addPlan")}</h2>
-      <PlanEditor blended={blended} blendedLabel={label} />
+      <PlanEditor buffer={s.buffer} blended={blended} blendedLabel={label} />
     </div>
   );
 }

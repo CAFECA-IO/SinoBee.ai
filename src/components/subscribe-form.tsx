@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { PayForm, postJson, type Buyer } from "./checkout";
 
-type PlanOpt = { id: string; code: string; name: string; fee: number; l6: string; l168: string; concurrency: number };
+type PlanOpt = { id: string; code: string; name: string; fee: number; mult: number; l6: string; l168: string; concurrency: number };
 
 /** Pick a plan, fill in the invoice details, go to Oen */
 export function SubscribeForm({ plans, initial, buyer, startsLabel }: { plans: PlanOpt[]; initial?: string; buyer?: Partial<Buyer> | null; startsLabel: string }) {
@@ -46,6 +46,7 @@ export function SubscribeForm({ plans, initial, buyer, startsLabel }: { plans: P
                     <b>{p.name}</b>
                     <span className="ml-auto font-bold">NT${p.fee.toLocaleString("en-US")}</span>
                   </span>
+                  <span className="text-sm font-semibold" data-usage>{t("usage", { mult: p.mult })}</span>
                   <span className={`text-xs ${on ? "text-accent-ink/80" : "text-muted"}`}>{t("limits", { l6: p.l6, l168: p.l168, n: p.concurrency })}</span>
                 </button>
               );

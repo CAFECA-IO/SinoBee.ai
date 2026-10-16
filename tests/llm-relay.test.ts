@@ -38,12 +38,12 @@ before(async () => {
 });
 after(() => llm.stop());
 
-/** a plan with the given fee / multiplier; L168 = fee / mult / 4.8, L6 = L168 / 10 */
-async function subscribe(fee: number, mult = 3, concurrency = 2) {
+/** a plan whose max usage is fee ÷ `div` (usage multiplier 1/div); L168 = fee / div / 4.8, L6 = L168 / 10 */
+async function subscribe(fee: number, div = 3, concurrency = 2) {
   const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
   const code = `t${fee}-${concurrency}`;
   const existing = (await plans.listPlans()).find((p) => p.code === code);
-  const plan = await plans.savePlan(admin.id, { id: existing?.id, code, name: code, nameEn: code, feeTwd: fee, multiplier: mult, concurrency, active: true });
+  const plan = await plans.savePlan(admin.id, { id: existing?.id, code, name: code, nameEn: code, feeTwd: fee, multiplier: 1 / div, concurrency, active: true });
   await db.subscription.deleteMany({ where: { userId } });
   await db.payment.deleteMany({ where: { userId } });
   const pay = await db.payment.create({ data: { userId, purpose: "SUBSCRIPTION", provider: "MOCK", amount: fee, amountTwd: fee, amountBase: String(fee), token: "TWD", recipient: "mock", status: "CONFIRMED", planId: plan.id } });

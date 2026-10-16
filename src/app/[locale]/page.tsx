@@ -6,6 +6,7 @@ import { SkillCard } from "@/components/skill-card";
 import { CopyCode } from "@/components/copy-code";
 import { AGENT_URL } from "@/lib/links";
 import { Icon } from "@/components/icon";
+import { HeroHive } from "@/components/hero-hive";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </div>
           </div>
           <div className="card overflow-hidden shadow-2xl shadow-black/20">
-            <Image src="/screenshots/usecase-research.png" alt={t("shotAlt")} width={1600} height={1075} priority className="h-auto w-full" />
+            <HeroHive label={t("heroAlt")} />
           </div>
         </div>
       </section>
