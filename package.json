@@ -20,7 +20,8 @@
     "db:generate": "prisma generate --schema prisma/schema.prisma && prisma generate --schema prisma/sqlite/schema.prisma",
     "db:sqlite-schema": "tsx scripts/sqlite-schema.ts",
     "storage-keeper": "tsx scripts/storage-keeper.ts",
-    "storage-migrate": "tsx scripts/storage-migrate.ts"
+    "storage-migrate": "tsx scripts/storage-migrate.ts",
+    "db:repair": "tsx scripts/db-repair.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",
