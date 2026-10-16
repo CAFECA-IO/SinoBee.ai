@@ -50,7 +50,7 @@ export default async function ReportPage({ params }: P) {
       <nav className="text-sm text-muted">
         <Link href="/benchmarks" className="hover:text-accent">{t("back")}</Link>
       </nav>
-      <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_300px]">
+      <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-8">
           <header>
             <div className="text-sm font-semibold uppercase tracking-wide text-accent">{t("label")}</div>

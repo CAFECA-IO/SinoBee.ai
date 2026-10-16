@@ -21,7 +21,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
     </section>
   );
   return (
-    <div className="container-x grid gap-10 py-12 lg:grid-cols-[220px_1fr]">
+    <div className="container-x grid grid-cols-1 gap-10 py-12 lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="hidden lg:block">
         <nav className="sticky top-24 space-y-1 text-sm">
           {(["requirements", "docker", "local-models", "pip", "first-run", "cli", "troubleshooting"] as const).map((id) => (

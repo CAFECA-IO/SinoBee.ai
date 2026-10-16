@@ -18,7 +18,7 @@ export default async function NewSkillPage({ params }: { params: Promise<{ local
   const me = await currentUser();
   if (!me) redirect({ href: "/login?next=/skills/new", locale });
   return (
-    <div className="container-x grid gap-10 py-12 lg:grid-cols-[1fr_380px]">
+    <div className="container-x grid grid-cols-1 gap-10 py-12 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-6">
         <h1 className="h1">{t("title")}</h1>
         <p className="text-muted">{t("lead")}</p>

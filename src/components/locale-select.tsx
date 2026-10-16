@@ -53,10 +53,10 @@ export function LocaleSelect() {
             setOpen(true);
           }
         }}
-        className={`inline-flex h-9 items-center gap-1 rounded-xl border border-line bg-panel px-2.5 text-sm font-semibold transition hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${open ? "border-accent text-accent" : "text-ink/80"}`}
+        className={`inline-flex h-9 items-center gap-1 rounded-xl border border-line bg-panel px-2 text-sm sm:px-2.5 font-semibold transition hover:border-accent hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${open ? "border-accent text-accent" : "text-ink/80"}`}
       >
         <span lang={LOCALES[locale].lang}>{LOCALES[locale].short}</span>
-        <svg viewBox="0 0 24 24" aria-hidden className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" aria-hidden className={`hidden h-3.5 w-3.5 transition-transform sm:block duration-200 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>

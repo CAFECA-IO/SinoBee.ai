@@ -11,7 +11,7 @@ export function SkillCard({ skill, title, official, officialLabel }: {
   officialLabel?: string;
 }) {
   return (
-    <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
+    <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
           <Icon name={official ? "badge" : "hub"} />

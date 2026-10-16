@@ -64,7 +64,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); 
 
 @layer components {
   .container-x { @apply mx-auto w-full max-w-6xl px-4 sm:px-6; }
-  .card { @apply rounded-2xl border border-line bg-panel; }
+  /* min-w-0: cards are often grid/flex items; without it long code or mono text widens the column past the viewport */
+  .card { @apply min-w-0 rounded-2xl border border-line bg-panel; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 bg-accent text-accent-ink hover:brightness-110; }
   .btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border border-line bg-panel text-ink hover:border-accent; }

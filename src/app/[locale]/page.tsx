@@ -54,7 +54,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       {/* hero */}
       <section className="relative overflow-hidden border-b border-line">
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.15] [background-image:radial-gradient(var(--accent)_1px,transparent_1px)] [background-size:22px_22px]" />
-        <div className="container-x relative grid items-center gap-10 py-16 lg:grid-cols-[1.05fr_1fr] lg:py-24">
+        <div className="container-x relative grid grid-cols-1 items-center gap-10 py-16 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:py-24">
           <div className="min-w-0">
             <span className="chip border-accent/40 text-accent">{t("badge")}</span>
             <h1 className="mt-5 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">

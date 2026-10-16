@@ -59,7 +59,7 @@ export default async function TaskPage({ params }: P) {
       <nav className="text-sm text-muted">
         <Link href={owner ? "/tasks?mine=1" : "/tasks"} className="hover:text-accent">{t("back")}</Link>
       </nav>
-      <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_340px]">
+      <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
           <header>
             <div className="flex flex-wrap items-center gap-3">

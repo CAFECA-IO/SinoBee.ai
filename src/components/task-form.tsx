@@ -75,7 +75,7 @@ export function TaskForm({
   };
 
   return (
-    <form onSubmit={submit} className="grid gap-8 lg:grid-cols-[1fr_340px]">
+    <form onSubmit={submit} className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-5">
         <div>
           <label className="label">{t("title")}</label>

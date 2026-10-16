@@ -157,7 +157,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
         )}
 
         {/* browse: filters + results */}
-        <section className={`grid gap-8 lg:grid-cols-[230px_minmax(0,1fr)] ${!filtered && page === 1 ? "mt-14" : ""}`}>
+        <section className={`grid grid-cols-1 gap-8 lg:grid-cols-[230px_minmax(0,1fr)] ${!filtered && page === 1 ? "mt-14" : ""}`}>
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             <div>
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterSort")}</div>
