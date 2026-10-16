@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 
@@ -72,12 +72,41 @@ export function BuyerFields({ value, onChange }: { value: Buyer; onChange: (b: B
 }
 
 /** Required consent to the terms, refund policy and privacy policy */
+/**
+ * "I have read and agree" — a real checkbox (not a switch) with an SVG transition: checking draws a check mark in a
+ * filling circle (agree); unchecking, or submitting without agreeing, draws an X with a short shake (disagree)
+ * that settles back to the empty box. The native input stays in the form (name, required, keyboard, screen readers).
+ */
 export function AgreeTerms() {
   const t = useTranslations("checkout");
+  const [mood, setMood] = useState<"idle" | "agree" | "disagree">("idle");
+  const [beat, setBeat] = useState(0); // restarts the disagree animation on repeated invalid submits
+  useEffect(() => {
+    if (mood !== "disagree") return;
+    const id = setTimeout(() => setMood("idle"), 1400);
+    return () => clearTimeout(id);
+  }, [mood, beat]);
+  const disagree = () => {
+    setMood("disagree");
+    setBeat((b) => b + 1);
+  };
   return (
-    <label className="flex items-start gap-2 text-xs text-muted">
-      <input type="checkbox" role="switch" className="mt-0.5" required name="agree" />
-      <span>
+    <label className="agree flex items-start gap-2.5 text-xs text-muted" data-mood={mood}>
+      <input
+        type="checkbox"
+        className="checkbox-plain agree-input"
+        required
+        name="agree"
+        onChange={(e) => (e.target.checked ? setMood("agree") : disagree())}
+        onInvalid={disagree}
+      />
+      <svg key={beat} className="agree-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <rect className="agree-box" x="2" y="2" width="20" height="20" rx="6" />
+        <circle className="agree-fill" cx="12" cy="12" r="10" />
+        <path className="agree-check" d="M7 12.5l3.2 3.2L17.2 8.6" pathLength={1} />
+        <path className="agree-x" d="M8 8l8 8M16 8l-8 8" pathLength={1} />
+      </svg>
+      <span className="pt-0.5">
         {t.rich("agree", {
           terms: (c) => <Link href="/terms" className="text-accent underline" target="_blank">{c}</Link>,
           refunds: (c) => <Link href="/refunds" className="text-accent underline" target="_blank">{c}</Link>,

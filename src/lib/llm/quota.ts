@@ -273,6 +273,21 @@ export async function sweepHolds(now = new Date()) {
   return stale.length;
 }
 
+/**
+ * Response headers for a finished (non-streamed) call: this call's share of the 6-hour limit and how full both
+ * windows are now. SinoBee shows "占 6 小時額度 x%" under each answer from these.
+ */
+export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row: Pick<UsageLedger, "userId" | "settledTwd"> | null): Promise<Record<string, string>> {
+  if (!row) return {};
+  const u = await windowUse(row.userId);
+  const pct = (v: number, limit: number) => (limit > 0 ? Math.min(100, (v / limit) * 100) : 100).toFixed(2);
+  return {
+    "x-sinobee-cost-6h-pct": pct(Number(row.settledTwd ?? 0), plan.l6Twd),
+    "x-sinobee-quota-6h": pct(u.w6, plan.l6Twd),
+    "x-sinobee-quota-168h": pct(u.w168, plan.l168Twd),
+  };
+}
+
 // ───────────── status for the GUI (rings) ─────────────
 
 export async function quotaStatus(userId: string, now = new Date()) {

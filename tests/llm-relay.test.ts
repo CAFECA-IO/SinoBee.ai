@@ -105,6 +105,11 @@ test("non-streaming: platform key added, params whitelisted, settled from usage 
   const expect = ((2000 - 1000) * 7.02 + 1000 * 0.702 + out * 42.12) / 1e6;
   assert.ok(Math.abs(Number(row.settledTwd) - expect) < 1e-6, `${row.settledTwd} vs ${expect}`);
   assert.equal(row.cacheReadTokens, 1000);
+  // SinoBee shows this call's share of the 6-hour limit from these headers
+  const share = Number(r.headers.get("x-sinobee-cost-6h-pct"));
+  assert.ok(share > 0 && share <= 100);
+  assert.ok(Number(r.headers.get("x-sinobee-quota-6h")) >= share);
+  assert.ok(Number(r.headers.get("x-sinobee-quota-168h")) > 0);
 });
 
 test("non-streaming: max_tokens is lowered to what the remaining quota can pay for", async () => {

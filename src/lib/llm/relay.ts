@@ -2,7 +2,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { bearerAuth } from "../auth";
 import { currentModels, type ModelPriceView } from "../models";
-import { QuotaError, avgOutput, hold, quotaContext, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
+import { QuotaError, avgOutput, hold, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
 
 /**
  * Subscription model relay.
@@ -218,8 +218,8 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
   }
   const u = p.fmt === "anthropic" ? anthropicUsage(json.usage as Record<string, unknown>) : openaiUsage(json.usage as Record<string, unknown>);
   const s: Settlement = u ? { kind: "usage", ...u } : { kind: "estimate", prompt: p.promptEstimate, output: estimateTokens(p.fmt === "anthropic" ? json.content : json.choices), reason: "no usage in response" };
-  await settle(ledger.id, s);
-  return Response.json(json, { status: r.status });
+  const done = await settle(ledger.id, s);
+  return Response.json(json, { status: r.status, headers: await quotaHeaders(p.ctx.plan, done).catch(() => ({})) });
 }
 
 // ───────────── streaming ─────────────
