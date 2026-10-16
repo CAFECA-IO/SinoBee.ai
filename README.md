@@ -111,7 +111,7 @@ Keep the models portable: no scalar lists (`String[]`), no raw SQL; use `icontai
 # 1. SinoBee image used for user containers
 git clone https://github.com/CAFECA-IO/SinoBee && docker build -t sinobee:latest SinoBee
 # 2. configure
-cp .env.example .env   # PUBLIC_ORIGIN=https://sinobee.ai, TREASURY_ADDRESS, ADMIN_ACCOUNTS, HUB_SIGNING_KEY,
+cp .env.example .env   # PUBLIC_ORIGIN=https://sinobee.ai, TREASURY_ADDRESS, OWNER_ACCOUNT, HUB_SIGNING_KEY,
                        # STORAGE_DRIVER=s3 + S3_BUCKET, model API keys, CAFECA_NOTIFY_URL …
 # 3. run
 docker compose up -d --build

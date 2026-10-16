@@ -14,6 +14,7 @@ import { CopyCode } from "@/components/copy-code";
 import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 import { ReportRow } from "@/components/report-row";
+import { modelLabels } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function SkillPage({ params, searchParams }: P) {
   const { locale, publisher, name } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("skill");
+  const labels = await modelLabels();
   const skill = await load(publisher, name);
   if (!skill) notFound();
   const me = await currentUser();
@@ -157,7 +159,7 @@ export default async function SkillPage({ params, searchParams }: P) {
               <h2 className="h3">{t("evaluations")}</h2>
               <Link href={`/benchmarks/new?skill=${ver.id}`} className="btn-ghost !py-2">{t("commissionEval")}</Link>
             </div>
-            {reports.length === 0 ? <p className="text-sm text-muted">{t("noEvaluations")}</p> : <div className="card divide-y divide-line">{reports.map((r) => <ReportRow key={r.id} r={r} />)}</div>}
+            {reports.length === 0 ? <p className="text-sm text-muted">{t("noEvaluations")}</p> : <div className="card divide-y divide-line">{reports.map((r) => <ReportRow key={r.id} r={r} models={labels} />)}</div>}
           </section>
 
           <Comments targetType="SKILL" targetId={skill.id} />

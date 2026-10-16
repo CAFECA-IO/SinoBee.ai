@@ -29,7 +29,9 @@ model User {
   displayName       String?
   kycLevel          Int?
   publisherVerified Boolean  @default(false)
+  /// kept in sync with role (true for ADMIN and SUPERADMIN); change roles only through src/lib/roles.ts
   isAdmin           Boolean  @default(false)
+  role              UserRole @default(USER)
   createdAt         DateTime @default(now())
   lastLoginAt       DateTime @default(now())
 
@@ -55,6 +57,36 @@ model User {
   reports          Report[]
   reviewedTools ToolVersion[] @relation("toolReviewer")
   toolRatings   ToolRating[]
+  adminActions  AdminAudit[]  @relation("auditActor")
+  modelPrices   ModelPrice[]
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+/// Key/value site state: owner bootstrap (claim code), pricing defaults (FX rate, buffer)
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// Append-only log of privileged actions (roles, prices, plans, reviews, takedowns)
+model AdminAudit {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("auditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String?
+  targetId   String?
+  detail     Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
 }
 
 model Session {
@@ -462,6 +494,54 @@ model Subscription {
   createdAt DateTime @default(now())
 
   @@index([userId, endsAt])
+}
+
+// ───────────────────────── Prices & plans ─────────────────────────
+
+/// Model price history. The row in force for a model is the latest with effectiveAt <= now.
+/// Published price (TWD per 1M tokens) = vendor USD × fxRate × buffer; both are snapshotted per row.
+model ModelPrice {
+  id            String   @id @default(cuid())
+  /// provider/model as SinoBee expects (SINOBEE_MODEL)
+  modelId       String
+  label         String
+  vendor        String
+  /// vendor list prices, USD per 1M tokens
+  inputUsd      Decimal 
+  cacheReadUsd  Decimal 
+  cacheWriteUsd Decimal 
+  outputUsd     Decimal 
+  fxRate        Decimal 
+  buffer        Decimal 
+  /// offered to users (false = withdrawn from this date)
+  enabled       Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  effectiveAt   DateTime
+  createdAt     DateTime @default(now())
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([modelId, effectiveAt])
+}
+
+/// Subscription plans. Max cost V = fee ÷ multiplier; L168 = V ÷ 4.8; L6 = L168 ÷ 10 (TWD at published prices).
+model Plan {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  nameEn      String
+  feeTwd      Decimal 
+  /// fee ÷ max cost; must be ≥ 1.5
+  multiplier  Decimal 
+  maxCostTwd  Decimal 
+  l6Twd       Decimal 
+  l168Twd     Decimal 
+  concurrency Int      @default(2)
+  days        Int      @default(30)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Notification {

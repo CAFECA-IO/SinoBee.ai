@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
-import { modelById } from "@/lib/pricing";
+import { modelLabels } from "@/lib/models";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
 import { Comments } from "@/components/comments";
@@ -22,6 +22,7 @@ export default async function ReportPage({ params }: P) {
   const { locale, id } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("report");
+  const labels = await modelLabels();
   const r = await db.evaluationReport.findUnique({
     where: { id },
     include: { task: true, requester: true, skillVersion: { include: { skill: { include: { publisher: true } } } } },
@@ -42,7 +43,7 @@ export default async function ReportPage({ params }: P) {
         <span key="s" className="text-muted">{t("noSkill")}</span>
       ),
     ],
-    [t("model"), modelById(r.model)?.label ?? r.model],
+    [t("model"), labels[r.model] ?? r.model],
     [t("method"), r.method],
   ];
   return (

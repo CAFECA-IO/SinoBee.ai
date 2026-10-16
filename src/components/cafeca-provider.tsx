@@ -28,7 +28,7 @@ declare global {
   }
 }
 
-export type Me = { id: string; account: string; handle: string | null; publisher: string | null; isAdmin: boolean; channelId: string | null } | null;
+export type Me = { id: string; account: string; handle: string | null; publisher: string | null; isAdmin: boolean; role?: "USER" | "ADMIN" | "SUPERADMIN"; channelId: string | null } | null;
 
 export type PaymentIntent = { id: string; amount: string; amountBase: string; token: string; recipient: string; chainId: number; mode: "chain" | "mock" };
 

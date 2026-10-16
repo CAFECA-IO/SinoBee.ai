@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { revokeShare } from "@/lib/shares/service";
 import { takedownTool } from "@/lib/tools/service";
 import { notify } from "@/lib/notify";
+import { audit } from "@/lib/roles";
 
 /** Resolve a report: take the share down (crypto-shred) or dismiss */
 export const POST = handle(async (req: Request) => {
@@ -21,5 +22,6 @@ export const POST = handle(async (req: Request) => {
     await notify(t.ownerId, { type: "tool.takedown", title: `Your tool ${t.name} was removed from the directory`, body: r.reason, link: "/account#tools" }).catch(() => undefined);
   }
   await db.report.updateMany({ where: { targetType: r.targetType, targetId: r.targetId, resolvedAt: null }, data: { resolvedAt: new Date() } });
+  await audit(admin.id, takedown ? "report.takedown" : "report.dismiss", { type: r.targetType, id: r.targetId }, { reportId: r.id });
   return json({ ok: true });
 });

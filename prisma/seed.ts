@@ -13,6 +13,9 @@ import { config } from "../src/lib/config";
 import { publishSkill } from "../src/lib/skills/service";
 import { signContentHash } from "../src/lib/skills/signing";
 import { compareVersions, parseSkillMd } from "../src/lib/skills/spec";
+import { ensureModelPrices } from "../src/lib/models";
+import { ensurePlans } from "../src/lib/plans";
+import { initialRole, isAdminRole } from "../src/lib/roles";
 
 /** A skill folder as an upload: SKILL.md alone, or a .tar.gz bundle when it has scripts, references or assets */
 async function upload(dir: string, name: string): Promise<{ data: Buffer; filename: string }> {
@@ -30,10 +33,13 @@ async function upload(dir: string, name: string): Promise<{ data: Buffer; filena
 }
 
 async function main() {
+  await ensureModelPrices();
+  await ensurePlans();
+  console.log("model prices and plans ready (edit them in /admin)");
   const account = (process.env.SEED_PUBLISHER_ACCOUNT ?? config.adminAccounts[0] ?? "0x00000000000000000000000000000000000cafec").toLowerCase();
   const publisher = await db.user.upsert({
     where: { account },
-    create: { account, publisher: "cafeca", displayName: "CAFECA", publisherVerified: true, isAdmin: config.adminAccounts.includes(account) },
+    create: { account, publisher: "cafeca", displayName: "CAFECA", publisherVerified: true, role: initialRole(account), isAdmin: isAdminRole(initialRole(account)) },
     update: { publisher: "cafeca", publisherVerified: true },
   });
   const dir = path.join(import.meta.dirname, "seed-skills");

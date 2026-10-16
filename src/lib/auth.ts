@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { applySignInRole, initialRole, isAdminRole } from "./roles";
 import { config } from "./config";
 import { randomToken, sha256Hex } from "./crypto";
 import type { VerifiedSignIn } from "./cafeca";
@@ -30,24 +31,25 @@ export async function readBind(): Promise<string | undefined> {
 /** Create or update the user record after a verified sign-in */
 export async function upsertUser(v: VerifiedSignIn) {
   const account = v.account.toLowerCase();
-  const isAdmin = config.adminAccounts.includes(account);
+  const role = initialRole(account);
   const handle = v.claims.handle ?? undefined;
-  return db.user.upsert({
+  const user = await db.user.upsert({
     where: { account },
     create: {
       account,
       handle: handle ?? null,
       kycLevel: v.claims.kyc_level ?? null,
-      isAdmin,
+      role,
+      isAdmin: isAdminRole(role),
       publisher: handle && /^[a-z0-9][a-z0-9-]{1,38}$/.test(handle) && !(await db.user.findUnique({ where: { publisher: handle } })) ? handle : null,
     },
     update: {
       lastLoginAt: new Date(),
-      isAdmin,
       ...(handle !== undefined ? { handle } : {}),
       ...(v.claims.kyc_level !== undefined ? { kycLevel: v.claims.kyc_level } : {}),
     },
   });
+  return applySignInRole(user);
 }
 
 export async function createSession(userId: string, channel?: { id: string; expiresAt: number }) {
@@ -93,7 +95,13 @@ export async function requireUser(): Promise<CurrentUser> {
 
 export async function requireAdmin(): Promise<CurrentUser> {
   const u = await requireUser();
-  if (!u.isAdmin) throw new HttpError(403, "forbidden");
+  if (!isAdminRole(u.role)) throw new HttpError(403, "forbidden");
+  return u;
+}
+
+export async function requireSuperAdmin(): Promise<CurrentUser> {
+  const u = await requireUser();
+  if (u.role !== "SUPERADMIN") throw new HttpError(403, "forbidden");
   return u;
 }
 

@@ -1,5 +1,4 @@
 import { Link } from "@/i18n/navigation";
-import { modelById } from "@/lib/pricing";
 import type { EvaluationReport, Skill, SkillVersion, User } from "@/generated/prisma/client";
 import { LocalDate } from "./date";
 
@@ -7,7 +6,8 @@ export type ReportWithRefs = EvaluationReport & { requester: User; skillVersion:
 
 export const scoreColor = (s: number) => (s >= 80 ? "text-ok" : s >= 60 ? "text-warn" : "text-err");
 
-export function ReportRow({ r }: { r: ReportWithRefs }) {
+/** `models`: model id → label (from modelCatalog) */
+export function ReportRow({ r, models }: { r: ReportWithRefs; models: Record<string, string> }) {
   const who = r.requester.publisher ?? r.requester.handle ?? `${r.requester.account.slice(0, 6)}…${r.requester.account.slice(-4)}`;
   return (
     <Link href={`/benchmarks/reports/${r.id}`} className="flex items-center gap-4 p-4 hover:bg-panel-2">
@@ -19,9 +19,9 @@ export function ReportRow({ r }: { r: ReportWithRefs }) {
               {r.skillVersion.skill.publisher.publisher}/{r.skillVersion.skill.name}@{r.skillVersion.version}
             </span>
           ) : (
-            modelById(r.model)?.label ?? r.model
+            models[r.model] ?? r.model
           )}
-          {r.skillVersion && <span className="text-muted"> · {modelById(r.model)?.label ?? r.model}</span>}
+          {r.skillVersion && <span className="text-muted"> · {models[r.model] ?? r.model}</span>}
         </div>
         <div className="mt-0.5 text-xs text-muted">
           {r.method} · {who} · <LocalDate value={r.evaluatedAt} withTime={false} />

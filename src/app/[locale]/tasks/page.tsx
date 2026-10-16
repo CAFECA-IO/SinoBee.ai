@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { modelById } from "@/lib/pricing";
+import { modelLabels } from "@/lib/models";
 import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function TasksPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ mine?: string }> }) {
   setRequestLocale((await params).locale);
   const t = await getTranslations("tasks");
+  const labels = await modelLabels();
   const me = await currentUser();
   const mine = !!(await searchParams).mine && !!me;
   const tasks = await db.task.findMany({
@@ -51,7 +52,7 @@ export default async function TasksPage({ params, searchParams }: { params: Prom
                   {mine && !task.isPublic && <span className="chip">🔒 {t("private")}</span>}
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
-                  {modelById(task.model)?.label ?? task.model} · <LocalDate value={task.createdAt} />
+                  {labels[task.model] ?? task.model} · <LocalDate value={task.createdAt} />
                 </div>
               </div>
               <span className="text-sm text-muted">👍 {up} · 👎 {down}</span>

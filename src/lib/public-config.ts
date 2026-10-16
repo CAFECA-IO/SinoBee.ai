@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { MODELS } from "./pricing";
+import { currentModels } from "./models";
 
 /**
  * Published prices are in TWD and already final: raw provider cost (USD) × markup × USD/TWD rate.
@@ -27,6 +27,6 @@ export function pricingForClient() {
   };
 }
 
-/** Model prices per 1M tokens in TWD (final) */
-export const modelsForClient = () =>
-  MODELS.map(({ id, label, vendor, input, output }) => ({ id, label, vendor, input: round(toTwd(input)), output: round(toTwd(output)) }));
+/** Models offered for commissioned tasks with their task prices per 1M tokens in TWD (final), from the ModelPrice table */
+export const modelsForClient = async () =>
+  (await currentModels()).map(({ modelId, label, vendor, usd }) => ({ id: modelId, label, vendor, input: round(toTwd(usd.input)), output: round(toTwd(usd.output)) }));

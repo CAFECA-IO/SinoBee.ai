@@ -30,7 +30,7 @@ export default async function NewTaskPage({ params, searchParams }: { params: Pr
         ))}
       </ol>
       <div className="mt-10">
-        <TaskForm kind="TASK" models={modelsForClient()} pricing={pricingForClient()} skill={skill} />
+        <TaskForm kind="TASK" models={await modelsForClient()} pricing={pricingForClient()} skill={skill} />
       </div>
     </div>
   );

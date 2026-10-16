@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { config } from "@/lib/config";
-import { modelById } from "@/lib/pricing";
+import { modelLabels } from "@/lib/models";
 import { canView } from "@/lib/tasks/service";
 import { StatusBadge } from "@/components/status-badge";
 import { Markdown } from "@/components/markdown";
@@ -26,6 +26,7 @@ export default async function TaskPage({ params }: P) {
   const { locale, id } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("task");
+  const labels = await modelLabels();
   const me = await currentUser();
   const task = await db.task.findUnique({
     where: { id },
@@ -69,7 +70,7 @@ export default async function TaskPage({ params }: P) {
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
               <span>{t("by")} {who}</span>
-              <span>{modelById(task.model)?.label ?? task.model}</span>
+              <span>{labels[task.model] ?? task.model}</span>
               {task.skillVersion && (
                 <Link className="font-mono text-accent" href={`/skills/${task.skillVersion.skill.publisher.publisher}/${task.skillVersion.skill.name}?v=${task.skillVersion.version}`}>
                   {task.skillVersion.skill.name}@{task.skillVersion.version}

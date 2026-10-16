@@ -1,10 +1,11 @@
 import { requireUser } from "@/lib/auth";
-import { config } from "@/lib/config";
 import { handle, json } from "@/lib/http";
-import { createPayment } from "@/lib/payments";
 
+/**
+ * The TWDC subscription is closed: plans are now defined in the admin backend (Plan table) and will be paid
+ * through Oen in TWD. Existing subscriptions keep running until they end.
+ */
 export const POST = handle(async () => {
-  const user = await requireUser();
-  const payment = await createPayment({ userId: user.id, purpose: "SUBSCRIPTION", amount: config.subscription.priceTwdc.toFixed(6), meta: { days: config.subscription.days } });
-  return json({ payment });
+  await requireUser();
+  return json({ error: "subscriptions are moving to Oen payments; see /pricing#plans" }, 410);
 });

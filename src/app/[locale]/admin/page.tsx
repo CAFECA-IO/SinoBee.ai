@@ -10,24 +10,32 @@ import { hubPublicKeys } from "@/lib/skills/signing";
 import { storageStatus } from "@/lib/boltchain/keeper";
 import { ToolReview, ReportActions } from "@/components/admin-actions";
 import type { ToolManifest } from "@/lib/tools/spec";
+import { isAdminRole } from "@/lib/roles";
+import { cheapestBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
+import { listPlans } from "@/lib/plans";
+import { icontains } from "@/lib/db";
+import { PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string }> }) {
+const TABS = ["pending", "approved", "tools", "reports", "users", "prices", "plans", "audit", "storage"] as const;
+
+export default async function AdminPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<{ tab?: string; q?: string }> }) {
   setRequestLocale((await params).locale);
   const me = await currentUser();
-  if (!me?.isAdmin) notFound();
+  if (!me || !isAdminRole(me.role)) notFound();
   const t = await getTranslations("admin");
-  const raw = (await searchParams).tab ?? "pending";
-  const tab = ["approved", "tools", "storage", "reports"].includes(raw) ? raw : "pending";
+  const sp = await searchParams;
+  const raw = sp.tab ?? "pending";
+  const tab = (TABS as readonly string[]).includes(raw) ? raw : "pending";
   const tabs = (
     <div className="flex flex-wrap gap-2">
-      {(["pending", "approved", "tools", "reports", "storage"] as const).map((k) => (
+      {TABS.map((k) => (
         <Link key={k} href={k === "pending" ? "/admin" : `/admin?tab=${k}`} className={tab === k ? "btn-primary" : "btn-ghost"}>{t(`tab.${k}`)}</Link>
       ))}
     </div>
   );
-  if (tab === "tools" || tab === "storage" || tab === "reports")
+  if (tab !== "pending" && tab !== "approved")
     return (
       <div className="container-x space-y-6 py-12">
         <h1 className="h1">{t("title")}</h1>
@@ -35,6 +43,10 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
         {tab === "tools" && <ToolReviews />}
         {tab === "storage" && <StorageStatus />}
         {tab === "reports" && <Reports />}
+        {tab === "users" && <Users meId={me.id} superAdmin={me.role === "SUPERADMIN"} q={sp.q} />}
+        {tab === "prices" && <Prices />}
+        {tab === "plans" && <Plans />}
+        {tab === "audit" && <Audit />}
       </div>
     );
   const versions = await db.skillVersion.findMany({
@@ -181,4 +193,124 @@ async function ToolLink({ id }: { id: string }) {
   const t = await db.tool.findUnique({ where: { id }, include: { owner: true } });
   if (!t) return <span className="font-mono">{id}</span>;
   return <Link href={`/tools/${t.owner.publisher ?? t.owner.account}/${t.name}`} className="font-mono text-accent">{t.owner.publisher}/{t.name}</Link>;
+}
+
+async function Users({ meId, superAdmin, q }: { meId: string; superAdmin: boolean; q?: string }) {
+  const t = await getTranslations("admin.users");
+  const query = q?.trim();
+  const where = query ? { OR: [{ account: icontains(query.toLowerCase()) }, { handle: icontains(query) }, { publisher: icontains(query) }] } : {};
+  const [staff, users] = await Promise.all([
+    db.user.findMany({ where: { role: { in: ["SUPERADMIN", "ADMIN"] } }, orderBy: [{ role: "desc" }, { createdAt: "asc" }] }),
+    db.user.findMany({ where: { ...where, role: "USER" }, orderBy: { lastLoginAt: "desc" }, take: 50 }),
+  ]);
+  const row = (u: (typeof users)[number]) => (
+    <div key={u.id} className="flex flex-wrap items-center gap-3 border-t border-line p-4 text-sm" data-user={u.account}>
+      <span className={`badge ${u.role === "USER" ? "bg-panel-2 text-muted" : "bg-accent-soft text-ok"}`}>{t(`role.${u.role}`)}</span>
+      <span className="font-medium">@{u.handle ?? u.publisher ?? "—"}</span>
+      <span className="break-all font-mono text-xs text-muted">{u.account}</span>
+      <span className="text-xs text-muted">{t("lastLogin")} <LocalDate value={u.lastLoginAt} /></span>
+      {u.id === meId && <span className="chip">{t("you")}</span>}
+      <span className="flex-1" />
+      {superAdmin && u.id !== meId && <RoleActions userId={u.id} account={u.account} role={u.role} />}
+    </div>
+  );
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted">{superAdmin ? t("helpSuper") : t("helpAdmin")}</p>
+      <section className="card">
+        <h2 className="h3 p-4">{t("staff")}</h2>
+        {staff.map(row)}
+      </section>
+      <section className="card">
+        <form className="flex flex-wrap items-center gap-2 p-4" action="" method="get">
+          <input type="hidden" name="tab" value="users" />
+          <h2 className="h3 mr-auto">{t("users")}</h2>
+          <input className="input w-72" name="q" defaultValue={query} placeholder={t("search")} aria-label={t("search")} />
+          <button className="btn-ghost">{t("searchGo")}</button>
+        </form>
+        {users.length ? users.map(row) : <p className="border-t border-line p-4 text-sm text-muted">{t("none")}</p>}
+      </section>
+    </div>
+  );
+}
+
+async function Prices() {
+  const t = await getTranslations("admin.prices");
+  const [rows, scheduled, s] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings()]);
+  return (
+    <div className="space-y-6">
+      <section className="card space-y-3 p-5">
+        <h2 className="h3">{t("formulaTitle")}</h2>
+        <p className="text-sm text-muted">{t("formula", { fx: s.fx, buffer: s.buffer })}</p>
+        <PricingSettingsForm fx={s.fx} buffer={s.buffer} />
+      </section>
+      {scheduled.length > 0 && (
+        <section className="card p-5 text-sm">
+          <h2 className="h3">{t("scheduled")}</h2>
+          {scheduled.map((m) => (
+            <div key={m.rowId} className="flex flex-wrap gap-3 border-t border-line py-2">
+              <span className="font-mono text-xs">{m.modelId}</span>
+              <span>{m.enabled ? "" : t("withdrawn")}</span>
+              <span className="font-mono">{formatPrice(m.twd.input)} / {formatPrice(m.twd.cacheRead)} / {formatPrice(m.twd.cacheWrite)} / {formatPrice(m.twd.output)}</span>
+              <span className="text-muted"><LocalDate value={m.effectiveAt} /></span>
+            </div>
+          ))}
+        </section>
+      )}
+      <section className="card">
+        <div className="flex flex-wrap items-baseline gap-3 p-4">
+          <h2 className="h3">{t("models")}</h2>
+          <span className="text-xs text-muted">{t("modelsHelp")}</span>
+        </div>
+        {rows.map((m) => (
+          <PriceEditor key={m.rowId} fx={s.fx} buffer={s.buffer} row={{ modelId: m.modelId, label: m.label, vendor: m.vendor, usd: m.usd, enabled: m.enabled, sortOrder: m.sortOrder }} />
+        ))}
+        <div className="border-t border-line p-4 text-sm font-semibold">{t("addModel")}</div>
+        <PriceEditor fx={s.fx} buffer={s.buffer} isNew />
+      </section>
+    </div>
+  );
+}
+
+async function Plans() {
+  const t = await getTranslations("admin.plans");
+  const [plans, cheap] = await Promise.all([listPlans(), cheapestBlended()]);
+  const blended = cheap?.blendedTwd ?? 0;
+  const label = cheap?.model.label ?? "—";
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">{t("help")}</p>
+      {plans.map((p) => (
+        <PlanEditor key={p.id} blended={blended} blendedLabel={label} plan={{ id: p.id, code: p.code, name: p.name, nameEn: p.nameEn, feeTwd: p.feeTwd, multiplier: p.multiplier, concurrency: p.concurrency, active: p.active, sortOrder: p.sortOrder }} />
+      ))}
+      <h2 className="h3 pt-4">{t("addPlan")}</h2>
+      <PlanEditor blended={blended} blendedLabel={label} />
+    </div>
+  );
+}
+
+async function Audit() {
+  const t = await getTranslations("admin.audit");
+  const rows = await db.adminAudit.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 200 });
+  if (!rows.length) return <p className="text-muted">{t("empty")}</p>;
+  return (
+    <div className="card overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
+        <thead className="text-left text-muted">
+          <tr><th className="p-3">{t("when")}</th><th className="p-3">{t("who")}</th><th className="p-3">{t("action")}</th><th className="p-3">{t("target")}</th><th className="p-3">{t("detail")}</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((a) => (
+            <tr key={a.id} className="border-t border-line align-top">
+              <td className="whitespace-nowrap p-3 text-xs text-muted"><LocalDate value={a.createdAt} /></td>
+              <td className="p-3 text-xs">{a.actor ? `@${a.actor.handle ?? a.actor.publisher ?? a.actor.account.slice(0, 10)}` : "—"}</td>
+              <td className="p-3 font-mono text-xs">{a.action}</td>
+              <td className="p-3 font-mono text-xs">{a.targetType ? `${a.targetType}:${a.targetId}` : ""}</td>
+              <td className="max-w-md p-3"><code className="block max-h-24 overflow-auto whitespace-pre-wrap break-all text-xs text-muted">{a.detail ? JSON.stringify(a.detail) : ""}</code></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

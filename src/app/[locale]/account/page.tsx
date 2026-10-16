@@ -7,7 +7,6 @@ import { Link, redirect } from "@/i18n/navigation";
 import { PublisherForm } from "@/components/publisher-form";
 import { TokenManager } from "@/components/token-manager";
 import { DeviceList } from "@/components/device-list";
-import { SubscribeButton } from "@/components/subscribe-button";
 import { LocalDate } from "@/components/date";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -63,7 +62,9 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
         ) : (
           <p className="text-sm text-muted">{t("subNone", { days: config.retention.freeDays })}</p>
         )}
-        <SubscribeButton price={config.subscription.priceTwdc} days={config.subscription.days} extend={!!sub} />
+        {/* new plans are sold through Oen (next stage); the old TWDC subscription is closed */}
+        <p className="text-sm text-muted">{t("subMoving")}</p>
+        <Link href="/pricing#plans" className="btn-ghost">{t("seePlans")}</Link>
       </section>
 
       <section id="devices" className="card space-y-3 p-6">

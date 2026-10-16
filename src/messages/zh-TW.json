@@ -419,7 +419,7 @@
     }
   },
   "admin": {
-    "title": "Skill Hub 審核",
+    "title": "管理後台",
     "pending": "待審核",
     "approved": "已上架",
     "empty": "沒有項目。",
@@ -436,7 +436,11 @@
       "approved": "已上架技能",
       "tools": "工具審核",
       "reports": "檢舉",
-      "storage": "Boltchain 儲存"
+      "storage": "Boltchain 儲存",
+      "users": "用戶與角色",
+      "prices": "模型定價",
+      "plans": "訂閱方案",
+      "audit": "操作紀錄"
     },
     "st": {
       "enabled": "啟用",
@@ -452,7 +456,90 @@
     },
     "takedown": "下架",
     "dismiss": "不處理",
-    "confirmTakedown": "下架後分享頁立即失效，內容金鑰會被銷毀。確定？"
+    "confirmTakedown": "下架後分享頁立即失效，內容金鑰會被銷毀。確定？",
+    "claim": {
+      "title": "認領網站擁有者",
+      "help": "這個網站還沒有超級管理者。伺服器啟動時會在 log 印出一次性認領碼，輸入後你的帳號會成為超級管理者；每次重新啟動都會換一組新碼。",
+      "ownerAccount": "擁有者由 OWNER_ACCOUNT 指定：該帳號第一次登入時自動成為超級管理者。",
+      "code": "認領碼",
+      "submit": "認領"
+    },
+    "users": {
+      "helpSuper": "你是超級管理者：可以授予或撤銷管理者，也可以把超級管理者移轉給其他人（移轉後你成為管理者）。",
+      "helpAdmin": "只有超級管理者能變更角色。",
+      "staff": "管理團隊",
+      "users": "用戶",
+      "search": "搜尋帳號地址、代稱或發布者 ID",
+      "searchGo": "搜尋",
+      "none": "沒有符合的用戶。",
+      "lastLogin": "最後登入",
+      "you": "你",
+      "grant": "授予管理者",
+      "revoke": "撤銷管理者",
+      "transfer": "移轉超級管理者",
+      "transferConfirm": "輸入對方的帳號地址確認：",
+      "transferGo": "確認移轉",
+      "cancel": "取消",
+      "role": {
+        "USER": "用戶",
+        "ADMIN": "管理者",
+        "SUPERADMIN": "超級管理者"
+      }
+    },
+    "prices": {
+      "formulaTitle": "公告價公式",
+      "formula": "公告價（TWD / 每 100 萬 tokens）= 原廠 USD × 基準匯率 {fx} × {buffer}。定價頁、委託表單與訂閱額度都讀這張表。",
+      "fx": "基準匯率（USD→TWD）",
+      "buffer": "緩衝係數",
+      "effective": "生效時間（留空 = 立即）",
+      "applyAll": "套用到所有模型",
+      "settingsConfirm": "所有模型都會以新的匯率與緩衝係數產生新價格（保留歷史）。確定？",
+      "scheduled": "排定生效",
+      "withdrawn": "下架",
+      "models": "模型價格",
+      "modelsHelp": "輸入原廠 USD 價格，下方即時顯示公告價。每次儲存都新增一筆歷史，不覆寫舊價格。",
+      "addModel": "新增模型",
+      "modelId": "模型 ID",
+      "label": "名稱",
+      "vendor": "供應商",
+      "enabled": "提供",
+      "sort": "排序",
+      "save": "儲存",
+      "add": "新增",
+      "saved": "已儲存",
+      "k": {
+        "input": "輸入",
+        "cacheRead": "快取讀取",
+        "cacheWrite": "快取寫入",
+        "output": "輸出"
+      }
+    },
+    "plans": {
+      "help": "輸入月費與倍率（月費 ÷ 最大成本），系統自動計算最大成本、6 小時（L6）與 7 天（L168）額度。倍率低於 1.5 無法儲存。",
+      "code": "代碼",
+      "name": "名稱",
+      "nameEn": "英文名稱",
+      "fee": "月費（TWD）",
+      "multiplier": "倍率",
+      "concurrency": "併發數",
+      "sort": "排序",
+      "active": "上架",
+      "maxCost": "30 天最大成本",
+      "formula": "L168 = 最大成本 ÷ 4.8，L6 = L168 ÷ 10；tokens 以最低價模型 {model} 換算（輸入：輸出 = 3：1）。",
+      "tooLow": "月費 ÷ 最大成本必須至少 {min}。",
+      "save": "儲存",
+      "add": "新增方案",
+      "addPlan": "新增方案",
+      "saved": "已儲存"
+    },
+    "audit": {
+      "empty": "還沒有紀錄。",
+      "when": "時間",
+      "who": "操作者",
+      "action": "動作",
+      "target": "對象",
+      "detail": "內容"
+    }
   },
   "hubApi": {
     "lead": "sinobee.ai Skill Hub 協定 v1，與 SinoBee 用戶端（sinobee skills search / install / publish / sync-revocations）相容。",
@@ -629,7 +716,7 @@
   },
   "pricing": {
     "title": "價格",
-    "lead": "委託任務依實際用量計費，沒有月費也沒有最低消費；訂閱可延長容器與成果的保存時間。",
+    "lead": "訂閱方案以 30 天為單位、不自動續訂，額度以 SinoBee.ai 公告的模型價格扣除；委託任務則依實際用量計費。",
     "formula": "計費公式",
     "charge": "費用",
     "tokens": "模型 Token",
@@ -639,11 +726,9 @@
     "tokensBody": "SinoBee 逐次記錄每個模型呼叫的 tokens 與費用（依各家公告價格，含快取折扣）。",
     "vmBody": "執行期間依秒計算：每小時 {price} TWD（每個任務 {cpus} vCPU / {mem} GB 記憶體）。",
     "s3Body": "成果儲存：每 GB 每月 {gb} TWD，依保存天數按比例計算；每千次寫入 {put} TWD、讀取 {get} TWD。",
-    "modelTable": "模型價格（每 100 萬 tokens）",
+    "modelTable": "模型公告價（TWD / 每 100 萬 tokens）",
     "model": "模型",
-    "ourIn": "輸入（TWD）",
-    "ourOut": "輸出（TWD）",
-    "modelNote": "價格為每 100 萬 tokens；實際依 SinoBee 逐次記錄的用量計費，快取命中的 tokens 另有折扣。",
+    "modelNote": "公告價 = 原廠 USD 價格 × 基準匯率 {fx} × {buffer}。訂閱額度依公告價扣除；價格調整會先在此公告並註明生效日期。",
     "free": "未訂閱",
     "freeA": "每個用戶有獨立的 Docker 容器，任務完成後保留 {days} 天。",
     "freeB": "成果在任務完成後 {days} 天內可下載，逾期刪除且無法再下載。",
@@ -653,14 +738,26 @@
     "subA": "訂閱期間保留你的容器（記憶、技能、瀏覽器登入狀態延續）。",
     "subB": "成果保留 {days} 天。",
     "subC": "委託任務費用計算方式不變。",
-    "subscribe": "訂閱",
     "budgetTitle": "預算與補充經費",
     "budget": {
       "0": "提交委託時設定預算並以 CAFECA 支付；執行期間每 15 秒計算一次費用，實際收取金額不會超過預算。",
       "1": "預算用完但任務未完成時，平台會整理當下成果並透過 CAFECA 通知你補充經費或結案。",
       "2": "補充經費後會在同一個容器、同一個工作階段從中斷處繼續執行。",
       "3": "成果下載期限內未補充也未結案，系統會自動結案。"
-    }
+    },
+    "plans": "訂閱方案",
+    "planL6": "每 6 小時額度：約 {tokens} tokens",
+    "planL168": "每 7 天額度：約 {tokens} tokens",
+    "planConcurrency": "同時執行 {n} 個請求",
+    "planNoRenew": "不自動續訂，延長時天數累加",
+    "planSoon": "Oen 付款即將開放",
+    "planNote": "額度為滾動計算；tokens 數以目前最低價模型 {model} 換算（輸入：輸出 = 3：1），改用其他模型時可用量會較少。",
+    "pIn": "輸入",
+    "pCacheRead": "快取讀取",
+    "pCacheWrite": "快取寫入",
+    "pOut": "輸出",
+    "tasksTitle": "委託任務",
+    "seePlans": "查看訂閱方案"
   },
   "account": {
     "title": "帳戶設定",
@@ -726,7 +823,9 @@
       "LOGIN": "需登入",
       "PUBLIC": "公開"
     },
-    "shareViews": "{n} 次瀏覽"
+    "shareViews": "{n} 次瀏覽",
+    "subMoving": "新的訂閱方案將改以 Oen 新臺幣付款，開放前暫停購買；已購買的訂閱照常到期。",
+    "seePlans": "查看訂閱方案"
   },
   "notifications": {
     "title": "通知",

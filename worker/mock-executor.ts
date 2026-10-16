@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import * as tar from "tar";
-import { modelById } from "../src/lib/pricing";
+import { modelCatalog } from "../src/lib/models";
 import type { Executor, RunContext, RunResult, TaskWithRefs, Usage } from "./types";
 
 /**
@@ -17,7 +17,7 @@ export class MockExecutor implements Executor {
     const steps = Number(process.env.MOCK_STEPS ?? 8);
     const perStepIn = Number(process.env.MOCK_INPUT_TOKENS_PER_STEP ?? 40_000);
     const perStepOut = Number(process.env.MOCK_OUTPUT_TOKENS_PER_STEP ?? 4_000);
-    const m = modelById(task.model);
+    const m = (await modelCatalog()).get(task.model)?.usd;
     const usage = progress.get(task.id) ?? { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), tokenCostUsd: Number(task.tokenCostUsd) };
     const start = Date.now();
     await ctx.log(`[mock runner] ${ctx.continuation ? "continuing" : "starting"} simulated run on ${task.model}`);

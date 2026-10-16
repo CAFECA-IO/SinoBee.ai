@@ -419,7 +419,7 @@
     }
   },
   "admin": {
-    "title": "Skill Hub review",
+    "title": "Admin",
     "pending": "Pending",
     "approved": "Listed",
     "empty": "Nothing here.",
@@ -436,7 +436,11 @@
       "approved": "Listed skills",
       "tools": "Tool reviews",
       "reports": "Reports",
-      "storage": "Boltchain storage"
+      "storage": "Boltchain storage",
+      "users": "Users & roles",
+      "prices": "Model prices",
+      "plans": "Plans",
+      "audit": "Audit log"
     },
     "st": {
       "enabled": "Enabled",
@@ -452,7 +456,90 @@
     },
     "takedown": "Take down",
     "dismiss": "Dismiss",
-    "confirmTakedown": "The share page stops working at once and its content key is destroyed. Continue?"
+    "confirmTakedown": "The share page stops working at once and its content key is destroyed. Continue?",
+    "claim": {
+      "title": "Claim site ownership",
+      "help": "This site has no super admin yet. The server prints a one-time claim code in its log at startup; enter it and your account becomes the super admin. Every restart prints a new code.",
+      "ownerAccount": "The owner is set by OWNER_ACCOUNT: that account becomes super admin on its first sign-in.",
+      "code": "Claim code",
+      "submit": "Claim"
+    },
+    "users": {
+      "helpSuper": "You are the super admin: grant or revoke admins, or transfer super admin to someone else (you then become an admin).",
+      "helpAdmin": "Only the super admin can change roles.",
+      "staff": "Team",
+      "users": "Users",
+      "search": "Search account, handle or publisher id",
+      "searchGo": "Search",
+      "none": "No matching users.",
+      "lastLogin": "last sign-in",
+      "you": "you",
+      "grant": "Make admin",
+      "revoke": "Revoke admin",
+      "transfer": "Transfer super admin",
+      "transferConfirm": "Type their account address to confirm:",
+      "transferGo": "Transfer",
+      "cancel": "Cancel",
+      "role": {
+        "USER": "User",
+        "ADMIN": "Admin",
+        "SUPERADMIN": "Super admin"
+      }
+    },
+    "prices": {
+      "formulaTitle": "Published price formula",
+      "formula": "Published price (TWD per 1M tokens) = vendor USD × base FX rate {fx} × {buffer}. The pricing page, the task form and subscription quotas all read this table.",
+      "fx": "Base FX rate (USD→TWD)",
+      "buffer": "Buffer",
+      "effective": "Effective (empty = now)",
+      "applyAll": "Apply to all models",
+      "settingsConfirm": "Every model gets a new price row at the new rate and buffer (history is kept). Continue?",
+      "scheduled": "Scheduled",
+      "withdrawn": "withdrawn",
+      "models": "Model prices",
+      "modelsHelp": "Enter vendor USD prices; the published price updates live. Every save adds a history row instead of overwriting.",
+      "addModel": "Add a model",
+      "modelId": "Model id",
+      "label": "Name",
+      "vendor": "Vendor",
+      "enabled": "Offered",
+      "sort": "Order",
+      "save": "Save",
+      "add": "Add",
+      "saved": "Saved",
+      "k": {
+        "input": "Input",
+        "cacheRead": "Cache read",
+        "cacheWrite": "Cache write",
+        "output": "Output"
+      }
+    },
+    "plans": {
+      "help": "Enter the fee and the multiplier (fee ÷ max cost); max cost and the 6-hour (L6) and 7-day (L168) limits are computed. A multiplier under 1.5 cannot be saved.",
+      "code": "Code",
+      "name": "Name (zh)",
+      "nameEn": "Name (en)",
+      "fee": "Fee (TWD)",
+      "multiplier": "Multiplier",
+      "concurrency": "Concurrency",
+      "sort": "Order",
+      "active": "Active",
+      "maxCost": "Max cost per 30 days",
+      "formula": "L168 = max cost ÷ 4.8, L6 = L168 ÷ 10; tokens use the cheapest model, {model} (input : output = 3 : 1).",
+      "tooLow": "Fee ÷ max cost must be at least {min}.",
+      "save": "Save",
+      "add": "Add plan",
+      "addPlan": "New plan",
+      "saved": "Saved"
+    },
+    "audit": {
+      "empty": "Nothing logged yet.",
+      "when": "When",
+      "who": "Who",
+      "action": "Action",
+      "target": "Target",
+      "detail": "Detail"
+    }
   },
   "hubApi": {
     "lead": "The sinobee.ai Skill Hub protocol v1, compatible with the SinoBee client (sinobee skills search / install / publish / sync-revocations).",
@@ -629,7 +716,7 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Commissions are billed on actual usage — no monthly fee, no minimum. A subscription extends how long containers and results are kept.",
+    "lead": "Subscriptions run in 30-day periods without auto-renewal and draw down at the model prices published here; commissioned tasks are billed on actual usage.",
     "formula": "How we charge",
     "charge": "Charge",
     "tokens": "Model tokens",
@@ -639,11 +726,9 @@
     "tokensBody": "SinoBee records tokens and cost for every model call (vendor list prices, cache discounts included).",
     "vmBody": "Per second while running: {price} TWD per hour ({cpus} vCPU / {mem} GB RAM per task).",
     "s3Body": "Result storage: {gb} TWD per GB-month, prorated by retention; {put} TWD per 1,000 writes and {get} TWD per 1,000 reads.",
-    "modelTable": "Model prices (per 1M tokens)",
+    "modelTable": "Published model prices (TWD per 1M tokens)",
     "model": "Model",
-    "ourIn": "Input (TWD)",
-    "ourOut": "Output (TWD)",
-    "modelNote": "Prices are per 1M tokens; billing follows the usage SinoBee records for every call, with a discount for cached tokens.",
+    "modelNote": "Published price = vendor USD price × base FX rate {fx} × {buffer}. Subscription quota is drawn down at these prices; changes are announced here with their effective date.",
     "free": "Without subscription",
     "freeA": "Your own Docker container, kept {days} days after a task finishes.",
     "freeB": "Results downloadable for {days} days after completion, then deleted for good.",
@@ -653,14 +738,26 @@
     "subA": "Your container is kept while subscribed (memory, skills and browser logins persist).",
     "subB": "Results kept {days} days.",
     "subC": "Commission pricing stays the same.",
-    "subscribe": "Subscribe",
     "budgetTitle": "Budgets and top-ups",
     "budget": {
       "0": "You set a budget and pay with CAFECA when you submit; cost is metered every 15 seconds and the charge never exceeds the budget.",
       "1": "If the budget runs out first, the platform packages the current results and CAFECA asks you to add funds or close the task.",
       "2": "After a top-up the run continues where it stopped, in the same container and session.",
       "3": "Without a top-up or close within the download window, the task closes automatically."
-    }
+    },
+    "plans": "Subscription plans",
+    "planL6": "Every 6 hours: about {tokens} tokens",
+    "planL168": "Every 7 days: about {tokens} tokens",
+    "planConcurrency": "{n} requests at a time",
+    "planNoRenew": "No auto-renewal; extensions add up",
+    "planSoon": "Oen payments coming soon",
+    "planNote": "Limits are rolling windows. Token counts use the cheapest model, {model} (input : output = 3 : 1); other models give fewer tokens.",
+    "pIn": "Input",
+    "pCacheRead": "Cache read",
+    "pCacheWrite": "Cache write",
+    "pOut": "Output",
+    "tasksTitle": "Commissioned tasks",
+    "seePlans": "See plans"
   },
   "account": {
     "title": "Account",
@@ -726,7 +823,9 @@
       "LOGIN": "Sign-in required",
       "PUBLIC": "Public"
     },
-    "shareViews": "{n} views"
+    "shareViews": "{n} views",
+    "subMoving": "New plans will be paid through Oen in TWD; purchases are paused until then. Existing subscriptions run until they end.",
+    "seePlans": "See plans"
   },
   "notifications": {
     "title": "Notifications",

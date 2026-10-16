@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
-import { MODELS, modelById } from "@/lib/pricing";
+import { modelCatalog, currentModels } from "@/lib/models";
 import { EVAL_METHODS } from "@/lib/tasks/service";
 import { ReportRow, scoreColor } from "@/components/report-row";
 
@@ -15,6 +15,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function BenchmarksPage({ params }: { params: Promise<{ locale: string }> }) {
   setRequestLocale((await params).locale);
   const t = await getTranslations("bench");
+  const catalog = await modelCatalog();
+  const labels = Object.fromEntries([...catalog.values()].map((m) => [m.modelId, m.label]));
+  const offered = (await currentModels()).length;
   const [byModel, byModelMethod, skillReports, recent] = await Promise.all([
     db.evaluationReport.groupBy({ by: ["model"], where: { skillVersionId: null }, _avg: { score: true }, _count: true, _max: { evaluatedAt: true } }),
     db.evaluationReport.groupBy({ by: ["model", "method"], where: { skillVersionId: null }, _avg: { score: true } }),
@@ -71,8 +74,8 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
                 <tr key={r.model} className="border-t border-line">
                   <td className="p-3 text-muted">{i + 1}</td>
                   <td className="p-3 font-medium">
-                    {modelById(r.model)?.label ?? r.model}
-                    <div className="text-xs text-muted">{modelById(r.model)?.vendor}</div>
+                    {catalog.get(r.model)?.label ?? r.model}
+                    <div className="text-xs text-muted">{catalog.get(r.model)?.vendor}</div>
                   </td>
                   <td className={`p-3 text-lg font-extrabold ${scoreColor(r._avg.score ?? 0)}`}>{r._avg.score?.toFixed(1)}</td>
                   {EVAL_METHODS.map((m) => {
@@ -96,7 +99,7 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted">{t("modelsNote", { n: MODELS.length })}</p>
+        <p className="text-xs text-muted">{t("modelsNote", { n: offered })}</p>
       </section>
 
       {bySkill.length > 0 && (
@@ -118,7 +121,7 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
         <h2 className="h2">{t("recent")}</h2>
         <div className="card divide-y divide-line">
           {recent.map((r) => (
-            <ReportRow key={r.id} r={r} />
+            <ReportRow key={r.id} r={r} models={labels} />
           ))}
           {recent.length === 0 && <p className="p-8 text-center text-muted">{t("empty")}</p>}
         </div>

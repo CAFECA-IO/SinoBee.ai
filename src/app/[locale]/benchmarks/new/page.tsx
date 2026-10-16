@@ -24,7 +24,7 @@ export default async function NewEvaluationPage({ params, searchParams }: { para
       <h1 className="h1">{t("newTitle")}</h1>
       <p className="mt-2 max-w-3xl text-muted">{t("newLead")}</p>
       <div className="mt-10">
-        <TaskForm kind="EVALUATION" models={modelsForClient()} pricing={pricingForClient()} skill={skill} evalMethods={EVAL_METHODS} />
+        <TaskForm kind="EVALUATION" models={await modelsForClient()} pricing={pricingForClient()} skill={skill} evalMethods={EVAL_METHODS} />
       </div>
     </div>
   );

@@ -14,7 +14,12 @@ export const config = {
   /** Optional webhook used to push notifications to users through CAFECA */
   cafecaNotifyUrl: process.env.CAFECA_NOTIFY_URL || undefined,
   cafecaNotifyToken: process.env.CAFECA_NOTIFY_TOKEN || undefined,
-  /** Accounts (lowercase addresses) that get admin rights (skill review, revocations) */
+  /**
+   * Site owner (CAFECA account, lowercase). Its first sign-in makes it SUPERADMIN. When empty, a one-time claim code
+   * is printed in the server log at startup instead (see src/lib/roles.ts).
+   */
+  ownerAccount: (process.env.OWNER_ACCOUNT ?? "").trim().toLowerCase() || undefined,
+  /** Accounts that start as ADMIN when they first sign in (later role changes in /admin are never overwritten) */
   adminAccounts: list(process.env.ADMIN_ACCOUNTS).map((a) => a.toLowerCase()),
 
   payments: {

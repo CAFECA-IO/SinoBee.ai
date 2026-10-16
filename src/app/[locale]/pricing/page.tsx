@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { config } from "@/lib/config";
-import { MODELS } from "@/lib/pricing";
-import { publicPrices, toTwd } from "@/lib/public-config";
+import { publicPrices } from "@/lib/public-config";
+import { cheapestBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
+import { listPlans } from "@/lib/plans";
+import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { Link } from "@/i18n/navigation";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -11,9 +13,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 export default async function PricingPage({ params }: { params: Promise<{ locale: string }> }) {
-  setRequestLocale((await params).locale);
+  const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations("pricing");
   const p = publicPrices();
+  // the same rows the admin backend edits (ModelPrice / Plan)
+  const [models, plans, cheap, fx] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), cheapestBlended(), pricingSettings()]);
+  const tok = (twd: number) => (cheap ? formatTokens(quotaTokens(twd, cheap.blendedTwd), locale) : "—");
   return (
     <div className="container-x max-w-5xl space-y-12 py-12">
       <header>
@@ -21,6 +27,63 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         <p className="mt-3 max-w-3xl text-lg text-muted">{t("lead")}</p>
       </header>
 
+      <section id="plans" className="space-y-4">
+        <h2 className="h2">{t("plans")}</h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {plans.map((pl) => (
+            <div key={pl.id} className="card flex flex-col gap-3 p-6" data-plan={pl.code}>
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="h3">{locale.startsWith("zh") ? pl.name : pl.nameEn}</h3>
+                <div>
+                  <span className="text-2xl font-bold" data-fee>NT${pl.feeTwd.toLocaleString("en-US")}</span>
+                  <span className="text-sm text-muted"> / {pl.days} {t("days")}</span>
+                </div>
+              </div>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
+                <li>{t("planL6", { tokens: tok(pl.l6Twd) })}</li>
+                <li>{t("planL168", { tokens: tok(pl.l168Twd) })}</li>
+                <li>{t("planConcurrency", { n: pl.concurrency })}</li>
+                <li>{t("planNoRenew")}</li>
+              </ul>
+              <button type="button" className="btn-ghost mt-auto" disabled aria-disabled="true">{t("planSoon")}</button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted">{cheap ? t("planNote", { model: cheap.model.label }) : null}</p>
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="h2">{t("modelTable")}</h2>
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm" id="model-prices">
+            <thead className="text-left text-muted">
+              <tr>
+                <th className="p-3">{t("model")}</th>
+                <th className="p-3 text-right">{t("pIn")}</th>
+                <th className="p-3 text-right">{t("pCacheRead")}</th>
+                <th className="p-3 text-right">{t("pCacheWrite")}</th>
+                <th className="p-3 text-right">{t("pOut")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.modelId} className="border-t border-line" data-model={m.modelId}>
+                  <td className="p-3">
+                    {m.label} <span className="text-xs text-muted">{m.vendor}</span>
+                  </td>
+                  <td className="p-3 text-right font-mono">{formatPrice(m.twd.input)}</td>
+                  <td className="p-3 text-right font-mono">{formatPrice(m.twd.cacheRead)}</td>
+                  <td className="p-3 text-right font-mono">{formatPrice(m.twd.cacheWrite)}</td>
+                  <td className="p-3 text-right font-mono">{formatPrice(m.twd.output)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted">{t("modelNote", { fx: fx.fx, buffer: fx.buffer })}</p>
+      </section>
+
+      <h2 className="h2">{t("tasksTitle")}</h2>
       <section className="card p-8 text-center">
         <div className="text-sm font-semibold uppercase tracking-wide text-muted">{t("formula")}</div>
         <div className="mt-4 font-mono text-lg sm:text-2xl">
@@ -44,32 +107,6 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="h2">{t("modelTable")}</h2>
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead className="text-left text-muted">
-              <tr>
-                <th className="p-3">{t("model")}</th>
-                <th className="p-3">{t("ourIn")}</th>
-                <th className="p-3">{t("ourOut")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MODELS.map((m) => (
-                <tr key={m.id} className="border-t border-line">
-                  <td className="p-3">
-                    {m.label} <span className="text-xs text-muted">{m.vendor}</span>
-                  </td>
-                  <td className="p-3 font-mono">{toTwd(m.input).toFixed(2)}</td>
-                  <td className="p-3 font-mono">{toTwd(m.output).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-muted">{t("modelNote")}</p>
-      </section>
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="card p-6">
@@ -82,15 +119,14 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         </div>
         <div className="card border-accent p-6">
           <h2 className="h3">
-            {t("sub")} <span className="text-accent">{config.subscription.priceTwdc} TWD</span>
-            <span className="text-sm text-muted"> / {config.subscription.days} {t("days")}</span>
+            {t("sub")}
           </h2>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted">
             <li>{t("subA")}</li>
             <li>{t("subB", { days: config.retention.subscriberDays })}</li>
             <li>{t("subC")}</li>
           </ul>
-          <Link href="/account#subscription" className="btn-primary mt-5">{t("subscribe")}</Link>
+          <Link href="/pricing#plans" className="btn-ghost mt-5">{t("seePlans")}</Link>
         </div>
       </section>
 

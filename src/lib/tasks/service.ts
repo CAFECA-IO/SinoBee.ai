@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { HttpError } from "@/lib/errors";
-import { modelById } from "@/lib/pricing";
+import { offeredModel } from "@/lib/models";
 import { notify } from "@/lib/notify";
 import { addDays, resultsRetentionDays } from "@/lib/retention";
 import { z } from "zod";
@@ -12,7 +12,7 @@ export const TaskInput = z.object({
   kind: z.enum(["TASK", "EVALUATION"]).default("TASK"),
   title: z.string().trim().min(3).max(120),
   prompt: z.string().trim().min(10).max(20_000),
-  model: z.string().refine((m) => !!modelById(m), "unsupported model"),
+  model: z.string().min(3).max(200),
   skillVersionId: z.string().optional().nullable(),
   isPublic: z.boolean().default(false),
   budget: z.coerce.number().positive(),
@@ -21,6 +21,7 @@ export const TaskInput = z.object({
 });
 
 export async function createTask(userId: string, input: z.infer<typeof TaskInput>) {
+  if (!(await offeredModel(input.model))) throw new HttpError(400, "unsupported model");
   if (input.budget < config.payments.minTaskBudget) throw new HttpError(400, `minimum budget is ${config.payments.minTaskBudget} TWD`);
   if (input.skillVersionId) {
     const sv = await db.skillVersion.findUnique({ where: { id: input.skillVersionId } });
