@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db, icontains } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
+import { OFFICIAL, OFFICIAL_PUBLISHER, isOfficialSkill, skillTag, type OfficialName } from "@/lib/skills/official";
 import { CopyButton } from "@/components/copy-button";
 import { Icon, type IconName } from "@/components/icon";
 import type { Prisma } from "@/generated/prisma/client";
@@ -14,11 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 const PAGE = 24;
-const OFFICIAL_PUBLISHER = "cafeca";
-/** Skills bundled with SinoBee and published by the official publisher (prisma/seed-skills) */
-const OFFICIAL = ["ai-video-production", "memory-management", "database-analysis", "web-research", "browser-form-filling",
-  "desktop-automation", "code-repo-explainer", "skill-authoring"] as const;
-const FEATURED: { name: (typeof OFFICIAL)[number]; icon: IconName }[] = [
+const FEATURED: { name: OfficialName; icon: IconName }[] = [
   { name: "ai-video-production", icon: "video" },
   { name: "memory-management", icon: "brain" },
   { name: "database-analysis", icon: "database" },
@@ -52,13 +49,14 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
     ...LISTED,
     ...(q ? { OR: [{ name: icontains(q) }, { description: icontains(q) }] } : {}),
     ...(sp.tag ? { tags: { some: { tag: sp.tag } } } : {}),
+    ...(sp.official ? { name: { in: [...OFFICIAL] } } : {}),
     ...(sp.verified || sp.official
       ? { publisher: { ...(sp.verified ? { publisherVerified: true } : {}), ...(sp.official ? { publisher: OFFICIAL_PUBLISHER } : {}) } }
       : {}),
   };
   const [total, skills, tagCounts, all, publishers] = await Promise.all([
     db.skill.count({ where }),
-    db.skill.findMany({ where, include: { publisher: true }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
+    db.skill.findMany({ where, include: { publisher: true, versions: { where: { status: "APPROVED" }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
     db.skillTag.groupBy({ by: ["tag"], _count: { tag: true }, orderBy: { _count: { tag: "desc" } }, take: 18 }),
     db.skill.aggregate({ where: LISTED, _count: { _all: true }, _sum: { downloads: true } }),
     db.skill.groupBy({ by: ["publisherId"], where: LISTED }),
@@ -71,8 +69,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
     const s = p.toString();
     return s ? `/skills?${s}` : "/skills";
   };
-  const isOfficial = (s: (typeof skills)[number]) =>
-    s.publisher.publisher === OFFICIAL_PUBLISHER && (OFFICIAL as readonly string[]).includes(s.name);
+  const isOfficial = (s: (typeof skills)[number]) => isOfficialSkill(s.publisher.publisher, s.name);
   const filtered = !!(q || sp.tag || sp.verified || sp.official);
   const pages = Math.ceil(total / PAGE);
   const stats: [number, string][] = [
@@ -210,7 +207,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
             {skills.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {skills.map((s) => (
-                  <SkillCard key={s.id} skill={s} official={isOfficial(s)} officialLabel={t("officialBadge")}
+                  <SkillCard key={s.id} skill={s} tag={skillTag(s, s.versions[0])} tagLabel={(k) => t(`tag.${k}`)} anchored={s.versions[0]?.anchorCode ? t("anchoredMark") : undefined}
                     title={isOfficial(s) ? t(`official.${s.name}.title`) : undefined} />
                 ))}
               </div>

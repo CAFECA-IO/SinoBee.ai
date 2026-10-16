@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { SkillCard } from "@/components/skill-card";
+import { skillTag } from "@/lib/skills/official";
 import { CopyCode } from "@/components/copy-code";
 import { AGENT_URL } from "@/lib/links";
 import { Icon } from "@/components/icon";
@@ -40,10 +41,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("home");
+  const tSkills = await getTranslations("skills");
   const [skills, stats] = await Promise.all([
     db.skill.findMany({
       where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } },
-      include: { publisher: true },
+      include: { publisher: true, versions: { where: { status: "APPROVED" }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } },
       orderBy: [{ downloads: "desc" }, { ratingAvg: "desc" }],
       take: 6,
     }),
@@ -177,7 +179,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {skills.map((s) => (
-              <SkillCard key={s.id} skill={s} />
+              <SkillCard key={s.id} skill={s} tag={skillTag(s, s.versions[0])} tagLabel={(k) => tSkills(`tag.${k}`)} anchored={s.versions[0]?.anchorCode ? tSkills("anchoredMark") : undefined} />
             ))}
           </div>
         </section>

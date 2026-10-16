@@ -2,14 +2,22 @@ import { Link } from "@/i18n/navigation";
 import type { Skill, User } from "@/generated/prisma/client";
 import { Stars } from "./stars";
 import { Icon } from "./icon";
+import { BoltchainMark } from "./boltchain-badge";
+import { SkillTagBadge } from "./skill-tag";
+import type { SkillTag } from "@/lib/skills/official";
 
-/** title: a localized display name (official skills); official: published by the SinoBee team */
-export function SkillCard({ skill, title, official, officialLabel }: {
+/**
+ * title: a localized display name (official skills); tag + tagLabel: the 官方 / 已驗證 / 社群 badge (lib/skills/official);
+ * anchored: tooltip for the BOLTCHAIN mark, shown when the latest approved version has a Boltchain certificate
+ */
+export function SkillCard({ skill, title, tag, tagLabel, anchored }: {
   skill: Skill & { publisher: User };
   title?: string;
-  official?: boolean;
-  officialLabel?: string;
+  tag?: SkillTag;
+  tagLabel?: (tag: SkillTag) => string;
+  anchored?: string;
 }) {
+  const official = tag === "official";
   return (
     <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
       <div className="flex items-start gap-3">
@@ -29,7 +37,8 @@ export function SkillCard({ skill, title, official, officialLabel }: {
       <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-xs text-muted">
         <Stars value={skill.ratingAvg} count={skill.ratingCount} size="text-xs" />
         <span className="flex items-center gap-2">
-          {official && officialLabel && <span className="badge bg-accent-soft text-accent">{officialLabel}</span>}
+          {anchored && <BoltchainMark title={anchored} />}
+          {tag && tagLabel && <SkillTagBadge tag={tag} label={tagLabel(tag)} />}
           <span className="flex items-center gap-1"><Icon name="download" className="h-3.5 w-3.5" />{skill.downloads.toLocaleString()}</span>
         </span>
       </div>

@@ -370,11 +370,14 @@
     "apiDocs": "Hub API 文件",
     "prev": "上一頁",
     "next": "下一頁",
-    "officialBadge": "官方"
+    "anchoredMark": "最新版本的技能包與 SKILL.md 雜湊已在 Boltchain 存證",
+    "tag": {
+      "official": "官方",
+      "verified": "已驗證",
+      "community": "社群"
+    }
   },
   "skill": {
-    "trustVerified": "官方驗證",
-    "trustCommunity": "社群",
     "by": "發布者",
     "scan": "安全掃描",
     "versions": "版本",
