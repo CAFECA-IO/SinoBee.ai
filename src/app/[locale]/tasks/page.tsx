@@ -25,7 +25,7 @@ export default async function TasksPage({ params, searchParams }: { params: Prom
     ? []
     : await db.task.findMany({ where: { crowdfund: true, isPublic: true, status: { in: ["FUNDING", "CHARGING"] } }, include: { pledges: { where: { status: { in: ["ACTIVE", "CHARGED", "FAILED"] } }, select: { amountTwd: true } } }, orderBy: { deadlineAt: "asc" }, take: 50 });
   const tasks = await db.task.findMany({
-    where: mine ? { userId: me!.id } : { isPublic: true, kind: "TASK", status: { in: ["COMPLETED", "NEEDS_FUNDING", "RUNNING", "FAILED", "QUEUED", "UNFUNDED"] } },
+    where: mine ? { userId: me!.id } : { isPublic: true, kind: "TASK", status: { in: ["COMPLETED", "NEEDS_FUNDING", "RUNNING", "FAILED", "QUEUED", "UNFUNDED", "IN_REVIEW", "DISPUTED"] } },
     include: { user: true, votes: true, _count: { select: { votes: true } } },
     orderBy: { createdAt: "desc" },
     take: 100,

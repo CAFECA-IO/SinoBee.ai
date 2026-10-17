@@ -140,3 +140,29 @@ export function specMarkdown(title: string, description: string, s: Spec): strin
     .join("\n")
     .trim();
 }
+
+/** How many stretch goals (in spec order, cumulative amounts) the money collected beyond the goal pays for */
+export function unlockedStretch(spec: Pick<Spec, "stretch"> | null, goal: number, collected: number): number {
+  let extra = collected - goal;
+  let n = 0;
+  for (const s of spec?.stretch ?? []) {
+    if (extra < s.twd) break;
+    extra -= s.twd;
+    n++;
+  }
+  return n;
+}
+
+/** The agent's acceptance self-check (outputs/acceptance.json) */
+export type Acceptance = { criteria: { criterion: string; passed: boolean; evidence?: string }[]; summary?: string };
+
+export function normalizeAcceptance(v: unknown): Acceptance | null {
+  const o = (v && typeof v === "object" ? v : null) as Record<string, unknown> | null;
+  if (!o || !Array.isArray(o.criteria)) return null;
+  const criteria = o.criteria
+    .map((c) => (c && typeof c === "object" ? (c as Record<string, unknown>) : null))
+    .filter((c): c is Record<string, unknown> => !!c && typeof c.criterion === "string")
+    .slice(0, 20)
+    .map((c) => ({ criterion: String(c.criterion).slice(0, 500), passed: c.passed === true, evidence: typeof c.evidence === "string" ? c.evidence.slice(0, 1000) : undefined }));
+  return { criteria, summary: typeof o.summary === "string" ? o.summary.slice(0, 4000) : undefined };
+}

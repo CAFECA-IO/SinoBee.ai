@@ -176,7 +176,51 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
     },
   });
   if (r.count !== 1) throw new HttpError(409, "the proposal changed, reload the page");
+  await db.specRevision.create({ data: { taskId, version: 1, spec: spec as unknown as Prisma.InputJsonValue, note: "opened" } });
+  await db.task.update({ where: { id: taskId }, data: { specVersion: 1 } });
   await db.taskEvent.create({ data: { taskId, type: "funding.opened", message: `Crowdfunding opened: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate } } });
   await postStatus(taskId, `眾籌開始：目標 NT$${goal}，期限 ${input.durationDays} 天。Crowdfunding is open: goal NT$${goal}, ${input.durationDays} days.`);
+  return db.task.findUniqueOrThrow({ where: { id: taskId } });
+}
+
+// ───────────── revisions while funding ─────────────
+
+/**
+ * The proposer publishes a new spec version while the campaign is open. Backers are told and keep the right to
+ * withdraw for crowd.exitHours hours; nothing is charged before that (the deadline moves if needed). The goal does
+ * not change, so the new P90 estimate must still fit in it.
+ */
+export async function reviseSpec(userId: string, taskId: string, raw: unknown, note: string) {
+  const t = await db.task.findUnique({ where: { id: taskId } });
+  if (!t || t.userId !== userId || !t.crowdfund) throw new HttpError(404, "task not found");
+  if (t.status !== "FUNDING") throw new HttpError(400, "the spec can only be revised while the campaign is open");
+  const text = note.trim().slice(0, 2000);
+  if (!text) throw new HttpError(400, "describe what changed");
+  const spec = normalizeSpec(raw);
+  const gaps = specGaps(spec);
+  if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);
+  const min = minimumGoal(spec.estimate.p90Twd, Number(t.serviceFeeRate ?? 0));
+  if (min > (t.goalTwd ?? 0)) throw new HttpError(400, `the new estimate needs a goal of at least ${min} TWD; the goal cannot change after opening`);
+  const now = new Date();
+  const exitUntil = new Date(now.getTime() + config.crowd.exitHours * 3600_000);
+  const version = t.specVersion + 1;
+  const description = t.prompt.split("\n## Summary")[0].replace(/^# .*\n\n/, "");
+  await db.specRevision.create({ data: { taskId, version, spec: spec as unknown as Prisma.InputJsonValue, note: text } });
+  await db.task.update({
+    where: { id: taskId },
+    data: {
+      spec: spec as unknown as Prisma.InputJsonValue,
+      specVersion: version,
+      prompt: specMarkdown(t.title, description, spec),
+      exitUntil,
+      ...(t.deadlineAt && t.deadlineAt < exitUntil ? { deadlineAt: exitUntil } : {}),
+    },
+  });
+  await db.taskEvent.create({ data: { taskId, type: "spec.revised", message: `Spec revised to v${version}: ${text}`, data: { version } } });
+  await postStatus(
+    taskId,
+    `規格已修訂為第 ${version} 版：${text}\n${config.crowd.exitHours} 小時內不會請款，不同意的出資者可以撤回出資。The spec was revised to v${version}. Nothing is charged for ${config.crowd.exitHours} hours; backers who disagree can withdraw.`,
+    { notifyTitle: "規格已修訂 Spec revised", type: "crowd.revised" },
+  );
   return db.task.findUniqueOrThrow({ where: { id: taskId } });
 }

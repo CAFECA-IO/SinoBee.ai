@@ -22,7 +22,8 @@ import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
 import { sweepHolds } from "../src/lib/llm/quota";
 import { purgeNonces } from "../src/lib/device-sign";
-import { DockerExecutor, containerName, volumeName } from "./docker-executor";
+import { DockerExecutor, containerName, crowdContainerName, volumeName } from "./docker-executor";
+import { enterReview } from "../src/lib/crowd/review";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
 import { loadSettings } from "../src/lib/settings/store";
@@ -88,13 +89,15 @@ async function runTask(id: string) {
   const prevVmSeconds = task.vmSeconds;
   const prevS3 = Number(task.s3CostUsd.toString());
   const continuation = prevVmSeconds > 0;
-  await db.userContainer.upsert({
-    where: { userId: task.userId },
-    create: { userId: task.userId, containerName: containerName(task.userId), volumeName: volumeName(task.userId), status: "running", expiresAt: null },
-    update: { status: "running", lastActiveAt: new Date(), expiresAt: null },
-  });
-  await db.task.update({ where: { id }, data: { containerName: containerName(task.userId) } });
-  await event(id, "run.started", continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
+  // crowdfunded tasks get their own container (removed after settlement); others run in the requester's
+  if (!task.crowdfund)
+    await db.userContainer.upsert({
+      where: { userId: task.userId },
+      create: { userId: task.userId, containerName: containerName(task.userId), volumeName: volumeName(task.userId), status: "running", expiresAt: null },
+      update: { status: "running", lastActiveAt: new Date(), expiresAt: null },
+    });
+  await db.task.update({ where: { id }, data: { containerName: task.crowdfund ? crowdContainerName(task.id) : containerName(task.userId) } });
+  await event(id, "run.started", task.reworkNotes ? `Rework ${task.reworks} started with the backers' feedback` : continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
 
   const persistUsage = async (u: Usage, vmSeconds: number, s3Usd: number, extra: object = {}) => {
     const { vmUsd, tokenUsd, charge } = costs(task, u, vmSeconds, s3Usd);
@@ -183,6 +186,10 @@ async function runTask(id: string) {
       link: `/tasks/${id}`,
       data: { taskId: id, charged: chargedStr, budget: fmtTwd(budget), actions: ["top_up", "close"] },
     });
+  } else if (result.outcome === "completed" && task.crowdfund) {
+    // crowdfunded: the backers review the result against the acceptance criteria before it counts as completed
+    await event(id, "completed", `Run finished. Charged ${chargedStr} TWD.`);
+    await enterReview(id, result.acceptance);
   } else if (result.outcome === "completed") {
     let reportOk = true;
     if (task.kind === "EVALUATION") reportOk = await saveEvaluation(task, result.evaluation, result.summary);
@@ -214,10 +221,11 @@ async function runTask(id: string) {
     });
   }
 
-  await db.userContainer.update({
-    where: { userId: task.userId },
-    data: { status: "idle", lastActiveAt: new Date(), expiresAt: await containerExpiry(task.userId) },
-  });
+  if (!task.crowdfund)
+    await db.userContainer.update({
+      where: { userId: task.userId },
+      data: { status: "idle", lastActiveAt: new Date(), expiresAt: await containerExpiry(task.userId) },
+    });
   if (task.crowdfund) await settleTask(id).catch((e) => log("settle error", id, e));
 }
 
@@ -259,7 +267,8 @@ async function cleanup() {
     await db.artifact.update({ where: { id: a.id }, data: { deletedAt: now } });
   }
   // 2. funding requests nobody answered → close with partial results
-  const stale = await db.task.findMany({ where: { status: "NEEDS_FUNDING", fundingRequestedAt: { lt: addDays(now, -config.retention.freeDays) } } });
+  // (a crowdfunded task with an open top-up round waits for the round instead)
+  const stale = await db.task.findMany({ where: { status: "NEEDS_FUNDING", topupGoalTwd: null, fundingRequestedAt: { lt: addDays(now, -config.retention.freeDays) } } });
   for (const t of stale) {
     await db.task.update({ where: { id: t.id }, data: { status: "COMPLETED", finishedAt: now, fundingRequestedAt: null } });
     await event(t.id, "closed", "Closed automatically: no top-up within the retention window");
@@ -279,6 +288,16 @@ async function cleanup() {
     await executor.removeUserContainer(c.userId);
     await db.userContainer.delete({ where: { userId: c.userId } });
     log("removed container", c.containerName);
+  }
+  // 3b. crowdfunded tasks that are over (settled, or never funded): remove their own container
+  const overCrowd = await db.task.findMany({
+    where: { crowdfund: true, containerName: { startsWith: "sb-c-" }, status: { in: ["COMPLETED", "FAILED", "CANCELLED", "UNFUNDED"] }, OR: [{ settledAt: { not: null } }, { fundedAt: null }] },
+    select: { id: true },
+    take: 50,
+  });
+  for (const t of overCrowd) {
+    await executor.removeTaskContainer(t.id);
+    await db.task.update({ where: { id: t.id }, data: { containerName: null } });
   }
   // 4. runs whose worker died → requeue (continues in the same session)
   const dead = await db.task.updateMany({

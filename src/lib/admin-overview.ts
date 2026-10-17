@@ -6,13 +6,14 @@ import { SETTINGS } from "./settings/registry";
 
 /** Things an admin should look at, for the sidebar badges and the overview page */
 export async function adminCounts() {
-  const [skills, tools, reports, payments] = await Promise.all([
+  const [skills, tools, reports, payments, disputes] = await Promise.all([
     db.skillVersion.count({ where: { status: "PENDING_REVIEW" } }),
     db.toolVersion.count({ where: { status: "PENDING_REVIEW" } }),
     db.report.count({ where: { resolvedAt: null } }),
     db.payment.count({ where: { status: "PENDING", provider: { not: "TWDC" }, createdAt: { lt: new Date(Date.now() - 15 * 60_000) } } }),
+    db.task.count({ where: { status: "DISPUTED" } }),
   ]);
-  return { pending: skills, tools, reports, payments, settings: settingsHealth().filter((c) => !c.ok && c.level === "error").length };
+  return { pending: skills, tools, reports, payments, disputes, settings: settingsHealth().filter((c) => !c.ok && c.level === "error").length };
 }
 
 export type HealthCheck = { id: string; ok: boolean; level: "error" | "warn"; group: string; keys: string[]; detail?: string };

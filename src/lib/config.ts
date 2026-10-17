@@ -270,6 +270,21 @@ export const config = {
     get resultsDays() {
       return svNum("crowd.resultsDays");
     },
+    get reviewDays() {
+      return svNum("crowd.reviewDays");
+    },
+    get approveShare() {
+      return svNum("crowd.approveShare");
+    },
+    get maxReworks() {
+      return svNum("crowd.maxReworks");
+    },
+    get exitHours() {
+      return svNum("crowd.exitHours");
+    },
+    get topupDays() {
+      return svNum("crowd.topupDays");
+    },
   },
 
   /** Model relay for subscribers (/api/v1/llm/*); platform keys are settings (apiKeys.*) */

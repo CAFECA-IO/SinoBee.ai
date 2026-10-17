@@ -144,6 +144,8 @@ The meter runs every 15 s; when the charge reaches the budget the agent is stopp
 
 `src/lib/crowd/` — see the header of `lifecycle.ts` for the state machine (DRAFT → FUNDING → CHARGING → QUEUED … → settled, or UNFUNDED). The worker runs `crowdTick` every minute. Cards are saved through Oen's token checkout (`POST /checkout-token`; the token arrives only in the unsigned webhook with `purpose: "token"` and is accepted once, for a pending binding) and charged with `POST /token/transactions` (Idempotency-Key, one charge per backer and task). Settings: /admin → Settings → Crowdfunding. With `PAYMENT_MODE=mock` the card binding page and charges are simulated (`/pay/mock-card/:id`).
 
+After a crowdfunded run the backers review it (`review.ts`): the agent's `outputs/acceptance.json` self-check is shown, votes are weighted by paid shares for `crowd.reviewDays`, a rejection queues a rework with the backers' reasons (`crowd.maxReworks`), and what is still rejected goes to /admin → Disputes. While funding, the proposer can publish spec revisions (charging waits `crowd.exitHours` so backers can withdraw); money beyond the goal unlocks stretch goals; when the budget runs out the proposer can open an all-or-nothing top-up round (`crowd.topupDays`). Backer comments marked "reference" reach the agent as `inputs/backer-notes.md` (untrusted data). Crowdfunded tasks run in their own container (`sb-c-<taskId>`), removed after settlement.
+
 ### Skill Hub
 
 Implements `docs/SKILL_HUB.md` §5 of SinoBee. Verified end-to-end with the real SinoBee CLI: `sinobee skills search`, `install hub:<publisher>/<name>` (trust `verified` after review + signature + verified publisher, `community` otherwise), `publish` (Bearer token from `/account`), `sync-revocations`.

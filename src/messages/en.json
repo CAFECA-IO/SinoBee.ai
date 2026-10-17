@@ -275,7 +275,9 @@
     "DRAFT": "Draft",
     "FUNDING": "Crowdfunding",
     "CHARGING": "Charging",
-    "UNFUNDED": "Not funded"
+    "UNFUNDED": "Not funded",
+    "IN_REVIEW": "In review",
+    "DISPUTED": "Disputed"
   },
   "comments": {
     "title": "Discussion",
@@ -464,7 +466,8 @@
       "audit": "Audit log",
       "payments": "Payments & refunds",
       "settings": "Settings",
-      "overview": "Overview"
+      "overview": "Overview",
+      "disputes": "Crowdfunding disputes"
     },
     "st": {
       "enabled": "Enabled",
@@ -1344,7 +1347,9 @@
       "returned": "{n} returned",
       "pointsShort": "Points",
       "back": "Back this task",
-      "retention": "Crowdfunded results are kept {days} days; every backer whose pledge was collected can download them."
+      "retention": "Crowdfunded results are kept {days} days; every backer whose pledge was collected can download them.",
+      "usePoints": "Pay part with points ({n} available)",
+      "reviewNote": "Finished; backers are reviewing it."
     },
     "account": {
       "points": "Platform points",
@@ -1376,6 +1381,55 @@
       "funding": "Crowdfunding now",
       "emptyFunding": "No open crowdfunds right now.",
       "progress": "{pledged} / {goal} TWD"
+    },
+    "review": {
+      "title": "Acceptance review",
+      "intro": "The agent has finished. Download the results and vote against the acceptance criteria; your vote counts with the shares you paid for.",
+      "deadline": "Vote closes",
+      "selfCheck": "Agent self-check",
+      "passed": "passed",
+      "failed": "failed",
+      "noSelfCheck": "The agent gave no self-check.",
+      "tally": "{yes} shares approve · {no} reject",
+      "approve": "Accept",
+      "reject": "Reject",
+      "reason": "Why it is rejected (the agent reworks with it)",
+      "submit": "Vote",
+      "voted": "You voted: {choice}",
+      "onlyBackers": "Only backers whose pledge was collected can vote.",
+      "rule": "Accepted when approving shares reach {pct}% of the shares that voted (no votes = accepted). If rejected, the agent reworks it up to {n} time(s) while budget lasts; otherwise the platform decides.",
+      "rework": "Rework {n}",
+      "disputed": "Rejected with no rework left; waiting for the platform's decision.",
+      "notes": "Backers' feedback"
+    },
+    "admin": {
+      "title": "Platform decision",
+      "accept": "Accept (normal settlement)",
+      "refund": "Reject (whole budget back as points)",
+      "note": "Note",
+      "confirm": "Submit this decision?"
+    },
+    "revise": {
+      "title": "Revise the spec",
+      "intro": "You can revise the spec while the campaign is open. The goal stays the same, so the new P90 must still fit. Nothing is charged for {hours} hours after a revision; backers may withdraw.",
+      "note": "What changed",
+      "submit": "Publish new version",
+      "history": "Spec versions",
+      "exitUntil": "The spec was just revised: nothing is charged before {date}; backers who disagree can withdraw.",
+      "v": "Version {v}"
+    },
+    "stretch": {
+      "title": "Stretch goals",
+      "unlocked": "Unlocked",
+      "locked": "NT${twd} beyond the goal"
+    },
+    "topup": {
+      "title": "Top-up round",
+      "intro": "The budget ran out. Open a {days}-day top-up round: backers are charged only if it reaches its goal, then the run continues; otherwise the task closes with the results so far.",
+      "goal": "Top-up goal (TWD)",
+      "open": "Open top-up round",
+      "round": "Top-up round: NT${pledged} of NT${goal} pledged",
+      "ends": "Ends"
     }
   }
 }

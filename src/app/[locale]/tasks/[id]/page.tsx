@@ -9,7 +9,9 @@ import { modelLabels } from "@/lib/models";
 import { chargeParts } from "@/lib/pricing";
 import { canDownload, canView } from "@/lib/tasks/service";
 import { redirect } from "@/i18n/navigation";
-import { CloseCrowdTask, InputFiles, PledgePanel } from "@/components/crowd";
+import { CloseCrowdTask, DisputeActions, InputFiles, PledgePanel, ReviewVote, SpecEditor, TopupForm, type SpecView } from "@/components/crowd";
+import { tally } from "@/lib/crowd/review";
+import { normalizeAcceptance, normalizeSpec } from "@/lib/crowd/rules";
 import { pledgeTotals } from "@/lib/crowd/pledges";
 import { activeCards } from "@/lib/crowd/cards";
 import { pointBalance } from "@/lib/crowd/points";
@@ -68,6 +70,13 @@ export default async function TaskPage({ params }: P) {
           cards: me ? (await activeCards(me.id)).map((c) => ({ id: c.id, last4: c.last4 })) : [],
           points: me ? await pointBalance(me.id) : 0,
           hasQuota: me ? !!(await activeSubscription(me.id)) : false,
+          spec: task.spec ? normalizeSpec(task.spec) : null,
+          revisions: await db.specRevision.findMany({ where: { taskId: task.id }, orderBy: { version: "desc" }, select: { version: true, note: true, createdAt: true } }),
+          tally: await tally(task.id, task.reworks),
+          myVote: me ? await db.acceptanceVote.findUnique({ where: { taskId_userId_round: { taskId: task.id, userId: me.id, round: task.reworks } } }) : null,
+          paid: mine.some((p) => p.status === "CHARGED"),
+          topupPledged: task.topupGoalTwd ? (await db.pledge.aggregate({ where: { taskId: task.id, topup: true, status: { in: ["ACTIVE", "CHARGED"] } }, _sum: { amountTwd: true } }))._sum.amountTwd ?? 0 : 0,
+          acceptance: normalizeAcceptance(task.acceptance),
         };
       })()
     : null;
@@ -137,9 +146,83 @@ export default async function TaskPage({ params }: P) {
                 {task.status === "CHARGING" && <span>{tc("panel.chargingNote")}</span>}
                 {task.status === "UNFUNDED" && <span>{tc("panel.unfundedNote")}</span>}
                 {["QUEUED", "RUNNING", "COMPLETED"].includes(task.status) && <span>{tc("panel.fundedNote")}</span>}
-                {task.status === "NEEDS_FUNDING" && <span className="text-warn">{tc("panel.needsFundingNote")}</span>}
+                {task.status === "NEEDS_FUNDING" && !task.topupGoalTwd && <span className="text-warn">{tc("panel.needsFundingNote")}</span>}
+                {task.status === "IN_REVIEW" && <span>{tc("panel.reviewNote")}</span>}
               </div>
+              {task.status === "FUNDING" && task.exitUntil && task.exitUntil > new Date() && (
+                <p className="rounded-xl bg-warn-soft p-3 text-sm text-warn">{tc("revise.exitUntil", { date: task.exitUntil.toISOString().slice(0, 16).replace("T", " ") + " UTC" })}</p>
+              )}
+              {task.topupGoalTwd && (
+                <div className="space-y-1 rounded-xl border border-warn/50 p-3 text-sm">
+                  <div className="font-semibold">{tc("topup.round", { pledged: crowd.topupPledged, goal: task.topupGoalTwd })}</div>
+                  {task.topupDeadlineAt && (
+                    <div className="text-xs text-muted">
+                      {tc("topup.ends")} <LocalDate value={task.topupDeadlineAt} />
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="text-xs text-muted">{tc("panel.leftover")}</p>
+            </section>
+          )}
+
+          {crowd && ["IN_REVIEW", "DISPUTED"].includes(task.status) && (
+            <section className="card space-y-4 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="h3">{tc("review.title")}{task.reworks > 0 && <span className="chip ml-2">{tc("review.rework", { n: task.reworks })}</span>}</h2>
+                <span className="text-sm font-semibold">{tc("review.tally", { yes: crowd.tally.yes, no: crowd.tally.no })}</span>
+              </div>
+              {task.status === "IN_REVIEW" ? (
+                <>
+                  <p className="text-sm text-muted">{tc("review.intro")}</p>
+                  {task.reviewDeadlineAt && (
+                    <p className="text-xs text-muted">
+                      {tc("review.deadline")} <LocalDate value={task.reviewDeadlineAt} /> · <Countdown to={task.reviewDeadlineAt.toISOString()} />
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="rounded-xl bg-err-soft p-3 text-sm text-err">{tc("review.disputed")}</p>
+              )}
+              <div>
+                <div className="mb-2 text-sm font-semibold">{tc("review.selfCheck")}</div>
+                {crowd.acceptance?.criteria.length ? (
+                  <ul className="space-y-2 text-sm">
+                    {crowd.acceptance.criteria.map((c, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className={c.passed ? "text-ok" : "text-err"}>{c.passed ? "✓" : "✗"}</span>
+                        <span>
+                          {c.criterion}
+                          {c.evidence && <span className="block text-xs text-muted">{c.evidence}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted">{tc("review.noSelfCheck")}</p>
+                )}
+              </div>
+              {task.status === "DISPUTED" && task.reworkNotes && (
+                <div>
+                  <div className="mb-1 text-sm font-semibold">{tc("review.notes")}</div>
+                  <p className="whitespace-pre-wrap text-sm text-muted">{task.reworkNotes}</p>
+                </div>
+              )}
+              <p className="text-xs text-muted">{tc("review.rule", { pct: Math.round(config.crowd.approveShare * 100), n: config.crowd.maxReworks })}</p>
+            </section>
+          )}
+
+          {crowd && (crowd.spec?.stretch?.length ?? 0) > 0 && (
+            <section className="card space-y-2 p-6">
+              <h2 className="h3">{tc("stretch.title")}</h2>
+              <ul className="space-y-1 text-sm">
+                {crowd.spec!.stretch!.map((st, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span>{st.title}</span>
+                    <span className={i < task.stretchUnlocked ? "text-ok" : "text-muted"}>{i < task.stretchUnlocked ? tc("stretch.unlocked") : tc("stretch.locked", { twd: st.twd })}</span>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
@@ -208,6 +291,20 @@ export default async function TaskPage({ params }: P) {
               {me ? <TaskVote taskId={task.id} mine={myVote} /> : <span className="text-sm text-muted">{t("loginToRate")}</span>}
             </section>
           )}
+          {crowd && crowd.revisions.length > 1 && (
+            <section className="card space-y-2 p-6">
+              <h2 className="h3">{tc("revise.history")}</h2>
+              <ul className="space-y-1 text-sm">
+                {crowd.revisions.map((r) => (
+                  <li key={r.version} className="flex flex-wrap gap-2">
+                    <span className="chip">{tc("revise.v", { v: r.version })}</span>
+                    <LocalDate value={r.createdAt} />
+                    <span className="text-muted">{r.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {crowd && crowd.files.length > 0 && (
             <section className="card space-y-3 p-6">
               <h2 className="h3">{tc("panel.files")}</h2>
@@ -228,7 +325,35 @@ export default async function TaskPage({ params }: P) {
               )}
             </div>
           )}
+          {crowd && task.status === "IN_REVIEW" && me && (
+            <div className="card space-y-3 p-5">
+              <div className="font-semibold">{tc("review.title")}</div>
+              {crowd.paid ? <ReviewVote taskId={task.id} mine={crowd.myVote ? { approve: crowd.myVote.approve, reason: crowd.myVote.reason } : null} /> : <p className="text-sm text-muted">{tc("review.onlyBackers")}</p>}
+            </div>
+          )}
+          {crowd && task.status === "DISPUTED" && me?.isAdmin && (
+            <div className="card space-y-3 p-5">
+              <div className="font-semibold">{tc("admin.title")}</div>
+              <DisputeActions taskId={task.id} />
+            </div>
+          )}
+          {owner && crowd && task.status === "NEEDS_FUNDING" && !task.topupGoalTwd && (
+            <div className="card space-y-3 p-5">
+              <div className="font-semibold">{tc("topup.title")}</div>
+              <p className="text-xs text-muted">{tc("topup.intro", { days: config.crowd.topupDays })}</p>
+              <TopupForm taskId={task.id} price={sharePrice()} />
+            </div>
+          )}
           {owner && crowd && task.status === "NEEDS_FUNDING" && <CloseCrowdTask taskId={task.id} />}
+          {owner && crowd && task.status === "FUNDING" && (
+            <details className="card p-5">
+              <summary className="cursor-pointer font-semibold">{tc("revise.title")}</summary>
+              <p className="mt-2 text-xs text-muted">{tc("revise.intro", { hours: config.crowd.exitHours })}</p>
+              <div className="mt-3">
+                <SpecEditor taskId={task.id} spec={crowd.spec as SpecView | null} revise />
+              </div>
+            </details>
+          )}
           {owner && (
             <>
               <div className="card space-y-3 p-5">

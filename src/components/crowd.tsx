@@ -170,8 +170,10 @@ export type SpecView = {
 
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 
-export function SpecEditor({ taskId, spec }: { taskId: string; spec: SpecView | null }) {
+export function SpecEditor({ taskId, spec, revise = false }: { taskId: string; spec: SpecView | null; revise?: boolean }) {
   const t = useTranslations("crowd.spec");
+  const tr = useTranslations("crowd.revise");
+  const [note, setNote] = useState("");
   const router = useRouter();
   const s = spec ?? { summary: "", deliverables: [], method: [], acceptance: [], estimate: { p50Twd: 0, p90Twd: 0 } };
   const [f, setF] = useState({
@@ -205,7 +207,8 @@ export function SpecEditor({ taskId, spec }: { taskId: string; spec: SpecView | 
         setState("busy");
         setErr("");
         try {
-          await send(`/api/crowd/${taskId}/spec`, "PUT", {
+          await send(revise ? `/api/crowd/${taskId}/revisions` : `/api/crowd/${taskId}/spec`, revise ? "POST" : "PUT", {
+            ...(revise ? { note } : {}),
             spec: {
               summary: f.summary,
               scope: f.scope,
@@ -253,8 +256,14 @@ export function SpecEditor({ taskId, spec }: { taskId: string; spec: SpecView | 
       </div>
       {area("stretch", t("stretch"), t("stretchHint"))}
       {area("risks", t("risks"), t("onePerLine"))}
+      {revise && (
+        <div>
+          <label className="label">{tr("note")}</label>
+          <input className="input" value={note} onChange={(e) => setNote(e.target.value)} required maxLength={2000} />
+        </div>
+      )}
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary" disabled={state === "busy"}>{state === "saved" ? t("saved") : t("save")}</button>
+      <button className="btn-primary" disabled={state === "busy"}>{revise ? tr("submit") : state === "saved" ? t("saved") : t("save")}</button>
     </form>
   );
 }
@@ -411,6 +420,7 @@ export function PledgePanel({
   const [shares, setShares] = useState(1);
   const [source, setSource] = useState<"CARD" | "POINTS" | "QUOTA">(cards.length ? "CARD" : points >= price ? "POINTS" : hasQuota ? "QUOTA" : "CARD");
   const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
+  const [usePoints, setUsePoints] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const amount = shares * price;
@@ -434,7 +444,7 @@ export function PledgePanel({
             setBusy(true);
             setErr("");
             try {
-              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, ...(source === "CARD" ? { buyer } : {}) });
+              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, ...(source === "CARD" ? { buyer, usePoints } : {}) });
               router.refresh();
             } catch (e) {
               setErr((e as Error).message);
@@ -476,6 +486,12 @@ export function PledgePanel({
                 </div>
               ) : (
                 <BuyerFields value={buyer} onChange={setBuyer} />
+              )}
+              {cards.length > 0 && points > 0 && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+                  {t("usePoints", { n: points })}
+                </label>
               )}
               <p className="text-xs text-muted">{t("cardNote")}</p>
             </>
@@ -600,5 +616,94 @@ export function CloseCrowdTask({ taskId }: { taskId: string }) {
     >
       {t("close")}
     </button>
+  );
+}
+
+// ───────────── acceptance review ─────────────
+
+export function ReviewVote({ taskId, mine }: { taskId: string; mine: { approve: boolean; reason: string | null } | null }) {
+  const t = useTranslations("crowd.review");
+  const router = useRouter();
+  const [approve, setApprove] = useState(mine?.approve ?? true);
+  const [reason, setReason] = useState(mine?.reason ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setErr("");
+        try {
+          await send(`/api/crowd/${taskId}/votes`, "POST", { approve, reason: reason || undefined });
+          router.refresh();
+        } catch (e) {
+          setErr((e as Error).message);
+        }
+        setBusy(false);
+      }}
+    >
+      {mine && <p className="text-sm text-muted">{t("voted", { choice: mine.approve ? t("approve") : t("reject") })}</p>}
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => setApprove(true)} className={`rounded-xl border p-2 text-sm ${approve ? "border-accent bg-accent-soft font-semibold" : "border-line"}`}>{t("approve")}</button>
+        <button type="button" onClick={() => setApprove(false)} className={`rounded-xl border p-2 text-sm ${!approve ? "border-err bg-err-soft font-semibold text-err" : "border-line"}`}>{t("reject")}</button>
+      </div>
+      {!approve && <textarea className="input min-h-20" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("reason")} required maxLength={2000} />}
+      {err && <p className="text-sm text-err" role="alert">{err}</p>}
+      <button className="btn-primary w-full" disabled={busy}>{t("submit")}</button>
+    </form>
+  );
+}
+
+export function DisputeActions({ taskId }: { taskId: string }) {
+  const t = useTranslations("crowd.admin");
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const decide = async (decision: "accept" | "refund") => {
+    if (!confirm(t("confirm"))) return;
+    setErr("");
+    try {
+      await send(`/api/admin/crowd/${taskId}/resolve`, "POST", { decision, note: note || undefined });
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <input className="input" placeholder={t("note")} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
+      <button className="btn-primary w-full" onClick={() => decide("accept")}>{t("accept")}</button>
+      <button className="btn-ghost w-full text-err" onClick={() => decide("refund")}>{t("refund")}</button>
+      {err && <p className="text-sm text-err" role="alert">{err}</p>}
+    </div>
+  );
+}
+
+export function TopupForm({ taskId, price }: { taskId: string; price: number }) {
+  const t = useTranslations("crowd.topup");
+  const router = useRouter();
+  const [goal, setGoal] = useState(String(price * 5));
+  const [err, setErr] = useState("");
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setErr("");
+        try {
+          await send(`/api/crowd/${taskId}/topup`, "POST", { goalTwd: Number(goal) });
+          router.refresh();
+        } catch (e) {
+          setErr((e as Error).message);
+        }
+      }}
+    >
+      <label className="label">{t("goal")}</label>
+      <input className="input font-mono" inputMode="numeric" step={price} value={goal} onChange={(e) => setGoal(e.target.value.replace(/\D/g, ""))} required />
+      {err && <p className="text-sm text-err" role="alert">{err}</p>}
+      <button className="btn-primary w-full">{t("open")}</button>
+    </form>
   );
 }

@@ -275,7 +275,9 @@
     "DRAFT": "草稿",
     "FUNDING": "眾籌中",
     "CHARGING": "請款中",
-    "UNFUNDED": "未達標"
+    "UNFUNDED": "未達標",
+    "IN_REVIEW": "驗收中",
+    "DISPUTED": "仲裁中"
   },
   "comments": {
     "title": "留言討論",
@@ -464,7 +466,8 @@
       "audit": "操作紀錄",
       "payments": "付款與退款",
       "settings": "系統設定",
-      "overview": "總覽"
+      "overview": "總覽",
+      "disputes": "眾籌爭議"
     },
     "st": {
       "enabled": "啟用",
@@ -1344,7 +1347,9 @@
       "returned": "退回 {n}",
       "pointsShort": "點數",
       "back": "參與眾籌",
-      "retention": "眾籌成果保留 {days} 天，所有已收款的出資者都可以下載。"
+      "retention": "眾籌成果保留 {days} 天，所有已收款的出資者都可以下載。",
+      "usePoints": "部分以點數折抵（點數 {n}）",
+      "reviewNote": "執行完成，出資者驗收中。"
     },
     "account": {
       "points": "平台點數",
@@ -1376,6 +1381,55 @@
       "funding": "眾籌中",
       "emptyFunding": "目前沒有進行中的眾籌。",
       "progress": "{pledged} / {goal} TWD"
+    },
+    "review": {
+      "title": "驗收",
+      "intro": "Agent 已完成執行。請下載成果，依驗收標的投票；票數依你已付款的份數計算。",
+      "deadline": "投票截止",
+      "selfCheck": "Agent 自檢",
+      "passed": "通過",
+      "failed": "未通過",
+      "noSelfCheck": "Agent 沒有提供自檢結果。",
+      "tally": "贊成 {yes} 份 · 反對 {no} 份",
+      "approve": "驗收通過",
+      "reject": "不通過",
+      "reason": "不通過的原因（會交給 Agent 重做）",
+      "submit": "送出投票",
+      "voted": "已投票：{choice}",
+      "onlyBackers": "只有已付款的出資者可以投票。",
+      "rule": "贊成份數達投票份數的 {pct}% 即通過；無人投票視為通過。未通過時，預算足夠會重做 {n} 次，否則交由平台仲裁。",
+      "rework": "第 {n} 次重做",
+      "disputed": "驗收未通過且無法再重做，等待平台仲裁。",
+      "notes": "出資者意見"
+    },
+    "admin": {
+      "title": "平台仲裁",
+      "accept": "判定通過（正常結算）",
+      "refund": "判定不通過（全部經費轉點數）",
+      "note": "仲裁說明",
+      "confirm": "確定送出仲裁結果？"
+    },
+    "revise": {
+      "title": "修訂規格",
+      "intro": "眾籌期間可以修訂規格；目標金額不變，新的 P90 估算必須仍在目標內。修訂後 {hours} 小時內不會請款，出資者可以撤回。",
+      "note": "修訂說明",
+      "submit": "發布新版本",
+      "history": "規格版本",
+      "exitUntil": "規格剛修訂：{date} 前不會請款，不同意的出資者可撤回出資。",
+      "v": "第 {v} 版"
+    },
+    "stretch": {
+      "title": "延伸目標",
+      "unlocked": "已解鎖",
+      "locked": "超額 NT${twd}"
+    },
+    "topup": {
+      "title": "追加眾籌",
+      "intro": "預算已用完。開啟 {days} 天的追加眾籌，達標才請款並繼續執行；未達標則以目前成果結案。",
+      "goal": "追加目標（TWD）",
+      "open": "開啟追加眾籌",
+      "round": "追加眾籌：已承諾 NT${pledged} / NT${goal}",
+      "ends": "截止"
     }
   }
 }

@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { group: "start", items: [{ id: "overview", icon: "grid" }] },
-  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }] },
+  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }] },
   { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
   { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
@@ -50,6 +50,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else if (tab === "tools") body = <ToolReviews />;
   else if (tab === "storage") body = <StorageStatus />;
   else if (tab === "reports") body = <Reports />;
+  else if (tab === "disputes") body = <Disputes />;
   else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
   else if (tab === "payments") body = <Payments status={sp.status} />;
   else if (tab === "prices") body = <Prices />;
@@ -233,6 +234,26 @@ async function Reports() {
           </div>
           <p>{r.reason}</p>
           <ReportActions reportId={r.id} targetType={r.targetType} targetId={r.targetId} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Crowdfunded tasks whose acceptance review was rejected with no rework left */
+async function Disputes() {
+  const t = await getTranslations("admin");
+  const rows = await db.task.findMany({ where: { status: "DISPUTED" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
+  if (!rows.length) return <p className="text-muted">{t("empty")}</p>;
+  return (
+    <div className="space-y-3">
+      {rows.map((r) => (
+        <div key={r.id} className="card space-y-2 p-5 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+            <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · <LocalDate value={r.updatedAt} /></span>
+          </div>
+          {r.reworkNotes && <p className="whitespace-pre-wrap text-muted">{r.reworkNotes}</p>}
         </div>
       ))}
     </div>

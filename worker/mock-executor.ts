@@ -4,6 +4,7 @@ import path from "node:path";
 import * as tar from "tar";
 import { modelCatalog } from "../src/lib/models";
 import { tokenCostUsd } from "../src/lib/pricing";
+import { referenceNotes } from "../src/lib/crowd/agent";
 import type { Executor, RunContext, RunResult, TaskWithRefs, Usage } from "./types";
 
 /**
@@ -22,6 +23,10 @@ export class MockExecutor implements Executor {
     const usage: Usage = progress.get(task.id) ?? { inputTokens: Number(task.inputTokens), outputTokens: Number(task.outputTokens), cacheReadTokens: Number(task.cacheReadTokens), cacheWriteTokens: Number(task.cacheWriteTokens), tokenCostUsd: Number(task.tokenCostUsd) };
     const start = Date.now();
     await ctx.log(`[mock runner] ${ctx.continuation ? "continuing" : "starting"} simulated run on ${task.model}`);
+    if (task.crowdfund) {
+      const notes = await referenceNotes(task.id);
+      await ctx.log(`[mock runner] read inputs/backer-notes.md (${notes.count} reference note(s))${task.reworkNotes ? "; reworking with the backers' feedback" : ""}`);
+    }
     let stopped = false;
     for (let i = 0; i < steps; i++) {
       await new Promise((r) => setTimeout(r, Number(process.env.MOCK_STEP_MS ?? 1000)));
@@ -44,6 +49,11 @@ export class MockExecutor implements Executor {
     const elapsedSeconds = Math.max(1, Math.round((Date.now() - start) / 1000));
     const summary = `# ${task.title}\n\n> Simulated result produced by the development mock runner (RUNNER_MODE=mock).\n\n${stopped ? "The run stopped early because the budget was exhausted. Partial results are included." : "The simulated run completed."}\n`;
 
+    let acceptance: unknown;
+    if (task.crowdfund && !stopped) {
+      const criteria = (task.spec as { acceptance?: string[] } | null)?.acceptance ?? [];
+      acceptance = { criteria: criteria.map((c) => ({ criterion: c, passed: true, evidence: "simulated (mock runner)" })), summary: "Simulated self-check (mock runner)." };
+    }
     let evaluation: unknown;
     if (task.kind === "EVALUATION" && !stopped) {
       const seed = [...task.id].reduce((a, ch) => a + ch.charCodeAt(0), 0);
@@ -72,11 +82,13 @@ export class MockExecutor implements Executor {
       await tar.c({ gzip: true, cwd: tmp, file, portable: true }, ["outputs"]);
       const archive = await readFile(file);
       if (!stopped) progress.delete(task.id);
-      return { outcome: stopped ? "stopped" : "completed", usage: { ...usage }, elapsedSeconds, archive, summary, evaluation };
+      return { outcome: stopped ? "stopped" : "completed", usage: { ...usage }, elapsedSeconds, archive, summary, evaluation, acceptance };
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
   }
 
   async removeUserContainer() {}
+
+  async removeTaskContainer() {}
 }

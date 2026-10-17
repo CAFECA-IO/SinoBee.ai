@@ -27,6 +27,21 @@ The Service is a digital service delivered online and starts as soon as you pay 
 - Charges for work actually performed (model tokens, VM time, storage) are not refunded unless caused by our error.
 - A task may have several payments (budget and top-ups); refunds are made per payment and never exceed the unused budget in total.
 
+
+### Crowdfunded tasks
+
+| Situation | What happens |
+| --- | --- |
+| Proposal fee | Non-refundable; it becomes credit for the spec dialogue tokens and reference file storage. Credit left when the campaign is funded joins the task budget |
+| You withdraw a pledge during the campaign, or the campaign misses its goal | Cards are not charged; points or subscription quota used are returned in full |
+| The goal is reached but the charges collected fall short during the charging grace period | Charged cards are refunded in full; points and quota are returned |
+| Budget left after the task is completed, closed or failed | Returned to the backers as platform points in proportion to their pledges (quota pledges get quota back); no cash refund |
+| A disputed review where the platform decides the result does not meet the spec | The whole budget, spent part included, goes back to the backers as points |
+| The task failed because of a platform error | Platform points by default; a backer may ask for a refund to the original payment method instead |
+
+- Platform points: 1 point equals NT$1, usable only for crowdfunding pledges, not transferable, never paid out in cash, and they do not expire. Unused points are handled according to law if your account or the Service ends.
+- If the spec is revised during a campaign, nothing is charged for 72 hours after the revision and backers who disagree can withdraw.
+
 ## 4. How to ask
 
 Contact us from the account you use on SinoBee.ai with the payment number (starting with P, shown under Account → Payments) and the reason:

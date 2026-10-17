@@ -149,6 +149,11 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.specModel", env: "CROWD_SPEC_MODEL", type: "text", group: "crowd", default: "anthropic/claude-sonnet-5-5", label: L("規格對話模型", "Spec dialogue model") },
   { key: "crowd.quotaPeriodShare", env: "CROWD_QUOTA_PERIOD_SHARE", type: "number", group: "crowd", default: "0.2", label: L("每期額度出資上限（占方案用量比例）", "Quota pledges per period (share of plan usage)") },
   { key: "crowd.quotaTaskShare", env: "CROWD_QUOTA_TASK_SHARE", type: "number", group: "crowd", default: "0.5", label: L("每任務額度出資上限（占目標比例）", "Quota pledges per task (share of goal)") },
+  { key: "crowd.reviewDays", env: "CROWD_REVIEW_DAYS", type: "number", group: "crowd", default: "7", label: L("驗收投票天數", "Acceptance vote (days)") },
+  { key: "crowd.approveShare", env: "CROWD_APPROVE_SHARE", type: "number", group: "crowd", default: "0.5", label: L("驗收通過門檻（贊成份數比例）", "Acceptance threshold (share of voted shares)"), help: L("沒有人投票視為通過", "No votes counts as accepted") },
+  { key: "crowd.maxReworks", env: "CROWD_MAX_REWORKS", type: "number", group: "crowd", default: "1", label: L("驗收未通過時最多重做次數", "Reworks after a rejected review") },
+  { key: "crowd.exitHours", env: "CROWD_EXIT_HOURS", type: "number", group: "crowd", default: "72", label: L("規格修訂後的撤回期（小時）", "Withdrawal window after a spec revision (hours)") },
+  { key: "crowd.topupDays", env: "CROWD_TOPUP_DAYS", type: "number", group: "crowd", default: "7", label: L("追加眾籌天數", "Top-up round (days)") },
   { key: "crowd.resultsDays", env: "CROWD_RESULTS_DAYS", type: "number", group: "crowd", default: "90", label: L("眾籌成果保存天數", "Crowdfunded results kept (days)") },
 ];
 

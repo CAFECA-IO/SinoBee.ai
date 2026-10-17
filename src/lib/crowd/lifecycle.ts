@@ -9,7 +9,8 @@ import { postStatus } from "./agent";
 import { cardToken, latestCard } from "./cards";
 import { bookPoints } from "./points";
 import { releasePledge, returnQuota } from "./pledges";
-import { serviceFee, sharePrice } from "./rules";
+import { normalizeSpec, serviceFee, sharePrice, unlockedStretch } from "./rules";
+import { HttpError } from "../errors";
 
 /**
  * Crowdfunding lifecycle (run by the worker every minute through crowdTick; pledges and card bindings also nudge it):
@@ -33,8 +34,10 @@ async function event(taskId: string, type: string, message: string, data?: objec
 
 // ───────────── card charges ─────────────
 
-function pledgeProduct(title: string, shares: number): OenProduct {
-  return { productionCode: "CROWD-PLEDGE", description: `眾籌出資：${title.slice(0, 40)}`, quantity: shares, unit: "份", unitPrice: sharePrice() };
+/** Invoice line for a card charge: whole shares, or one line when points paid part of it */
+function pledgeProduct(title: string, amount: number, shares: number): OenProduct {
+  if (amount === shares * sharePrice()) return { productionCode: "CROWD-PLEDGE", description: `眾籌出資：${title.slice(0, 40)}`, quantity: shares, unit: "份", unitPrice: sharePrice() };
+  return { productionCode: "CROWD-PLEDGE", description: `眾籌出資 ${shares} 份（點數折抵後）：${title.slice(0, 30)}`, quantity: 1, unit: "式", unitPrice: amount };
 }
 
 type ChargeResult = { ok: true; hid: string } | { ok: false; code: string; message: string; unknown?: boolean };
@@ -49,7 +52,7 @@ async function sendCharge(pay: Payment, token: string, task: Task, shares: numbe
       token,
       amount: pay.amountTwd!,
       orderId: pay.id,
-      product: pledgeProduct(task.title, shares),
+      product: pledgeProduct(task.title, pay.amountTwd!, shares),
       idempotencyKey: `crowd-pledge-${pay.id}`,
       userId: pay.userId,
       userName: buyer?.name,
@@ -121,15 +124,17 @@ async function resolvePending(pay: Payment): Promise<"settled" | "pending"> {
 export async function chargeBacker(taskId: string, userId: string) {
   const pending = await db.payment.findFirst({ where: { taskId, userId, purpose: "CROWD_PLEDGE", status: "PENDING" } });
   if (pending && (await resolvePending(pending)) === "pending") return;
-  const pledges = await db.pledge.findMany({ where: { taskId, userId, source: "CARD", status: { in: ["ACTIVE", "FAILED"] } } });
-  if (!pledges.length) return;
   const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  // pledges of a top-up round that is still collecting wait for its goal
+  const pledges = await db.pledge.findMany({ where: { taskId, userId, source: "CARD", status: { in: ["ACTIVE", "FAILED"] }, ...(task.topupGoalTwd ? { topup: false } : {}) } });
+  if (!pledges.length) return;
   const card = await latestCard(userId);
   if (!card) {
     await db.pledge.updateMany({ where: { id: { in: pledges.map((p) => p.id) } }, data: { status: "FAILED", error: "NO_CARD" } });
     return;
   }
-  const amount = pledges.reduce((a, p) => a + p.amountTwd, 0);
+  // the points part of a pledge was deducted when it was made
+  const amount = pledges.reduce((a, p) => a + p.amountTwd - p.pointsTwd, 0);
   const shares = pledges.reduce((a, p) => a + p.shares, 0);
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const buyer = (user.billing ?? null) as { name?: string; email?: string; invoice?: OenInvoice } | null;
@@ -174,14 +179,18 @@ export async function retryBacker(userId: string) {
 async function addToBudget(task: Task, amount: number) {
   const fee = serviceFee(amount, num(task.serviceFeeRate));
   await db.task.update({ where: { id: task.id }, data: { budget: { increment: amount - fee }, serviceFeeTwd: { increment: fee } } });
-  const resume = await db.task.updateMany({ where: { id: task.id, status: "NEEDS_FUNDING" }, data: { status: "QUEUED", fundingRequestedAt: null } });
+  // no resume while a top-up round is still collecting toward its goal
+  const resume = task.topupGoalTwd ? { count: 0 } : await db.task.updateMany({ where: { id: task.id, status: "NEEDS_FUNDING" }, data: { status: "QUEUED", fundingRequestedAt: null } });
   await event(task.id, "budget.added", `Budget +${amount - fee} TWD (service fee ${fee} TWD)`);
   if (resume.count) await postStatus(task.id, `追加經費已到位，繼續執行。Funds added, the run continues.`);
+  await updateStretch(task.id);
 }
 
 /** A pledge made after charging began: collect it now */
 export async function collectLate(taskId: string, pledgeId: string) {
   const p = await db.pledge.findUniqueOrThrow({ where: { id: pledgeId } });
+  // top-up round: pledges wait (cards uncharged) until the round's goal is met
+  if (p.topup) return topupCheck(taskId);
   if (p.source === "CARD") return chargeBacker(taskId, p.userId);
   const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
   if (!task.fundedAt) return; // CHARGING: points / quota count toward the goal as they are
@@ -192,6 +201,8 @@ export async function collectLate(taskId: string, pledgeId: string) {
 // ───────────── campaign transitions ─────────────
 
 async function beginCharging(task: Task, now: Date, why: string) {
+  // after a spec revision backers keep the right to withdraw until exitUntil: nothing is charged before it
+  if (task.exitUntil && task.exitUntil > now) return;
   const r = await db.task.updateMany({ where: { id: task.id, status: "FUNDING" }, data: { status: "CHARGING", chargeDeadlineAt: addDays(now, config.crowd.chargeGraceDays) } });
   if (r.count !== 1) return;
   await event(task.id, "funding.goal", why);
@@ -225,6 +236,7 @@ async function fund(task: Task, now: Date) {
   });
   if (r.count !== 1) return;
   await db.pledge.updateMany({ where: { taskId: task.id, source: { in: ["POINTS", "QUOTA"] }, status: "ACTIVE" }, data: { status: "CHARGED", chargedAt: now } });
+  await updateStretch(task.id);
   await event(task.id, "funding.funded", `Funded: collected ${got} TWD, service fee ${fee} TWD, unused proposal credit ${proposalLeft.toFixed(2)} TWD added`, { collected: got, fee, proposalLeft });
   await postStatus(task.id, `募資完成：實收 NT$${got}，任務已排入執行。Funded with NT$${got}; the task is queued.`, { notifyTitle: "募資完成 Funded", type: "crowd.funded" });
 }
@@ -237,11 +249,14 @@ async function failCampaign(task: Task, reason: string) {
   for (const pay of paid) {
     try {
       if (pay.provider === "OEN" && pay.transactionHid) {
-        const shares = Math.round((pay.amountTwd ?? 0) / sharePrice());
-        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task.title, shares) });
+        const shares = (await db.pledge.aggregate({ where: { paymentId: pay.id }, _sum: { shares: true } }))._sum.shares ?? 0;
+        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task.title, pay.amountTwd!, shares) });
       }
       await db.payment.update({ where: { id: pay.id }, data: { status: "REFUNDED", refundedTwd: pay.amountTwd ?? 0, refundedAt: new Date(), refundReason: "crowdfunding not funded" } });
       await db.pledge.updateMany({ where: { paymentId: pay.id }, data: { status: "REFUNDED" } });
+      // the points part of those pledges comes back as points
+      for (const p of await db.pledge.findMany({ where: { paymentId: pay.id, pointsTwd: { gt: 0 } } }))
+        await bookPoints({ userId: p.userId, delta: p.pointsTwd, reason: "release", ref: `release:${p.id}`, taskId: p.taskId });
     } catch (e) {
       await event(task.id, "refund.failed", `Refund of ${pay.amountTwd} TWD failed, an admin must refund it: ${(e as Error).message}`, { payment: pay.id });
     }
@@ -263,12 +278,13 @@ async function finishCharging(taskId: string, now: Date) {
 // ───────────── settlement ─────────────
 
 /** Leftover → points (card / points pledges) or quota (quota pledges), in proportion to what each pledge put in */
-export async function settleTask(taskId: string) {
+export async function settleTask(taskId: string, opts: { full?: boolean } = {}) {
   const task = await db.task.findUnique({ where: { id: taskId } });
   if (!task?.crowdfund || !task.fundedAt || task.settledAt || !["COMPLETED", "FAILED", "CANCELLED"].includes(task.status)) return;
   const claim = await db.task.updateMany({ where: { id: taskId, settledAt: null }, data: { settledAt: new Date() } });
   if (claim.count !== 1) return;
-  const leftover = Math.floor(num(task.budget) - Math.ceil(num(task.charged)));
+  // full: a platform refund — the spent part goes back too, the platform bears it
+  const leftover = opts.full ? Math.floor(num(task.budget)) : Math.floor(num(task.budget) - Math.ceil(num(task.charged)));
   if (leftover <= 0) {
     await event(taskId, "settled", "Settled: no leftover budget");
     return;
@@ -285,7 +301,7 @@ export async function settleTask(taskId: string) {
     const share = Math.floor(forBackers * (net / pledgeNet));
     if (share <= 0) continue;
     if (p.source === "QUOTA") await returnQuota(p.userId, share, p.id);
-    else await bookPoints({ userId: p.userId, delta: share, reason: "leftover", ref: `leftover:${p.id}`, taskId, note: task.title.slice(0, 100) });
+    else await bookPoints({ userId: p.userId, delta: share, reason: opts.full ? "platform" : "leftover", ref: `leftover:${p.id}`, taskId, note: task.title.slice(0, 100) });
     await db.pledge.update({ where: { id: p.id }, data: { returnedTwd: share } });
     given += share;
   }
@@ -323,8 +339,89 @@ export async function crowdTick(now = new Date()) {
     take: 50,
   });
   for (const t of late) await chargeDue(t, now);
-  // 5. finished tasks not settled yet
+  // 5. funded tasks past the grace period: declined card pledges are dropped (their points part comes back)
+  const lapsed = await db.pledge.findMany({ where: { source: "CARD", status: "FAILED", task: { fundedAt: { not: null }, chargeDeadlineAt: { lt: now } } }, select: { id: true }, take: 200 });
+  for (const p of lapsed) await releasePledge(p.id, "RELEASED");
+  // 6. top-up rounds and acceptance reviews
+  await topupTick(now);
+  const { reviewTick } = await import("./review");
+  await reviewTick(now);
+  // 7. finished tasks not settled yet
   const done = await db.task.findMany({ where: { crowdfund: true, fundedAt: { not: null }, settledAt: null, status: { in: ["COMPLETED", "FAILED", "CANCELLED"] } }, select: { id: true }, take: 50 });
   for (const t of done) await settleTask(t.id);
   return { ended: ending.length, charging: charging.length, settled: done.length };
+}
+
+// ───────────── stretch goals ─────────────
+
+/** Unlock stretch goals with what was collected beyond the goal; the agent gets them in its instructions */
+async function updateStretch(taskId: string) {
+  const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  if (!task.spec || !task.goalTwd) return;
+  const got = await collected(taskId);
+  const spec = normalizeSpec(task.spec);
+  const n = unlockedStretch(spec, task.goalTwd, got);
+  if (n <= task.stretchUnlocked) return;
+  await db.task.update({ where: { id: taskId }, data: { stretchUnlocked: n } });
+  const names = (spec.stretch ?? []).slice(task.stretchUnlocked, n).map((s) => s.title).join("、");
+  await event(taskId, "stretch.unlocked", `Stretch goal(s) unlocked: ${names}`);
+  await postStatus(taskId, `超額募資解鎖延伸目標：${names}。Stretch goal unlocked: ${names}.`, { notifyTitle: "延伸目標解鎖 Stretch goal", type: "crowd.stretch" });
+}
+
+// ───────────── top-up rounds ─────────────
+
+/** The proposer asks backers for more after the budget ran out: an all-or-nothing round of crowd.topupDays days */
+export async function openTopup(userId: string, taskId: string, goalTwd: number) {
+  const task = await db.task.findUnique({ where: { id: taskId } });
+  if (!task?.crowdfund || task.userId !== userId) throw new HttpError(404, "task not found");
+  if (task.status !== "NEEDS_FUNDING") throw new HttpError(400, "a top-up round can only start when the budget has run out");
+  if (task.topupGoalTwd) throw new HttpError(400, "a top-up round is already open");
+  if (!Number.isInteger(goalTwd) || goalTwd < sharePrice() || goalTwd % sharePrice() !== 0) throw new HttpError(400, `the goal must be a multiple of ${sharePrice()} TWD`);
+  const deadline = addDays(new Date(), config.crowd.topupDays);
+  await db.task.update({ where: { id: taskId }, data: { topupGoalTwd: goalTwd, topupDeadlineAt: deadline, fundingRequestedAt: deadline } });
+  await event(taskId, "topup.opened", `Top-up round opened: ${goalTwd} TWD in ${config.crowd.topupDays} days`);
+  await postStatus(taskId, `預算已用完，發起人開啟追加眾籌：目標 NT$${goalTwd}，${config.crowd.topupDays} 天內達標才請款並繼續執行。Top-up round: NT$${goalTwd} within ${config.crowd.topupDays} days; nothing is charged unless it is reached.`, { notifyTitle: "追加眾籌 Top-up round", type: "crowd.topup" });
+}
+
+async function topupPledged(taskId: string) {
+  const r = await db.pledge.aggregate({ where: { taskId, topup: true, status: { in: ["ACTIVE", "CHARGED"] } }, _sum: { amountTwd: true } });
+  return r._sum.amountTwd ?? 0;
+}
+
+/** A top-up round reached its goal: charge its card pledges, add points / quota pledges, resume the run */
+async function topupCheck(taskId: string) {
+  const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  if (task.status !== "NEEDS_FUNDING" || !task.topupGoalTwd) return;
+  if ((await topupPledged(taskId)) < task.topupGoalTwd) return;
+  const goal = task.topupGoalTwd;
+  const r = await db.task.updateMany({ where: { id: taskId, topupGoalTwd: goal }, data: { topupGoalTwd: null, topupDeadlineAt: null } });
+  if (r.count !== 1) return;
+  await event(taskId, "topup.reached", `Top-up round reached ${goal} TWD`);
+  const fresh = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  for (const p of await db.pledge.findMany({ where: { taskId, topup: true, status: "ACTIVE", source: { in: ["POINTS", "QUOTA"] } } })) {
+    const c = await db.pledge.updateMany({ where: { id: p.id, status: "ACTIVE" }, data: { status: "CHARGED", chargedAt: new Date() } });
+    if (c.count === 1) await addToBudget(fresh, p.amountTwd);
+  }
+  const users = await db.pledge.findMany({ where: { taskId, topup: true, source: "CARD", status: "ACTIVE" }, select: { userId: true }, distinct: ["userId"] });
+  for (const u of users) await chargeBacker(taskId, u.userId).catch((e) => console.warn("topup charge", (e as Error).message));
+  // card charges add to the budget as they succeed; make sure the run resumes even if all of them were points
+  const resumed = await db.task.updateMany({ where: { id: taskId, status: "NEEDS_FUNDING" }, data: { status: "QUEUED", fundingRequestedAt: null } });
+  if (resumed.count) await postStatus(taskId, `追加眾籌達標，繼續執行。The top-up round reached its goal; the run continues.`, { notifyTitle: "追加眾籌達標 Top-up reached", type: "crowd.topup_reached" });
+}
+
+/** Rounds at their deadline: unmet → pledges given back, the task closes with the results so far */
+async function topupTick(now: Date) {
+  const ending = await db.task.findMany({ where: { status: "NEEDS_FUNDING", topupDeadlineAt: { lte: now } }, take: 50 });
+  for (const t of ending) {
+    if ((await topupPledged(t.id)) >= (t.topupGoalTwd ?? Infinity)) {
+      await topupCheck(t.id);
+      continue;
+    }
+    for (const p of await db.pledge.findMany({ where: { taskId: t.id, topup: true, status: { in: ["ACTIVE", "FAILED"] } } })) await releasePledge(p.id, "RELEASED");
+    const r = await db.task.updateMany({ where: { id: t.id, status: "NEEDS_FUNDING" }, data: { status: "COMPLETED", finishedAt: now, topupGoalTwd: null, topupDeadlineAt: null, fundingRequestedAt: null } });
+    if (r.count !== 1) continue;
+    await event(t.id, "topup.failed", "Top-up round missed its goal: closed with the results so far");
+    await postStatus(t.id, `追加眾籌未達標，未扣款；任務以目前成果結案。The top-up round missed its goal; nothing was charged and the task closes with the results so far.`, { notifyTitle: "追加眾籌未達標 Top-up missed", type: "crowd.topup_failed" });
+    await settleTask(t.id);
+  }
 }

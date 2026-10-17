@@ -67,6 +67,10 @@ export async function closeTask(userId: string, taskId: string) {
     db.taskEvent.create({ data: { taskId: t.id, type: "closed", message: "Closed by the requester" } }),
   ]);
   if (t.crowdfund && status === "COMPLETED") {
+    // a top-up round still open: its pledges are given back first
+    const { releasePledge } = await import("@/lib/crowd/pledges");
+    for (const p of await db.pledge.findMany({ where: { taskId: t.id, topup: true, status: { in: ["ACTIVE", "FAILED"] } } })) await releasePledge(p.id, "RELEASED");
+    if (t.topupGoalTwd) await db.task.update({ where: { id: t.id }, data: { topupGoalTwd: null, topupDeadlineAt: null } });
     const { mirrorEvent } = await import("@/lib/crowd/agent");
     const { settleTask } = await import("@/lib/crowd/lifecycle");
     await mirrorEvent(t.id, "closed", "發起人以目前成果結案。The proposer closed the task with the results so far.");

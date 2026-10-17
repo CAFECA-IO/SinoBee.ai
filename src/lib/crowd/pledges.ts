@@ -7,7 +7,7 @@ import { BuyerInput } from "../buyer-schema";
 import { headroom, quotaContext } from "../llm/quota";
 import type { Prisma } from "@/generated/prisma/client";
 import { latestCard } from "./cards";
-import { bookPoints, spendPoints } from "./points";
+import { bookPoints, pointBalance, spendPoints } from "./points";
 import { SHARE_OPTIONS, sharePrice } from "./rules";
 
 /**
@@ -25,6 +25,8 @@ export const PledgeInput = z.object({
   source: z.enum(["CARD", "POINTS", "QUOTA"]),
   /** needed for CARD pledges: the e-invoice goes to this buyer when the card is charged */
   buyer: BuyerInput.optional(),
+  /** CARD: pay part with points (the card is charged the rest, at least 1 TWD) */
+  usePoints: z.boolean().default(false),
 });
 
 /** Tasks that accept pledges, and whether a pledge is collected right away */
@@ -64,7 +66,9 @@ async function quotaPledge(userId: string, taskId: string, amount: number, goal:
   return row.id;
 }
 
-export async function pledge(userId: string, taskId: string, input: z.infer<typeof PledgeInput>) {
+export type PledgeArgs = Omit<z.infer<typeof PledgeInput>, "usePoints"> & { usePoints?: boolean };
+
+export async function pledge(userId: string, taskId: string, input: PledgeArgs) {
   const task = await db.task.findUnique({ where: { id: taskId } });
   if (!task || !task.crowdfund || !task.isPublic) throw new HttpError(404, "task not found");
   if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, "this task is not taking pledges");
@@ -73,6 +77,9 @@ export async function pledge(userId: string, taskId: string, input: z.infer<type
   const amount = input.shares * sharePrice();
   let cardId: string | null = null;
   let usageLedgerId: string | null = null;
+  let pointsTwd = 0;
+  // a top-up round is open: the pledge waits for the round's goal like a campaign pledge
+  const topup = task.status === "NEEDS_FUNDING" && !!task.topupGoalTwd;
 
   if (input.source === "CARD") {
     const card = await latestCard(userId);
@@ -80,21 +87,22 @@ export async function pledge(userId: string, taskId: string, input: z.infer<type
     cardId = card.id;
     if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
     await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
+    if (input.usePoints) pointsTwd = Math.max(0, Math.min(await pointBalance(userId), amount - 1));
   } else if (input.source === "QUOTA") {
     usageLedgerId = await quotaPledge(userId, taskId, amount, task.goalTwd ?? amount);
   }
 
-  const p = await db.pledge.create({ data: { taskId, userId, source: input.source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId } });
-  if (input.source === "POINTS") {
+  const p = await db.pledge.create({ data: { taskId, userId, source: input.source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup } });
+  if (input.source === "POINTS" || pointsTwd > 0) {
     try {
-      await spendPoints(userId, amount, `pledge:${p.id}`, taskId);
+      await spendPoints(userId, input.source === "POINTS" ? amount : pointsTwd, `pledge:${p.id}`, taskId);
     } catch (e) {
       await db.pledge.delete({ where: { id: p.id } });
       throw e;
     }
   }
   await db.taskEvent.create({ data: { taskId, type: "pledge", message: `${input.shares} share(s) pledged (${amount} TWD, ${input.source.toLowerCase()})`, data: { pledge: p.id } } });
-  if (collectsNow(task.status)) {
+  if (topup || collectsNow(task.status)) {
     const { collectLate } = await import("./lifecycle");
     await collectLate(taskId, p.id);
   } else {
@@ -110,6 +118,7 @@ export async function releasePledge(pledgeId: string, status: "CANCELLED" | "REL
   const r = await db.pledge.updateMany({ where: { id: pledgeId, status: { in: ["ACTIVE", "FAILED"] } }, data: { status } });
   if (r.count !== 1) return false;
   if (p.source === "POINTS") await bookPoints({ userId: p.userId, delta: p.amountTwd, reason: "release", ref: `release:${p.id}`, taskId: p.taskId });
+  if (p.source === "CARD" && p.pointsTwd > 0) await bookPoints({ userId: p.userId, delta: p.pointsTwd, reason: "release", ref: `release:${p.id}`, taskId: p.taskId });
   if (p.source === "QUOTA") await returnQuota(p.userId, p.amountTwd, p.id);
   return true;
 }
@@ -137,7 +146,8 @@ export async function returnQuota(userId: string, amount: number, pledgeId: stri
 export async function cancelPledge(userId: string, pledgeId: string) {
   const p = await db.pledge.findUnique({ where: { id: pledgeId }, include: { task: true } });
   if (!p || p.userId !== userId) throw new HttpError(404, "pledge not found");
-  if (p.task.status !== "FUNDING" || p.status !== "ACTIVE") throw new HttpError(400, "only pledges of an open campaign can be withdrawn");
+  const openRound = p.task.status === "FUNDING" || (p.topup && p.task.status === "NEEDS_FUNDING" && !!p.task.topupGoalTwd);
+  if (!openRound || p.status !== "ACTIVE") throw new HttpError(400, "only pledges of an open campaign can be withdrawn");
   await releasePledge(p.id, "CANCELLED");
   await db.taskEvent.create({ data: { taskId: p.taskId, type: "pledge.cancelled", message: `${p.shares} share(s) withdrawn` } });
 }

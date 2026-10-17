@@ -65,6 +65,7 @@ model User {
   pledges       Pledge[]
   savedCards    SavedCard[]
   points        PointLedger[]
+  acceptanceVotes AcceptanceVote[]
 }
 
 enum UserRole {
@@ -333,6 +334,10 @@ enum TaskStatus {
   CHARGING
   /// crowdfunding ended without reaching the goal (nothing charged)
   UNFUNDED
+  /// crowdfunded run finished: backers vote on the acceptance criteria
+  IN_REVIEW
+  /// acceptance rejected and no rework possible: waiting for the platform's decision
+  DISPUTED
   AWAITING_PAYMENT
   QUEUED
   RUNNING
@@ -429,6 +434,21 @@ model Task {
   chargeDeadlineAt  DateTime?
   /// leftover budget returned to backers (points / quota)
   settledAt         DateTime?
+  /// a spec revision while funding: backers may withdraw until then, charging waits for it
+  exitUntil         DateTime?
+  /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
+  stretchUnlocked   Int       @default(0)
+  /// top-up round after the budget ran out: goal (whole TWD) and deadline; pledges wait until it is met
+  topupGoalTwd      Int?
+  topupDeadlineAt   DateTime?
+  /// acceptance: the agent's self-check {criteria: [{criterion, passed, evidence}], summary}, review deadline, reworks done
+  acceptance        Json?
+  reviewDeadlineAt  DateTime?
+  reworks           Int       @default(0)
+  /// why the last review rejected the result (given to the agent for the rework)
+  reworkNotes       String?
+  acceptanceVotes   AcceptanceVote[]
+  revisions         SpecRevision[]
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
@@ -1046,6 +1066,10 @@ model Pledge {
   usageLedgerId String?      @unique
   /// leftover given back at settlement (points for CARD / POINTS, quota for QUOTA)
   returnedTwd   Int          @default(0)
+  /// CARD pledges: part paid with points (less than one share); the card is charged amountTwd − pointsTwd
+  pointsTwd     Int          @default(0)
+  /// pledged during a top-up round (waits for that round's goal)
+  topup         Boolean      @default(false)
   error         String?
   createdAt     DateTime     @default(now())
   chargedAt     DateTime?
@@ -1117,4 +1141,34 @@ model TaskInputFile {
   deletedAt   DateTime?
 
   @@index([taskId])
+}
+
+/** A backer's acceptance vote, weighted by the shares they paid for (collected pledges) */
+model AcceptanceVote {
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// review round (0 = first review, n = after the n-th rework)
+  round     Int      @default(0)
+  approve   Boolean
+  reason    String?
+  shares    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([taskId, userId, round])
+}
+
+/** Spec versions published while the campaign is open (v1 = the one funding opened with) */
+model SpecRevision {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  version   Int
+  spec      Json
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, version])
 }
