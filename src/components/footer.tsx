@@ -37,6 +37,7 @@ export async function Footer() {
         <Link className="hover:text-accent" href="/terms">{t("terms")}</Link>
         <Link className="hover:text-accent" href="/privacy">{t("privacy")}</Link>
         <Link className="hover:text-accent" href="/refunds">{t("refunds")}</Link>
+        <Link className="hover:text-accent" href="/crowd-terms">{t("crowdTerms")}</Link>
       </div>
     </footer>
   );

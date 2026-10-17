@@ -21,6 +21,12 @@ export const POST = handle(async (req: Request) => {
     const t = await takedownTool(r.targetId);
     await notify(t.ownerId, { type: "tool.takedown", title: `Your tool ${t.name} was removed from the directory`, body: r.reason, link: "/account#tools" }).catch(() => undefined);
   }
+  if (takedown && r.targetType === "task") {
+    const { takedownCrowd } = await import("@/lib/crowd/lifecycle");
+    await takedownCrowd(r.targetId, r.reason);
+    const t = await db.task.findUnique({ where: { id: r.targetId }, select: { userId: true, title: true } });
+    if (t) await notify(t.userId, { type: "crowd.takedown", title: `你的眾籌已被下架 Taken down: ${t.title}`, body: r.reason, link: `/tasks/${r.targetId}` }).catch(() => undefined);
+  }
   await db.report.updateMany({ where: { targetType: r.targetType, targetId: r.targetId, resolvedAt: null }, data: { resolvedAt: new Date() } });
   await audit(admin.id, takedown ? "report.takedown" : "report.dismiss", { type: r.targetType, id: r.targetId }, { reportId: r.id });
   return json({ ok: true });

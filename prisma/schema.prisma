@@ -60,6 +60,10 @@ model User {
   adminActions  AdminAudit[]  @relation("auditActor")
   modelPrices   ModelPrice[]
   usage         UsageLedger[]
+  pledges       Pledge[]
+  savedCards    SavedCard[]
+  points        PointLedger[]
+  acceptanceVotes AcceptanceVote[]
 }
 
 enum UserRole {
@@ -304,6 +308,8 @@ model Comment {
   parent     Comment?      @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
   replies    Comment[]     @relation("thread")
   body       String
+  /// "comment" (discussion), "reference" (a backer's reference info, read by the agent), "status" (agent report)
+  kind       String        @default("comment")
   deletedAt  DateTime?
   createdAt  DateTime      @default(now())
 
@@ -318,6 +324,20 @@ enum TaskKind {
 }
 
 enum TaskStatus {
+  /// crowdfunding proposal being written (spec dialogue, reference files)
+  DRAFT
+  /// submitted for funding: waiting for the content screening (AI, then an admin when needed)
+  SCREENING
+  /// crowdfunding open: pledges are collected (cards are bound, not charged)
+  FUNDING
+  /// goal reached: card pledges are being charged (retries during the grace period)
+  CHARGING
+  /// crowdfunding ended without reaching the goal (nothing charged)
+  UNFUNDED
+  /// crowdfunded run finished: backers vote on the acceptance criteria
+  IN_REVIEW
+  /// acceptance rejected and no rework possible: waiting for the platform's decision
+  DISPUTED
   AWAITING_PAYMENT
   QUEUED
   RUNNING
@@ -383,10 +403,68 @@ model Task {
   votes     TaskVote[]
   payments  Payment[]
   report    EvaluationReport?
+  pledges    Pledge[]
+  inputFiles TaskInputFile[]
+
+  // ── crowdfunding (crowdfund = true) ──
+  crowdfund         Boolean   @default(false)
+  /// goal in whole TWD (a multiple of the share price)
+  goalTwd           Int?
+  /// 7, 30, 90 or 180
+  durationDays      Int?
+  deadlineAt        DateTime?
+  /// start charging as soon as the goal is reached instead of at the deadline
+  startEarly        Boolean   @default(false)
+  /// platform service fee rate snapshotted when funding opens (0 for 7 days)
+  serviceFeeRate    Decimal?  @db.Decimal(6, 4)
+  serviceFeeTwd     Int       @default(0)
+  /// proposal: {summary, scope, outOfScope, deliverables[], method[], acceptance[], estimate {p50Twd, p90Twd, basis}, stretch[], risks[]}
+  spec              Json?
+  specVersion       Int       @default(0)
+  /// spec dialogue [{role: "user" | "assistant", content, at}]
+  specChat          Json?
+  /// proposal fee credit (published-price TWD) and what the spec dialogue, storage and extra file space used
+  proposalCreditTwd Decimal   @default(0) @db.Decimal(20, 6)
+  proposalUsedTwd   Decimal   @default(0) @db.Decimal(20, 6)
+  /// unused proposal credit moved into the budget when funded (kept by the platform at settlement, never points)
+  proposalToBudgetTwd Decimal @default(0) @db.Decimal(20, 6)
+  fundingStartedAt  DateTime?
+  fundedAt          DateTime?
+  /// end of the grace period for failed card charges
+  chargeDeadlineAt  DateTime?
+  /// leftover budget returned to backers (points / quota)
+  settledAt         DateTime?
+  /// a spec revision while funding: backers may withdraw until then, charging waits for it
+  exitUntil         DateTime?
+  /// research | data | writing | code | translation | media | other
+  category          String?
+  /// screening of the proposal before it opens: {decision, reasons, by: "ai" | "admin", at}
+  screening         Json?
+  /// set when an admin takes the campaign down after a report
+  takenDownAt       DateTime?
+  /// version of the crowdfunding terms (with the screening checklist) the proposer agreed to
+  /// next AI screening attempt by the worker (null = not queued)
+  screenAt          DateTime?
+  termsVersion      Int?
+  /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
+  stretchUnlocked   Int       @default(0)
+  /// top-up round after the budget ran out: goal (whole TWD) and deadline; pledges wait until it is met
+  topupGoalTwd      Int?
+  topupDeadlineAt   DateTime?
+  /// acceptance: the agent's self-check {criteria: [{criterion, passed, evidence}], summary}, review deadline, reworks done
+  acceptance        Json?
+  reviewDeadlineAt  DateTime?
+  reworks           Int       @default(0)
+  /// why the last review rejected the result (given to the agent for the rework)
+  reworkNotes       String?
+  acceptanceVotes   AcceptanceVote[]
+  revisions         SpecRevision[]
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
   @@index([isPublic, createdAt])
+  @@index([crowdfund, status, deadlineAt])
+  @@index([status, screenAt])
 }
 
 model TaskEvent {
@@ -468,6 +546,10 @@ model EvaluationReport {
 enum PaymentPurpose {
   TASK_BUDGET
   TASK_TOPUP
+  /// crowdfunding proposal fee (credit for the spec dialogue, storage and extra file space)
+  CROWD_PROPOSAL
+  /// a backer's card pledges for one task, charged with the saved card token
+  CROWD_PLEDGE
   SUBSCRIPTION
 }
 
@@ -524,6 +606,7 @@ model Payment {
   providerStatus String?
   status      PaymentStatus  @default(PENDING)
   txHash      String?        @unique
+  pledges     Pledge[]
   error       String?
   meta        Json?
   createdAt   DateTime       @default(now())
@@ -947,6 +1030,8 @@ model Anchor {
   salt       String
   /// [{name, sha256, keccak, size}]
   files      Json
+  /// public certificate: the files themselves are kept on Boltchain (content read from the target when issuing)
+  publicFiles Boolean  @default(false)
   root       String?
   txHash     String?
   status     String    @default("pending")
@@ -958,4 +1043,192 @@ model Anchor {
 
   @@unique([targetType, targetId])
   @@index([status, nextTryAt])
+}
+
+
+// ───────────────────────── Crowdfunding ─────────────────────────
+
+enum PledgeSource {
+  CARD
+  POINTS
+  QUOTA
+}
+
+enum PledgeStatus {
+  /// card: bound, not charged yet; points / quota: already deducted
+  ACTIVE
+  CHARGED
+  /// card charge failed (retried until the grace period ends)
+  FAILED
+  /// withdrawn by the backer before charging
+  CANCELLED
+  /// campaign ended without funding: points / quota given back, card never charged
+  RELEASED
+  /// card charge refunded (funding fell short after charging)
+  REFUNDED
+}
+
+/** One pledge action: shares × share price, paid with a saved card (charged later), points or subscription quota */
+model Pledge {
+  id            String       @id @default(cuid())
+  taskId        String
+  task          Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source        PledgeSource
+  shares        Int
+  amountTwd     Int
+  status        PledgeStatus @default(ACTIVE)
+  cardId        String?
+  card          SavedCard?   @relation(fields: [cardId], references: [id])
+  /// the CROWD_PLEDGE payment that charged it (one per backer and task)
+  paymentId     String?
+  payment       Payment?     @relation(fields: [paymentId], references: [id])
+  usageLedgerId String?      @unique
+  /// leftover given back at settlement (points for CARD / POINTS, quota for QUOTA)
+  returnedTwd   Int          @default(0)
+  /// CARD pledges: part paid with points (less than one share); the card is charged amountTwd − pointsTwd
+  pointsTwd     Int          @default(0)
+  /// pledged during a top-up round (waits for that round's goal)
+  topup         Boolean      @default(false)
+  /// version of the crowdfunding terms the backer agreed to
+  termsVersion  Int?
+  error         String?
+  createdAt     DateTime     @default(now())
+  chargedAt     DateTime?
+  updatedAt     DateTime     @updatedAt
+
+  @@index([taskId, status])
+  @@index([userId, createdAt])
+}
+
+/** A card saved with Oen (token checkout). The token arrives only through the token notification. */
+model SavedCard {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Oen checkout-token id (also the id in the token notification)
+  bindingId   String    @unique
+  /// sealed with the settings key; null until the notification arrives
+  tokenSealed String?
+  last4       String?
+  /// pending | active | failed | removed
+  status      String    @default("pending")
+  error       String?
+  createdAt   DateTime  @default(now())
+  activatedAt DateTime?
+  removedAt   DateTime?
+  pledges     Pledge[]
+
+  @@index([userId, status])
+}
+
+/** Platform points: 1 point = 1 TWD, only for crowdfunding pledges, not transferable, no cash-out */
+model PointLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  /// leftover | pledge | release | platform | admin
+  reason    String
+  /// idempotency key, e.g. "leftover:<pledgeId>"
+  ref       String?  @unique
+  taskId    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum FileVisibility {
+  /// anyone who can see the task
+  PUBLIC
+  /// backers and the proposer
+  BACKERS
+  /// only the agent (and the proposer)
+  AGENT
+}
+
+/** Reference files uploaded with a crowdfunding proposal; copied into the task's inputs/ folder */
+model TaskInputFile {
+  id          String         @id @default(cuid())
+  taskId      String
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  key         String
+  filename    String
+  contentType String
+  sizeBytes   BigInt
+  sha256      String
+  visibility  FileVisibility @default(BACKERS)
+  createdAt   DateTime       @default(now())
+  deletedAt   DateTime?
+
+  @@index([taskId])
+}
+
+/** A backer's acceptance vote, weighted by the shares they paid for (collected pledges) */
+model AcceptanceVote {
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// review round (0 = first review, n = after the n-th rework)
+  round     Int      @default(0)
+  approve   Boolean
+  reason    String?
+  shares    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([taskId, userId, round])
+}
+
+/** Spec versions published while the campaign is open (v1 = the one funding opened with) */
+model SpecRevision {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  version   Int
+  spec      Json
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, version])
+}
+
+/**
+ * The proposal screening checklist: yes/no items grouped in dimensions. Every item must be answered "yes" for a
+ * proposal to open. Published versions are public (crowdfunding terms) and never change; publishedAt = null is the
+ * admins' working draft.
+ */
+model ChecklistVersion {
+  id          String    @id @default(cuid())
+  /// 1, 2, … for published versions; 0 for the draft
+  version     Int       @default(0)
+  /// [{id, dimension, text}]
+  items       Json
+  note        String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  @@index([publishedAt, version])
+}
+
+/** Every published text of a legal document, as the exact markdown shown, notarized on Boltchain */
+model LegalVersion {
+  id         String   @id @default(cuid())
+  /// terms | privacy | refunds | crowd
+  doc        String
+  locale     String
+  version    Int
+  markdown   String
+  sha256     String
+  /// Boltchain certificate code once issued
+  anchorCode String?
+  createdAt  DateTime @default(now())
+
+  @@unique([doc, locale, version])
+  @@unique([doc, locale, sha256])
 }

@@ -10,6 +10,8 @@ const Input = z.object({
   targetId: z.string().min(1),
   parentId: z.string().optional().nullable(),
   body: z.string().trim().min(1).max(5000),
+  /** crowdfunded tasks: "reference" marks information for the agent (proposer and backers only) */
+  kind: z.enum(["comment", "reference"]).default("comment"),
 });
 
 async function targetOwner(type: "SKILL" | "TASK" | "EVALUATION", id: string, viewer: string) {
@@ -30,6 +32,11 @@ export const POST = handle(async (req: Request) => {
   const b = Input.parse(await req.json());
   const target = await targetOwner(b.targetType, b.targetId, user.id);
   if (!target) return json({ error: "not found" }, 404);
+  if (b.kind === "reference") {
+    const t = b.targetType === "TASK" ? await db.task.findUnique({ where: { id: b.targetId } }) : null;
+    const backer = t ? t.userId === user.id || (await db.pledge.count({ where: { taskId: t.id, userId: user.id, status: { in: ["ACTIVE", "CHARGED"] } } })) > 0 : false;
+    if (!t?.crowdfund || !backer) return json({ error: "only the proposer and backers can add reference information" }, 403);
+  }
   if (b.parentId) {
     const p = await db.comment.findUnique({ where: { id: b.parentId } });
     if (!p || p.targetId !== b.targetId || p.targetType !== b.targetType) return json({ error: "bad parent" }, 400);

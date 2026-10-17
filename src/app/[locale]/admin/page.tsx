@@ -1,3 +1,6 @@
+import { ScreeningActions, ScreeningResult } from "@/components/crowd";
+import { ChecklistEditor } from "@/components/checklist-editor";
+import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -27,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { group: "start", items: [{ id: "overview", icon: "grid" }] },
-  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }] },
+  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }, { id: "screening", icon: "eye", count: "screening" }, { id: "checklist", icon: "list" }] },
   { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
   { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
@@ -50,6 +53,9 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else if (tab === "tools") body = <ToolReviews />;
   else if (tab === "storage") body = <StorageStatus />;
   else if (tab === "reports") body = <Reports />;
+  else if (tab === "disputes") body = <Disputes />;
+  else if (tab === "screening") body = <Screening />;
+  else if (tab === "checklist") body = <ChecklistAdmin />;
   else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
   else if (tab === "payments") body = <Payments status={sp.status} />;
   else if (tab === "prices") body = <Prices />;
@@ -228,11 +234,142 @@ async function Reports() {
         <div key={r.id} className="card space-y-2 p-5 text-sm">
           <div className="flex flex-wrap items-center gap-3">
             <span className="chip">{r.targetType}</span>
-            {r.targetType === "share" ? <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link> : <ToolLink id={r.targetId} />}
+            {r.targetType === "share" ? (
+              <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link>
+            ) : r.targetType === "task" ? (
+              <Link href={`/tasks/${r.targetId}`} className="font-mono text-accent">/tasks/{r.targetId}</Link>
+            ) : (
+              <ToolLink id={r.targetId} />
+            )}
             <span className="text-xs text-muted">@{r.reporter.handle ?? r.reporter.account} · <LocalDate value={r.createdAt} /></span>
           </div>
           <p>{r.reason}</p>
           <ReportActions reportId={r.id} targetType={r.targetType} targetId={r.targetId} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The public screening checklist: edit the draft by hand or with AI, publish versions */
+async function ChecklistAdmin() {
+  const t = await getTranslations("checklist");
+  const [cur, draft, versions] = await Promise.all([currentChecklist(), draftChecklist(), publishedVersions()]);
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-semibold">{t("current", { v: cur.version, n: cur.items.length })}</span>
+        <Link href="/crowd-terms" className="text-accent underline">/crowd-terms</Link>
+      </div>
+      <ChecklistEditor items={draft.items} dimensions={DIMENSIONS} min={MIN_ITEMS} version={cur.version} changed={draft.changed} />
+      <div className="card space-y-2 p-5 text-sm">
+        <div className="font-semibold">{t("history")}</div>
+        {versions.map((v) => (
+          <div key={v.version} className="flex flex-wrap gap-3">
+            <span className="chip">v{v.version}</span>
+            <span className="text-muted">{(v.items as unknown[]).length}</span>
+            <span>{v.note}</span>
+            {v.publishedAt && <span className="ml-auto text-xs text-muted"><LocalDate value={v.publishedAt} /></span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Proposals in screening, proposals sent back by it (re-review possible), and the latest results */
+async function Screening() {
+  const t = await getTranslations("admin");
+  const tc = await getTranslations("crowd.screening");
+  const waiting = await db.task.findMany({ where: { status: "SCREENING" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
+  const recent = await db.taskEvent.findMany({
+    where: { type: { in: ["screening.rejected", "screening.passed", "funding.opened"] }, task: { crowdfund: true } },
+    include: { task: { select: { id: true, title: true, status: true, screening: true, user: { select: { handle: true, account: true } } } } },
+    orderBy: { createdAt: "desc" },
+    take: 60,
+  });
+  // the newest result per proposal; sent-back ones can be re-reviewed while still in draft
+  const seen = new Set<string>();
+  const latest = recent.filter((e) => !(e.type === "funding.opened" && (e.data as { by?: string } | null)?.by === "ai") && !seen.has(e.taskId) && (seen.add(e.taskId), true));
+  const sentBack = latest.filter((e) => e.type === "screening.rejected" && e.task.status === "DRAFT" && (e.task.screening as ScreeningData | null)?.decision === "rejected");
+  const others = latest.filter((e) => !sentBack.includes(e));
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <h2 className="h3">{tc("inProgress")} · {waiting.length}</h2>
+        {waiting.length === 0 ? (
+          <p className="text-muted">{t("empty")}</p>
+        ) : (
+          waiting.map((r) => {
+            const sc = r.screening as ScreeningData | null;
+            return (
+              <div key={r.id} className="card space-y-3 p-5 text-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+                  <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+                </div>
+                <p className="text-xs text-muted">{sc?.decision === "pending" ? tc("waiting") : tc("queued")}</p>
+                {sc && <ScreeningResult screening={sc} />}
+                <ScreeningActions taskId={r.id} />
+              </div>
+            );
+          })
+        )}
+      </section>
+      {sentBack.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="h3">{tc("sentBack")} · {sentBack.length}</h2>
+          {sentBack.map((e) => (
+            <div key={e.id} className="card space-y-3 p-5 text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-err">✗</span>
+                <Link href={`/tasks/${e.task.id}`} className="font-semibold text-accent">{e.task.title}</Link>
+                <span className="text-xs text-muted">@{e.task.user.handle ?? e.task.user.account} · <LocalDate value={e.createdAt} /></span>
+              </div>
+              <ScreeningResult screening={e.task.screening as ScreeningData} />
+              <ScreeningActions taskId={e.task.id} />
+            </div>
+          ))}
+        </section>
+      )}
+      {others.length > 0 && (
+        <div className="card divide-y divide-line text-sm">
+          {others.map((e) => {
+            const d = e.data as { passed?: number; failed?: string[] | number; total?: number; v?: number } | null;
+            const sc = e.task.screening as ScreeningData | null;
+            const ok = e.type !== "screening.rejected";
+            const failed = Array.isArray(d?.failed) ? d.failed.length : (d?.failed ?? 0);
+            return (
+              <div key={e.id} className="flex flex-wrap items-center gap-3 p-3">
+                <span className={ok ? "text-ok" : "text-err"}>{ok ? "✓" : "✗"}</span>
+                <Link href={`/tasks/${e.task.id}`} className="text-accent">{e.task.title}</Link>
+                {d?.total ? <span className="text-xs text-muted">{tc("result", { passed: d.passed ?? 0, failed, total: d.total, v: d.v ?? sc?.checklistVersion ?? 0 })}</span> : null}
+                <span className="ml-auto text-xs text-muted"><LocalDate value={e.createdAt} /></span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ScreeningData = { decision: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] };
+
+/** Crowdfunded tasks whose acceptance review was rejected with no rework left */
+async function Disputes() {
+  const t = await getTranslations("admin");
+  const rows = await db.task.findMany({ where: { status: "DISPUTED" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
+  if (!rows.length) return <p className="text-muted">{t("empty")}</p>;
+  return (
+    <div className="space-y-3">
+      {rows.map((r) => (
+        <div key={r.id} className="card space-y-2 p-5 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+            <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · <LocalDate value={r.updatedAt} /></span>
+          </div>
+          {r.reworkNotes && <p className="whitespace-pre-wrap text-muted">{r.reworkNotes}</p>}
         </div>
       ))}
     </div>

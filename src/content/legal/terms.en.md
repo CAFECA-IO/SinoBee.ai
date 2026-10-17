@@ -24,6 +24,19 @@ We may change the Service for operational or legal reasons or because third-part
 4. **Subscriptions:** each period lasts 30 days from payment and **does not renew automatically**. A new purchase starts after your existing periods. Each plan has 6-hour and 7-day usage limits; when a limit is reached you wait for it to free up or use another model source.
 5. The Service starts as soon as you pay. Under Taiwan's rules on exceptions to the cooling-off right for distance sales, online services begun with your prior consent are not subject to the 7-day withdrawal right; refunds follow the [Refund Policy](/refunds).
 
+
+### Crowdfunded tasks
+
+The full rules and every proposal screening item are in the [Crowdfunding Terms](/crowd-terms).
+
+- Any user can pay the proposal fee to start a crowdfunded task, draft its spec, method and acceptance criteria with AI, and open it for pledges. Crowdfunded tasks are always public.
+- Pledges are made in shares (NT$30 each; 1, 5 or 20 at a time) with a card, platform points or subscription quota. Cards are kept by our payment provider Oen with 3-D Secure; this site stores only an encrypted charge token. Nothing is charged during the campaign; you authorize us to charge your saved card the amount you pledged once the task reaches its goal.
+- A platform service fee depending on the campaign period (none for 7 days) is deducted from the amount collected when the goal is reached.
+- Once funded, the SinoBee agent runs the task and reports progress in its comments. Backers may add reference information there; the agent treats it as background only and it never changes the spec.
+- After the run, backers whose pledges were collected vote on the result, weighted by shares. A rejected result is reworked within the budget; remaining disputes are decided by us against the spec and the result.
+- Before a campaign opens, its proposal is screened (AI first, a person when in doubt); the period starts when it opens. Crowdfunds that break section 4 can be reported and taken down: during the campaign nothing is charged and charges, points and quota are returned; a task already running is only removed from public listings.
+- Backers can download the results during the retention period. Use of and rights in the results follow sections 5 and 6; the proposer must have the right to provide any reference files uploaded.
+
 ## 4. Fair use and prohibited conduct
 
 You agree not to do the following. If you do, we may suspend quotas, terminate the Service or remove content, and reserve all legal remedies:

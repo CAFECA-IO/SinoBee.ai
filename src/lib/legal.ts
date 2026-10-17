@@ -2,8 +2,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "./config";
 
-export const LEGAL_DOCS = ["terms", "privacy", "refunds"] as const;
+export const LEGAL_DOCS = ["terms", "privacy", "refunds", "crowd"] as const;
 export type LegalDoc = (typeof LEGAL_DOCS)[number];
+
+/** Page of each document (/crowd is the crowdfunding directory, so its terms live at /crowd-terms) */
+export const legalPath = (d: LegalDoc) => (d === "crowd" ? "/crowd-terms" : `/${d}`);
 
 /** Policy text from src/content/legal/<doc>.<locale>.md with the site's details filled in */
 export async function legalText(doc: LegalDoc, locale: string): Promise<string> {
@@ -25,6 +28,27 @@ export async function legalText(doc: LegalDoc, locale: string): Promise<string> 
     contact,
     graceDays: String(config.subscription.graceDays),
     freeDays: String(config.retention.freeDays),
+    ...(doc === "crowd" ? await crowdVars(loc) : {}),
   };
   return raw.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? "");
+}
+
+/** The crowdfunding terms embed the published screening checklist and the current crowdfunding numbers */
+async function crowdVars(loc: string): Promise<Record<string, string>> {
+  const { currentChecklist, checklistMarkdown } = await import("./crowd/checklist");
+  const c = await currentChecklist();
+  const fees = Object.entries(config.crowd.feeRates)
+    .map(([d, r]) => (loc === "zh-TW" ? `${d} 天 ${+(r * 100).toFixed(2)}%` : `${d} days ${+(r * 100).toFixed(2)}%`))
+    .join(loc === "zh-TW" ? "、" : ", ");
+  return {
+    checklist: checklistMarkdown(c, loc),
+    checklistVersion: String(c.version),
+    checklistCount: String(c.items.length),
+    checklistDate: (c.publishedAt ?? new Date()).toISOString().slice(0, 10),
+    sharePrice: String(Math.round(config.crowd.sharePrice)),
+    proposalFee: String(Math.round(config.crowd.proposalFee)),
+    feeRates: fees,
+    reviewDays: String(config.crowd.reviewDays),
+    exitHours: String(config.crowd.exitHours),
+  };
 }

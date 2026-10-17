@@ -24,7 +24,8 @@ export default async function PayReturn({ params, searchParams }: { params: Prom
   if (pay.status === "PENDING") pay = await syncPayment(pay.id).catch(() => pay!);
   const t = await getTranslations("payReturn");
   const err = (await searchParams).payment_error;
-  const next = pay.taskId ? `/tasks/${pay.taskId}` : "/account#subscription";
+  const proposal = pay.purpose === "CROWD_PROPOSAL" && pay.taskId;
+  const next = proposal ? `/crowd/${pay.taskId}/edit` : pay.taskId ? `/tasks/${pay.taskId}` : "/account#subscription";
   const state = pay.status === "CONFIRMED" ? "ok" : pay.status === "PENDING" ? (err && err !== "V0003" ? "failed" : "pending") : "failed";
   return (
     <div className="container-x max-w-xl space-y-6 py-16 text-center" data-state={state}>
@@ -36,7 +37,7 @@ export default async function PayReturn({ params, searchParams }: { params: Prom
         {state === "failed" && (err && ERRORS.includes(err) ? t(`err.${err}`) : t("failed"))}
       </p>
       <div className="flex justify-center gap-3">
-        <Link href={next} className="btn-primary">{pay.taskId ? t("toTask") : t("toAccount")}</Link>
+        <Link href={next} className="btn-primary">{proposal ? t("toProposal") : pay.taskId ? t("toTask") : t("toAccount")}</Link>
         {state === "failed" && pay.purpose === "SUBSCRIPTION" && <Link href="/subscribe" className="btn-ghost">{t("retry")}</Link>}
       </div>
       <p className="font-mono text-xs text-muted">{pay.transactionHid ?? pay.id}</p>

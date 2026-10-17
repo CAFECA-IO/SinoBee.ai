@@ -9,7 +9,10 @@ type Target = "SKILL" | "TASK" | "EVALUATION";
 const who = (u: { handle: string | null; publisher: string | null; account: string }) =>
   u.publisher ?? (u.handle ? `@${u.handle}` : `${u.account.slice(0, 6)}…${u.account.slice(-4)}`);
 
-export async function Comments({ targetType, targetId }: { targetType: Target; targetId: string }) {
+const KIND_STYLE: Record<string, string> = { status: "bg-accent-soft text-accent", reference: "bg-warn-soft text-warn" };
+
+/** `canReference`: crowdfunded task and the viewer is its proposer or a backer (may mark comments as reference info) */
+export async function Comments({ targetType, targetId, canReference = false }: { targetType: Target; targetId: string; canReference?: boolean }) {
   const t = await getTranslations("comments");
   const me = await currentUser();
   const rows = await db.comment.findMany({
@@ -24,6 +27,7 @@ export async function Comments({ targetType, targetId }: { targetType: Target; t
     <div className={nested ? "ml-6 border-l border-line pl-4" : ""}>
       <div className="flex items-center gap-2 text-xs text-muted">
         <span className="font-semibold text-ink">{who(c.user)}</span>
+        {c.kind !== "comment" && <span className={`badge ${KIND_STYLE[c.kind] ?? "bg-panel-2"}`}>{t(`kind.${c.kind}`)}</span>}
         <LocalDate value={c.createdAt} />
         {me && (me.id === c.userId || me.isAdmin) && !c.deletedAt && <DeleteComment id={c.id} />}
       </div>
@@ -45,7 +49,7 @@ export async function Comments({ targetType, targetId }: { targetType: Target; t
           {me && !c.deletedAt && <CommentForm targetType={targetType} targetId={targetId} parentId={c.id} compact />}
         </div>
       ))}
-      {me ? <CommentForm targetType={targetType} targetId={targetId} /> : <p className="text-sm text-muted">{t("loginToComment")}</p>}
+      {me ? <CommentForm targetType={targetType} targetId={targetId} canReference={canReference} /> : <p className="text-sm text-muted">{t("loginToComment")}</p>}
     </section>
   );
 }

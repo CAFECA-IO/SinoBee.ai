@@ -1,6 +1,13 @@
 import { useTranslations } from "next-intl";
 
 const STYLE: Record<string, string> = {
+  DRAFT: "bg-panel-2 text-muted",
+  SCREENING: "bg-warn-soft text-warn",
+  FUNDING: "bg-accent-soft text-accent",
+  CHARGING: "bg-warn-soft text-warn",
+  UNFUNDED: "bg-panel-2 text-muted",
+  IN_REVIEW: "bg-accent-soft text-accent",
+  DISPUTED: "bg-err-soft text-err",
   AWAITING_PAYMENT: "bg-warn-soft text-warn",
   QUEUED: "bg-panel-2 text-muted",
   RUNNING: "bg-accent-soft text-accent",

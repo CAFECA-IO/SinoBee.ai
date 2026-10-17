@@ -71,9 +71,28 @@ function canonicalJson(v: unknown): string {
   return JSON.stringify(v ?? null);
 }
 
-/** Manifest kept in the certificate's storage deal (hashes and sizes, no names) — same bytes as verify.js certManifest */
-export function certManifest(files: FileHash[], salt: Hex): Uint8Array {
-  return new TextEncoder().encode(canonicalJson({ v: 1, type: "boltchain-certificate", salt, files: files.map((f) => ({ keccak256: f.keccak256, sha256: f.sha256, size: f.size })) }));
+/**
+ * Manifest kept in the certificate's storage deal (hashes and sizes, no names; for a public certificate also the
+ * CIDs of each file's 256 KiB blocks) — same bytes as verify.js certManifest
+ */
+export function certManifest(files: FileHash[], salt: Hex, chunks?: string[][]): Uint8Array {
+  return new TextEncoder().encode(
+    canonicalJson({ v: 1, type: "boltchain-certificate", salt, files: files.map((f, i) => ({ keccak256: f.keccak256, sha256: f.sha256, size: f.size, ...(chunks ? { chunks: chunks[i] } : {}) })) }),
+  );
+}
+
+/** verify.js CHUNK_SIZE: public files are kept as raw blocks of this size */
+export const CHUNK_SIZE = 256 * 1024;
+
+/** Cuts a file into raw blocks (an empty file is one empty block), as the explorer does */
+export function chunkFile(data: Uint8Array): Block[] {
+  const out: Block[] = [];
+  for (let o = 0; o < data.length || o === 0; o += CHUNK_SIZE) {
+    const bytes = data.subarray(o, o + CHUNK_SIZE);
+    out.push({ cid: rawCid(bytes), bytes });
+    if (data.length === 0) break;
+  }
+  return out;
 }
 
 export const newSalt = () => toHex(randomBytes(32));
@@ -81,24 +100,41 @@ export const certUrl = (code: string) => `${config.boltchain.explorer}/cert/${fo
 
 export type Issued = { code: string; codeHex: Hex; root: Hex; txHash: Hex; dealId: bigint };
 
-/** Issues an evidence-only certificate paid by the site wallet (publicFiles = false) */
-export async function issue(files: FileHash[], salt: Hex): Promise<Issued> {
+/**
+ * Issues a certificate paid by the site wallet. Evidence only by default (the deal keeps the manifest, billed as
+ * 1 MiB). With `contents` (one per file, matching its hashes) the certificate is public: the files themselves are
+ * kept in the deal as raw blocks and anyone can download them from the explorer and check them against the hashes.
+ */
+export async function issue(files: FileHash[], salt: Hex, contents?: Uint8Array[]): Promise<Issued> {
   const address = config.boltchain.certificates as Hex;
   if (!address) throw new Error("BOLT_CERTIFICATES is not set");
   const wc = walletClient();
+  const publicFiles = !!contents;
+  let chunks: string[][] | undefined;
+  const fileBlocks: Block[] = [];
+  if (contents) {
+    if (contents.length !== files.length) throw new Error("one content per file is needed for a public certificate");
+    chunks = contents.map((c, i) => {
+      const h = hashFile(c);
+      if (h.sha256 !== files[i].sha256 || h.keccak256 !== files[i].keccak256 || h.size !== files[i].size) throw new Error(`file ${i + 1} does not match its hashes`);
+      const blocks = chunkFile(c);
+      for (const b of blocks) if (!fileBlocks.some((x) => x.cid === b.cid)) fileBlocks.push(b);
+      return blocks.map((b) => b.cid);
+    });
+  }
   const manifest: Block = (() => {
-    const bytes = certManifest(files, salt);
+    const bytes = certManifest(files, salt, chunks);
     return { cid: rawCid(bytes), bytes };
   })();
-  const idx = buildDealIndex([{ cid: manifest.cid, size: manifest.bytes.length }], manifest.cid);
-  await hostBlocks(idx.root, [manifest, ...idx.indexBlocks]);
-  // evidence only: billed as 1 MiB
+  const listed = [manifest, ...fileBlocks];
+  const idx = buildDealIndex(listed.map((b) => ({ cid: b.cid, size: b.bytes.length })), manifest.cid);
+  await hostBlocks(idx.root, [...listed, ...idx.indexBlocks]);
   const size = BigInt(idx.dealSize);
   const q = await quote(size);
   const root = rootOf(files);
   const codeHex = codeOf(root, wc.account.address, salt);
   const args = [
-    salt, files.map((f) => f.keccak256), files.map((f) => f.sha256), files.map((f) => BigInt(f.size)), false,
+    salt, files.map((f) => f.keccak256), files.map((f) => f.sha256), files.map((f) => BigInt(f.size)), publicFiles,
     toHex(cidToBytes(manifest.cid)), toHex(cidToBytes(idx.root)), BigInt(idx.count), size, q.replicas, q.epochs, q.price,
   ] as const;
   const { hash: txHash, receipt: rc } = await sendContract({ address, abi: certificatesAbi, functionName: "issue", args, value: q.cost }, "issue");

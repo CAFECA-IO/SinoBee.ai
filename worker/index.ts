@@ -22,10 +22,15 @@ import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
 import { sweepHolds } from "../src/lib/llm/quota";
 import { purgeNonces } from "../src/lib/device-sign";
-import { DockerExecutor, containerName, volumeName } from "./docker-executor";
+import { DockerExecutor, containerName, crowdContainerName, volumeName } from "./docker-executor";
+import { enterReview } from "../src/lib/crowd/review";
+import { screeningTick } from "../src/lib/crowd/screening";
+import { snapshotAllLegal } from "../src/lib/legal-versions";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
 import { loadSettings } from "../src/lib/settings/store";
+import { crowdTick, settleTask } from "../src/lib/crowd/lifecycle";
+import { mirrorEvent } from "../src/lib/crowd/agent";
 import type { Executor, TaskWithRefs, Usage } from "./types";
 
 const WORKER_ID = `${process.env.HOSTNAME ?? "worker"}-${randomUUID().slice(0, 8)}`;
@@ -38,6 +43,13 @@ const log = (...a: unknown[]) => console.log(new Date().toISOString(), `[worker 
 
 async function event(taskId: string, type: string, message: string, data?: object) {
   await db.taskEvent.create({ data: { taskId, type, message, data: data ?? undefined } });
+  // crowdfunded tasks: the agent reports milestones as comments under the task
+  await mirrorEvent(taskId, type, message);
+}
+
+/** Results of crowdfunded tasks are kept for every backer (crowd.resultsDays); others by the requester's plan */
+async function retentionFor(task: { userId: string; crowdfund: boolean }) {
+  return task.crowdfund ? Math.max(config.crowd.resultsDays, await resultsRetentionDays(task.userId)) : resultsRetentionDays(task.userId);
 }
 
 /**
@@ -79,13 +91,15 @@ async function runTask(id: string) {
   const prevVmSeconds = task.vmSeconds;
   const prevS3 = Number(task.s3CostUsd.toString());
   const continuation = prevVmSeconds > 0;
-  await db.userContainer.upsert({
-    where: { userId: task.userId },
-    create: { userId: task.userId, containerName: containerName(task.userId), volumeName: volumeName(task.userId), status: "running", expiresAt: null },
-    update: { status: "running", lastActiveAt: new Date(), expiresAt: null },
-  });
-  await db.task.update({ where: { id }, data: { containerName: containerName(task.userId) } });
-  await event(id, "run.started", continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
+  // crowdfunded tasks get their own container (removed after settlement); others run in the requester's
+  if (!task.crowdfund)
+    await db.userContainer.upsert({
+      where: { userId: task.userId },
+      create: { userId: task.userId, containerName: containerName(task.userId), volumeName: volumeName(task.userId), status: "running", expiresAt: null },
+      update: { status: "running", lastActiveAt: new Date(), expiresAt: null },
+    });
+  await db.task.update({ where: { id }, data: { containerName: task.crowdfund ? crowdContainerName(task.id) : containerName(task.userId) } });
+  await event(id, "run.started", task.reworkNotes ? `Rework ${task.reworks} started with the backers' feedback` : continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
 
   const persistUsage = async (u: Usage, vmSeconds: number, s3Usd: number, extra: object = {}) => {
     const { vmUsd, tokenUsd, charge } = costs(task, u, vmSeconds, s3Usd);
@@ -109,13 +123,28 @@ async function runTask(id: string) {
     return charge;
   };
 
+  // crowdfunded tasks: report when half and 80 % of the budget are used (once each)
+  const reported = new Set((await db.taskEvent.findMany({ where: { taskId: id, type: { in: ["budget.50", "budget.80"] } }, select: { type: true } })).map((e) => e.type));
+  const budgetMarks = async (charge: number) => {
+    if (!task.crowdfund || budget <= 0) return;
+    for (const mark of [50, 80]) {
+      const type = `budget.${mark}`;
+      if (charge / budget >= mark / 100 && !reported.has(type)) {
+        reported.add(type);
+        await event(id, type, `已使用 ${mark}% 預算（${fmtTwd(charge)} / ${fmtTwd(budget)} TWD）。${mark}% of the budget used.`);
+      }
+    }
+  };
+
   let result;
   try {
     result = await executor.run(task, {
       continuation,
       log: (m, d) => event(id, "log", m, d),
+      progress: (p) => event(id, "progress", progressText(p), p),
       onUsage: async (u, elapsed) => {
         const charge = await persistUsage(u, prevVmSeconds + elapsed, prevS3);
+        await budgetMarks(charge);
         return charge >= budget ? "stop" : "continue";
       },
     });
@@ -125,7 +154,7 @@ async function runTask(id: string) {
   }
 
   // upload results and bill S3 for the retention window
-  const retentionDays = await resultsRetentionDays(task.userId);
+  const retentionDays = await retentionFor(task);
   const now = new Date();
   const expires = addDays(now, retentionDays);
   let s3Usd = prevS3;
@@ -159,6 +188,10 @@ async function runTask(id: string) {
       link: `/tasks/${id}`,
       data: { taskId: id, charged: chargedStr, budget: fmtTwd(budget), actions: ["top_up", "close"] },
     });
+  } else if (result.outcome === "completed" && task.crowdfund) {
+    // crowdfunded: the backers review the result against the acceptance criteria before it counts as completed
+    await event(id, "completed", `Run finished. Charged ${chargedStr} TWD.`);
+    await enterReview(id, result.acceptance);
   } else if (result.outcome === "completed") {
     let reportOk = true;
     if (task.kind === "EVALUATION") reportOk = await saveEvaluation(task, result.evaluation, result.summary);
@@ -190,10 +223,16 @@ async function runTask(id: string) {
     });
   }
 
-  await db.userContainer.update({
-    where: { userId: task.userId },
-    data: { status: "idle", lastActiveAt: new Date(), expiresAt: await containerExpiry(task.userId) },
-  });
+  if (!task.crowdfund)
+    await db.userContainer.update({
+      where: { userId: task.userId },
+      data: { status: "idle", lastActiveAt: new Date(), expiresAt: await containerExpiry(task.userId) },
+    });
+  if (task.crowdfund) await settleTask(id).catch((e) => log("settle error", id, e));
+}
+
+function progressText(p: { done: number; total: number; note?: string; current?: string }) {
+  return `進度 Progress ${p.done}/${p.total}${p.current ? ` · ${p.current}` : ""}${p.note ? `\n${p.note}` : ""}`;
 }
 
 async function saveEvaluation(task: TaskWithRefs, ev: unknown, summary: string): Promise<boolean> {
@@ -230,10 +269,12 @@ async function cleanup() {
     await db.artifact.update({ where: { id: a.id }, data: { deletedAt: now } });
   }
   // 2. funding requests nobody answered → close with partial results
-  const stale = await db.task.findMany({ where: { status: "NEEDS_FUNDING", fundingRequestedAt: { lt: addDays(now, -config.retention.freeDays) } } });
+  // (a crowdfunded task with an open top-up round waits for the round instead)
+  const stale = await db.task.findMany({ where: { status: "NEEDS_FUNDING", topupGoalTwd: null, fundingRequestedAt: { lt: addDays(now, -config.retention.freeDays) } } });
   for (const t of stale) {
     await db.task.update({ where: { id: t.id }, data: { status: "COMPLETED", finishedAt: now, fundingRequestedAt: null } });
     await event(t.id, "closed", "Closed automatically: no top-up within the retention window");
+    if (t.crowdfund) await settleTask(t.id).catch((e) => log("settle error", t.id, e));
   }
   // 3. idle containers past retention (re-check subscriptions first)
   const idle = await db.userContainer.findMany({ where: { expiresAt: { lt: now }, status: { not: "running" } } });
@@ -249,6 +290,16 @@ async function cleanup() {
     await executor.removeUserContainer(c.userId);
     await db.userContainer.delete({ where: { userId: c.userId } });
     log("removed container", c.containerName);
+  }
+  // 3b. crowdfunded tasks that are over (settled, or never funded): remove their own container
+  const overCrowd = await db.task.findMany({
+    where: { crowdfund: true, containerName: { startsWith: "sb-c-" }, status: { in: ["COMPLETED", "FAILED", "CANCELLED", "UNFUNDED"] }, OR: [{ settledAt: { not: null } }, { fundedAt: null }] },
+    select: { id: true },
+    take: 50,
+  });
+  for (const t of overCrowd) {
+    await executor.removeTaskContainer(t.id);
+    await db.task.update({ where: { id: t.id }, data: { containerName: null } });
   }
   // 4. runs whose worker died → requeue (continues in the same session)
   const dead = await db.task.updateMany({
@@ -273,6 +324,8 @@ async function loop() {
   log(`started (mode=${config.runner.mode}, concurrency=${config.runner.concurrency})`);
   let lastCleanup = 0;
   let lastReconcile = 0;
+  let lastCrowd = 0;
+  let lastScreen = 0;
   while (!stopping) {
     try {
       const ids = await claim(config.runner.concurrency - running.size);
@@ -296,9 +349,22 @@ async function loop() {
         if (swept) log("expired model holds settled", swept);
         await purgeNonces().catch(() => undefined);
       }
+      if (Date.now() - lastCrowd > 60_000) {
+        lastCrowd = Date.now();
+        const c = await crowdTick().catch((e) => (log("crowdfunding error", e), null));
+        if (c && (c.ended || c.settled)) log("crowdfunding", c);
+      }
+      // submitted proposals are screened right away
+      if (Date.now() - lastScreen > 10_000) {
+        lastScreen = Date.now();
+        const n = await screeningTick().catch((e) => (log("screening error", e), 0));
+        if (n) log("proposals screened", n);
+      }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();
         await cleanup();
+        // record and notarize any legal text that changed (settings, checklist, deploys)
+        await snapshotAllLegal().catch((e) => log("legal snapshot error", e));
       }
     } catch (e) {
       log("loop error", e);
