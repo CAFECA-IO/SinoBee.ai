@@ -4,7 +4,7 @@ import { HttpError } from "../errors";
 import { NO_PLATFORM_MODEL, jobHasModel, platformChat } from "../platform-model";
 import { audit } from "../roles";
 import type { Prisma } from "@/generated/prisma/client";
-import { DEFAULT_CHECKLIST, DIMENSIONS, type ChecklistItem, type Dimension } from "./checklist-default";
+import { CHECKLIST_V2_NOTE, DEFAULT_CHECKLIST, DIMENSIONS, type ChecklistItem, type Dimension } from "./checklist-default";
 
 /**
  * The proposal screening checklist (yes/no items in six dimensions). The newest published version is the one
@@ -24,9 +24,17 @@ const view = (r: { version: number; items: unknown; publishedAt: Date | null; no
 /** The published checklist in force (version 1 = the built-in default, created on first use) */
 export async function currentChecklist(): Promise<Checklist> {
   const row = await db.checklistVersion.findFirst({ where: { publishedAt: { not: null } }, orderBy: { version: "desc" } });
+  // the automatically created version 1 that no admin ever replaced: move it to the revised default (version 2)
+  if (row && row.version === 1 && row.note === "Initial checklist") {
+    // claim the upgrade first so two processes starting together do not both publish it
+    const claim = await db.checklistVersion.updateMany({ where: { id: row.id, note: "Initial checklist" }, data: { note: "Initial checklist (version 1)" } });
+    if (claim.count === 1) return view(await db.checklistVersion.create({ data: { version: 2, items: DEFAULT_CHECKLIST as unknown as Prisma.InputJsonValue, note: CHECKLIST_V2_NOTE, publishedAt: new Date() } }));
+    await new Promise((r) => setTimeout(r, 200));
+    return currentChecklist();
+  }
   if (row) return view(row);
   try {
-    const created = await db.checklistVersion.create({ data: { version: 1, items: DEFAULT_CHECKLIST as unknown as Prisma.InputJsonValue, note: "Initial checklist", publishedAt: new Date() } });
+    const created = await db.checklistVersion.create({ data: { version: 1, items: DEFAULT_CHECKLIST as unknown as Prisma.InputJsonValue, note: "Initial checklist (version 2 defaults)", publishedAt: new Date() } });
     return view(created);
   } catch {
     // created concurrently

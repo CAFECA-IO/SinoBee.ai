@@ -104,3 +104,19 @@ test("with Boltchain on, every new legal version is queued for notarization (sha
     for (const k of ["BOLT_RPC_URL", "BOLT_WALLET_KEY", "BOLT_MASTER_KEY", "BOLT_CERTIFICATES"]) delete process.env[k];
   }
 });
+
+test("an untouched automatic version 1 moves to the revised default (version 2) once; admin versions are left alone", async () => {
+  const { DEFAULT_CHECKLIST, CHECKLIST_V2_NOTE } = await import("../src/lib/crowd/checklist-default");
+  await db.checklistVersion.deleteMany({});
+  // what production has: version 1 created automatically from the old defaults
+  await db.checklistVersion.create({ data: { version: 1, items: DEFAULT_CHECKLIST.slice(0, 100) as object[], note: "Initial checklist", publishedAt: new Date(Date.now() - 1000) } });
+  const [a, b] = await Promise.all([cl.currentChecklist(), cl.currentChecklist()]);
+  const c = await cl.currentChecklist();
+  assert.equal(c.version, 2);
+  assert.equal(c.note, CHECKLIST_V2_NOTE);
+  assert.equal(c.items.length, DEFAULT_CHECKLIST.length);
+  assert.equal(await db.checklistVersion.count({ where: { version: 2 } }), 1, "published once even when asked twice at the same time");
+  assert.ok([a.version, b.version].every((v) => v >= 1));
+  assert.ok(!c.items.some((i) => ["F16", "I11", "V14"].includes(i.id)), "removed items are gone");
+  assert.ok(c.items.some((i) => i.id === "V20"));
+});

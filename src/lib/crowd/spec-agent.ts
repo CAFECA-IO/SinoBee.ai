@@ -7,6 +7,7 @@ import { NO_PLATFORM_MODEL, jobHasModel, platformChat, type ChatMessage, type Ch
 import type { Prisma } from "@/generated/prisma/client";
 import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
 import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
+import type { ChecklistItem } from "./checklist-default";
 import type { Task } from "@/generated/prisma/client";
 
 /**
@@ -25,7 +26,7 @@ const MAX_OUTPUT = 8000;
 
 type DraftTask = Pick<Task, "title" | "prompt" | "model" | "kind" | "evalMethod" | "evalCriteria" | "category"> & { skill?: string | null };
 
-function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: Spec | null) {
+function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: Spec | null, checklist: ChecklistItem[] = []) {
   const fx = model?.fx ?? 32.5;
   const vmTwd = config.pricing.vmHourlyUsd * fx * config.pricing.markup;
   return [
@@ -45,7 +46,8 @@ function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: 
         ]
       : []),
     `Agent model: ${task.model}${model ? ` (published price per 1M tokens: input NT$${model.twd.input.toFixed(1)}, output NT$${model.twd.output.toFixed(1)})` : ""}`,
-    `Container time costs about NT$${vmTwd.toFixed(1)} per hour. A typical research or analysis task uses 0.5–5 million input tokens.`,
+    `Container time costs about NT$${vmTwd.toFixed(1)} per hour. A typical research or analysis task uses 0.5–5 million input tokens, with output around 10–20% of input, and 0.5–3 container hours.`,
+    "Estimate from the work itself (sources to read, pages or records to process, files to write), not from the budget; p90 is usually 1.5–2× p50 and must cover retries and partial failures.",
     spec ? `Current draft spec (JSON): ${JSON.stringify(spec)}` : "No spec drafted yet.",
     "",
     "Always answer with ONE JSON object and nothing else:",
@@ -59,6 +61,19 @@ function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: 
     "Estimates are total TWD for the agent run (tokens + container time + storage) at the prices above; p90 is the amount that covers 9 of 10 runs.",
     "Always return the full spec, filled in as well as you can from what you know; list open assumptions in risks instead of leaving parts empty.",
     "Keep everything the proposer already agreed to; never invent facts about their data.",
+    "",
+    "The proposal is screened by AI against the checklist below and opens only if EVERY item is met, so write the spec to meet all of them:",
+    "- summary: the problem, the background and the expected result, in plain words a backer understands; no hype or marketing.",
+    "- scope: what is done, the language of the deliverables (e.g. Traditional Chinese), and the intended use of the results; outOfScope: what is not done.",
+    "- deliverables: concrete files under outputs/ with their format (e.g. \"outputs/report.md — 分析報告（Markdown，繁體中文）\"); include every script, dataset or chart that an acceptance criterion mentions; cite sources when others' data is used.",
+    "- method: traceable steps or milestones that name the data sources (public sources only, or files the proposer uploaded); no logins, paid accounts, CAPTCHAs, live human help or physical actions.",
+    "- acceptance: 3 to 7 criteria, each objectively checkable yes/no and naming the deliverable it checks; every deliverable is checked by at least one criterion; nothing depends on the proposer's personal taste.",
+    "- estimate.basis: the expected tokens, container hours and data size behind the numbers; size the task to fit one run.",
+    "- risks: data availability and external services, plus one item saying exactly which partial results are delivered if the task cannot be completed in full.",
+    "- stretch (optional): each extra scope with its own feasible cost.",
+    "Never plan anything that collects personal data about identifiable people, bypasses access controls or site terms, copies protected works in full, or could harm people. If the idea needs that, say so in reply and draft the closest compliant version instead.",
+    "Before answering, check the draft against every checklist item and fix what would fail.",
+    ...(checklist.length ? ["Checklist:", ...checklist.map((i) => `${i.id} ${i.en}`)] : []),
   ].join("\n");
 }
 
@@ -84,10 +99,10 @@ function mockReply(messages: { role: string; content: string }[]): { text: strin
     summary: `(模擬) ${last.slice(0, 120)}`,
     deliverables: ["outputs/report.md — 主要成果報告", "outputs/data.csv — 整理後的資料"],
     method: ["蒐集與整理資料", "分析並撰寫報告", "自我檢查驗收條件"],
-    acceptance: ["report.md 涵蓋規格中的每個問題", "data.csv 欄位有說明且可重現", "SUMMARY.md 列出限制與假設"],
+    acceptance: ["report.md 涵蓋規格中的每個問題", "data.csv 欄位有說明且可重現", "report.md 列出資料來源、限制與假設"],
     estimate: { p50Twd: 300, p90Twd: 540, basis: "mock: about 1.5M input tokens and 1 hour of container time" },
     stretch: [{ title: "英文版報告", twd: 150 }],
-    risks: ["資料來源可能需要登入"],
+    risks: ["資料來源可能需要登入", "若無法完整完成，仍交付已整理的 data.csv 與部分報告"],
   };
   const text = JSON.stringify({
     reply: n === 1 ? "（開發模式模擬回覆）我先依你的描述起草了規格，請確認交付物與驗收條件是否正確。" : "（開發模式模擬回覆）已更新規格。",
@@ -197,7 +212,8 @@ async function ask(task: Task, chat: ChatTurn[], message: string) {
   const skill = task.skillVersionId ? (await db.skillVersion.findUnique({ where: { id: task.skillVersionId }, include: { skill: true } }))?.skill.name : null;
   const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: message }];
   // the model configured for the platform (or the next one with an API key that works), never a fixed vendor
-  const { text: answer, usage, price } = await callModel(systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
+  const checklist = (await (await import("./checklist")).currentChecklist()).items;
+  const { text: answer, usage, price } = await callModel(systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current, checklist), messages);
   const cost = price ? costTwd(price.twd, usage) : 0;
   // the call already happened: charge it even if it takes the credit slightly below zero
   await useCredit(task.id, cost, { allowOverdraw: true });
