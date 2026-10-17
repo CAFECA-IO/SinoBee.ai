@@ -15,6 +15,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 import { ReportRow } from "@/components/report-row";
 import { modelLabels } from "@/lib/models";
+import { BoltchainBadge } from "@/components/boltchain-badge";
+import { SkillMarks, skillMarks } from "@/components/skill-tag";
+import { skillTag } from "@/lib/skills/official";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +40,7 @@ export default async function SkillPage({ params, searchParams }: P) {
   const { locale, publisher, name } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("skill");
+  const tSkills = await getTranslations("skills");
   const labels = await modelLabels();
   const skill = await load(publisher, name);
   if (!skill) notFound();
@@ -56,9 +60,9 @@ export default async function SkillPage({ params, searchParams }: P) {
     }
   })();
   const meta = ((frontmatter as { metadata?: Record<string, string> }).metadata ?? {}) as Record<string, string>;
+  const tag = skillTag(skill, ver);
   // where a mirrored skill comes from (metadata.sinobee-source, or a homepage/repository key), shown under the title
   const sourceUrl = [meta["sinobee-source"], meta.repository, meta.homepage].find((u) => u && isHttpUrl(u));
-  const trustVerified = skill.publisher.publisherVerified && ver.status === "APPROVED" && !!ver.signature;
   const [myRating, reports] = await Promise.all([
     me ? db.skillRating.findUnique({ where: { skillId_userId: { skillId: skill.id, userId: me.id } } }) : null,
     db.evaluationReport.findMany({
@@ -80,8 +84,9 @@ export default async function SkillPage({ params, searchParams }: P) {
           <header>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-mono text-3xl font-bold">{skill.name}</h1>
-              <span className={`badge ${trustVerified ? "bg-accent-soft text-ok" : "bg-panel-2 text-muted"}`}>{trustVerified ? t("trustVerified") : t("trustCommunity")}</span>
-              <StatusBadge status={ver.status} />
+              <SkillMarks marks={skillMarks(tag, { ...ver, anchorCode: null }, (k) => tSkills(`mark.${k}`))} size="md" />
+              {!["APPROVED", "PENDING_REVIEW"].includes(ver.status) && <StatusBadge status={ver.status} />}
+              {ver.anchorCode && <BoltchainBadge code={ver.anchorCode} title={t("anchorHelp")} />}
             </div>
             <p className="mt-3 text-lg text-muted">{skill.description}</p>
             <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted">

@@ -163,7 +163,8 @@
         "body": "Understands the project, finds why tests fail, fixes and re-runs them; add requirements while it works, and it checks the fix is real before finishing.",
         "prompt": "Find out why this project's tests fail and fix them"
       }
-    }
+    },
+    "heroAlt": "A swarm of robot bees working through a honeycomb: research, documents, analysis, code and files"
   },
   "download": {
     "title": "Download & install SinoBee",
@@ -369,11 +370,16 @@
     "apiDocs": "Hub API docs",
     "prev": "Previous",
     "next": "Next",
-    "officialBadge": "Official"
+    "mark": {
+      "official": "Official skill",
+      "verified": "Verified publisher, signed",
+      "community": "Community skill",
+      "approved": "Reviewed",
+      "pending": "Awaiting review",
+      "boltchain": "Notarized on Boltchain"
+    }
   },
   "skill": {
-    "trustVerified": "Verified",
-    "trustCommunity": "Community",
     "by": "by",
     "scan": "Security scan",
     "versions": "Versions",
@@ -520,25 +526,31 @@
         "cacheRead": "Cache read",
         "cacheWrite": "Cache write",
         "output": "Output"
-      }
+      },
+      "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for commissioned tasks."
     },
     "plans": {
-      "help": "Enter the fee and the multiplier (fee ÷ max cost); max cost and the 6-hour (L6) and 7-day (L168) limits are computed. A multiplier under 1.5 cannot be saved.",
+      "help": "Enter the fee and the usage multiplier (30-day usage ÷ fee, at published prices); the allowance and the 6-hour (L6) and 7-day (L168) limits are calculated. Published prices include the buffer, so a plan's margin = buffer ÷ usage multiplier — keep it profitable with the buffer under Prices.",
       "code": "Code",
       "name": "Name (zh)",
       "nameEn": "Name (en)",
       "fee": "Fee (TWD)",
-      "multiplier": "Multiplier",
+      "multiplier": "Usage multiplier",
       "concurrency": "Concurrency",
       "sort": "Order",
       "active": "Active",
-      "maxCost": "Max cost per 30 days",
-      "formula": "L168 = max cost ÷ 4.8, L6 = L168 ÷ 10; tokens use the cheapest model, {model} (input : output = 3 : 1).",
-      "tooLow": "Fee ÷ max cost must be at least {min}.",
+      "maxCost": "30-day max usage (published prices)",
+      "formula": "Allowance = fee × usage multiplier, L168 = allowance ÷ 4.8, L6 = L168 ÷ 10; tokens use {model} at its current published price (input : output = 3 : 1).",
       "save": "Save",
       "add": "Add plan",
       "addPlan": "New plan",
-      "saved": "Saved"
+      "saved": "Saved",
+      "vendorCost": "≈ NT$ {twd} vendor cost",
+      "margin": "Margin",
+      "marginHow": "buffer {buffer} ÷ multiplier {mult}",
+      "badMult": "The usage multiplier must be above 0 and at most {max}.",
+      "loss": "At the current buffer a user who uses the full allowance costs more than the fee. A buffer of {need} breaks even; {healthy} or more keeps a 50% margin.",
+      "thin": "Thin margin: a buffer of {healthy} or more keeps a 50% margin."
     },
     "audit": {
       "empty": "Nothing logged yet.",
@@ -891,14 +903,15 @@
     "planL168": "Every 7 days: about {tokens} tokens",
     "planConcurrency": "{n} requests at a time",
     "planNoRenew": "No auto-renewal; extensions add up",
-    "planNote": "Limits are rolling windows. Token counts use the cheapest model, {model} (input : output = 3 : 1); other models give fewer tokens.",
+    "planNote": "Limits are rolling windows. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
     "pIn": "Input",
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",
     "pOut": "Output",
     "tasksTitle": "Commissioned tasks",
     "seePlans": "See plans",
-    "planBuy": "Subscribe"
+    "planBuy": "Subscribe",
+    "planUsage": "Use up to {mult}× the fee (up to NT${value} in 30 days at published prices)"
   },
   "account": {
     "title": "Account",
@@ -1134,7 +1147,8 @@
     "current": "Current plan: {plan}, until",
     "grace": "Your subscription has ended; the grace period lasts until",
     "stacks": "The new period starts on {date}, after your current one.",
-    "startsNow": "Starts as soon as the payment completes; 30 days from then."
+    "startsNow": "Starts as soon as the payment completes; 30 days from then.",
+    "usage": "Use up to {mult}× the fee"
   },
   "payReturn": {
     "title": {
