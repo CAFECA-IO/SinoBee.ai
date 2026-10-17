@@ -73,12 +73,11 @@ export function BuyerFields({ value, onChange }: { value: Buyer; onChange: (b: B
 
 /** Required consent to the terms, refund policy and privacy policy */
 /**
- * "I have read and agree" — a real checkbox (not a switch) with an SVG transition: checking draws a check mark in a
- * filling circle (agree); unchecking, or submitting without agreeing, draws an X with a short shake (disagree)
- * that settles back to the empty box. The native input stays in the form (name, required, keyboard, screen readers).
+ * The consent checkbox used wherever someone must read and agree to terms: an animated mark (a check when ticked,
+ * a shaking cross when the form is submitted without it) that settles back to the empty box. The native input stays
+ * in the form (name, required, keyboard, screen readers).
  */
-export function AgreeTerms() {
-  const t = useTranslations("checkout");
+export function AgreeCheck({ name = "agree", children }: { name?: string; children: React.ReactNode }) {
   const [mood, setMood] = useState<"idle" | "agree" | "disagree">("idle");
   const [beat, setBeat] = useState(0); // restarts the disagree animation on repeated invalid submits
   useEffect(() => {
@@ -96,7 +95,7 @@ export function AgreeTerms() {
         type="checkbox"
         className="checkbox-plain agree-input"
         required
-        name="agree"
+        name={name}
         onChange={(e) => (e.target.checked ? setMood("agree") : disagree())}
         onInvalid={disagree}
       />
@@ -106,14 +105,22 @@ export function AgreeTerms() {
         <path className="agree-check" d="M7 12.5l3.2 3.2L17.2 8.6" pathLength={1} />
         <path className="agree-x" d="M8 8l8 8M16 8l-8 8" pathLength={1} />
       </svg>
-      <span className="pt-0.5">
-        {t.rich("agree", {
-          terms: (c) => <Link href="/terms" className="text-accent underline" target="_blank">{c}</Link>,
-          refunds: (c) => <Link href="/refunds" className="text-accent underline" target="_blank">{c}</Link>,
-          privacy: (c) => <Link href="/privacy" className="text-accent underline" target="_blank">{c}</Link>,
-        })}
-      </span>
+      <span className="pt-0.5">{children}</span>
     </label>
+  );
+}
+
+/** Consent to the Terms, the Refund Policy and the Privacy Policy before paying */
+export function AgreeTerms() {
+  const t = useTranslations("checkout");
+  return (
+    <AgreeCheck>
+      {t.rich("agree", {
+        terms: (c) => <Link href="/terms" className="text-accent underline" target="_blank">{c}</Link>,
+        refunds: (c) => <Link href="/refunds" className="text-accent underline" target="_blank">{c}</Link>,
+        privacy: (c) => <Link href="/privacy" className="text-accent underline" target="_blank">{c}</Link>,
+      })}
+    </AgreeCheck>
   );
 }
 

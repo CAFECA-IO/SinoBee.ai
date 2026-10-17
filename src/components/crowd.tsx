@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
 import { Link } from "@/i18n/navigation";
-import { AgreeTerms, BuyerFields, PayForm, emptyBuyer, postJson, useCheckout, type Buyer } from "./checkout";
+import { AgreeCheck, AgreeTerms, BuyerFields, PayForm, emptyBuyer, postJson, useCheckout, type Buyer } from "./checkout";
 
 type ModelOpt = { id: string; label: string; vendor: string };
 
@@ -20,18 +20,15 @@ async function send(url: string, method: string, body?: unknown) {
 export function AgreeCrowdTerms() {
   const t = useTranslations("crowd");
   return (
-    <label className="flex items-start gap-2 text-xs text-muted">
-      <input type="checkbox" className="mt-0.5" required name="agreeCrowd" />
-      <span>
-        {t.rich("agreeTerms", {
-          terms: (c) => (
-            <Link href="/crowd-terms" target="_blank" className="text-accent underline">
-              {c}
-            </Link>
-          ),
-        })}
-      </span>
-    </label>
+    <AgreeCheck name="agreeCrowd">
+      {t.rich("agreeTerms", {
+        terms: (c) => (
+          <Link href="/crowd-terms" target="_blank" className="text-accent underline">
+            {c}
+          </Link>
+        ),
+      })}
+    </AgreeCheck>
   );
 }
 
