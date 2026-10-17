@@ -180,3 +180,12 @@ test("mermaid labels the lexer rejects are quoted; money is not math", async () 
   const { escapeMoney } = await import("../src/lib/markdown-money");
   assert.equal(escapeMoney("NT$500 與 US$5，`a$1` 角度 $120^\\circ$"), "NT\\$500 與 US\\$5，`a$1` 角度 $120^\\circ$");
 });
+
+test("shared pages that write formulas without a math library get KaTeX", async () => {
+  const { withMath } = await import("../src/lib/shares/math-page");
+  const page = withMath("<html><head></head><body><p>速度 $v_e$</p></body></html>", "https://sinobee.ai");
+  assert.ok(page && page.includes("katex.min.js") && page.includes("https://sinobee.ai/vendor/sb-math.js") && page.indexOf("katex") < page.indexOf("</head>"));
+  assert.equal(withMath("<p>價格 $5 and $10</p>", "https://sinobee.ai"), null);
+  assert.equal(withMath("<script src=katex.js></script><p>$x$</p>", "https://sinobee.ai"), null);
+  assert.ok(withMath("<div class='formula'>F = ma</div>", "https://sinobee.ai"));
+});

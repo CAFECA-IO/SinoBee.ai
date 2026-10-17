@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { getObject } from "@/lib/storage";
 import { checkCap } from "@/lib/shares/view-cap";
+import { withMath } from "@/lib/shares/math-page";
+
 
 /**
  * Files of a shared document (a report's images, an interactive page and its scripts), for the share page and the
@@ -25,11 +27,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string; pat
   const base = [...new Set([config.origin, new URL(req.url).origin])].map((o) => `${o}${here}`).join(" ");
   const csp = page
     ? "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads; " +
-      `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' ${base} https: blob:; style-src 'unsafe-inline' ${base} https:; ` +
+      `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' ${base} ${config.origin}/vendor/ https: blob:; style-src 'unsafe-inline' ${base} https:; ` +
       `img-src ${base} data: blob: https:; font-src ${base} data: https:; media-src ${base} data: blob: https:; connect-src ${base}; ` +
       `worker-src ${base} blob:; frame-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`
     : "default-src 'none'; style-src 'unsafe-inline'; sandbox";
-  const body = await getObject(f.objectKey);
+  let body: Buffer = await getObject(f.objectKey);
+  if (f.mime === "text/html" && body.length < 8 * 1024 * 1024) {
+    const page = withMath(body.toString("utf8"), config.origin);
+    if (page) body = Buffer.from(page);
+  }
   return new Response(new Uint8Array(body), {
     headers: {
       "content-type": /^text\/|javascript|json|svg|xml/.test(f.mime) ? `${f.mime}; charset=utf-8` : f.mime,
