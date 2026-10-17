@@ -8,6 +8,7 @@ Official website of [SinoBee](https://github.com/CAFECA-IO/SinoBee) — the open
 | **Skill Hub** — submit, download, rate (★1–5), threaded discussion; review + ed25519 signing; revocations; SinoBee-compatible **Hub API v1** | `/skills`, `/api/v1/*`, `/.well-known/sinobee-hub-keys.json` |
 | **Sign in with CAFECA** (popup / redirect / cross-device QR, ERC-1271 verification, signing channel) | `/login`, `/api/auth/*` |
 | **Commissioned tasks** paid in TWDC through the CAFECA signing channel; one isolated Docker container per user; metered at **1.5 × (tokens + AWS VM + AWS S3)**; public/private; 👍/👎 + comments; budget exhausted → partial results + CAFECA notification → top-up or close | `/tasks`, `worker/` |
+| **Crowdfunded tasks**: NT$30 shares (1 / 5 / 20); NT$30 proposal fee as credit for an AI spec dialogue and reference files (50 MB free, then 1 share per 50 MB); 7 / 30 / 90 / 180-day campaigns (0 / 3 / 6 / 10 % fee); cards saved with Oen tokens and charged only when the goal is reached; points and subscription quota pledges; the agent reports progress as comments; leftover budget becomes platform points | `/crowd/new`, `/tasks/:id`, `src/lib/crowd/` |
 | **Retention**: non-subscribers' containers and results are kept 7 days after a task finishes, then deleted (downloads return 410) | `worker/index.ts` cleanup |
 | **Benchmarks**: anyone can commission an evaluation; every public report records time, requester, skill, model, method, process and result; model leaderboard + per-skill reports | `/benchmarks` |
 | zh-TW (default) / English | `src/messages/*.json` |
@@ -138,6 +139,10 @@ S3 cost    = result size × retention days × AWS_S3_GB_MONTH_USD + request fees
 ```
 
 The meter runs every 15 s; when the charge reaches the budget the agent is stopped, the `outputs/` folder is packaged as a partial result and the user is asked (inbox + CAFECA) to top up or close. A top-up resumes the same SinoBee session in the same container.
+
+### Crowdfunding
+
+`src/lib/crowd/` — see the header of `lifecycle.ts` for the state machine (DRAFT → FUNDING → CHARGING → QUEUED … → settled, or UNFUNDED). The worker runs `crowdTick` every minute. Cards are saved through Oen's token checkout (`POST /checkout-token`; the token arrives only in the unsigned webhook with `purpose: "token"` and is accepted once, for a pending binding) and charged with `POST /token/transactions` (Idempotency-Key, one charge per backer and task). Settings: /admin → Settings → Crowdfunding. With `PAYMENT_MODE=mock` the card binding page and charges are simulated (`/pay/mock-card/:id`).
 
 ### Skill Hub
 

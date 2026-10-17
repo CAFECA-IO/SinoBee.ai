@@ -72,7 +72,7 @@ export function AutoRefresh({ taskId, status }: { taskId: string; status: string
       const sig = `${j.status}|${j.charged}|${j.updatedAt}`;
       if (last && sig !== last) router.refresh();
       last = sig;
-      if (j.status !== status && !["QUEUED", "RUNNING", "AWAITING_PAYMENT"].includes(j.status)) router.refresh();
+      if (j.status !== status && !["QUEUED", "RUNNING", "AWAITING_PAYMENT", "CHARGING"].includes(j.status)) router.refresh();
     }, 4000);
     return () => clearInterval(id);
   }, [taskId, status, router]);

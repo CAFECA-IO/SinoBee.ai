@@ -55,8 +55,10 @@ export async function createTask(userId: string, input: z.infer<typeof TaskInput
 export async function closeTask(userId: string, taskId: string) {
   const t = await db.task.findUnique({ where: { id: taskId } });
   if (!t || t.userId !== userId) throw new HttpError(404, "task not found");
-  if (!["NEEDS_FUNDING", "AWAITING_PAYMENT", "QUEUED"].includes(t.status)) throw new HttpError(400, "task cannot be closed in its current state");
-  const days = await resultsRetentionDays(userId);
+  // crowdfunded: backers paid for it, so only a drafted proposal can be dropped or an unfunded run closed
+  const closable = t.crowdfund ? ["DRAFT", "NEEDS_FUNDING"] : ["NEEDS_FUNDING", "AWAITING_PAYMENT", "QUEUED"];
+  if (!closable.includes(t.status)) throw new HttpError(400, "task cannot be closed in its current state");
+  const days = t.crowdfund ? Math.max(config.crowd.resultsDays, await resultsRetentionDays(userId)) : await resultsRetentionDays(userId);
   const expires = addDays(new Date(), days);
   const status = t.status === "NEEDS_FUNDING" ? "COMPLETED" : "CANCELLED";
   await db.$transaction([
@@ -64,6 +66,12 @@ export async function closeTask(userId: string, taskId: string) {
     db.artifact.updateMany({ where: { taskId: t.id, deletedAt: null }, data: { expiresAt: expires } }),
     db.taskEvent.create({ data: { taskId: t.id, type: "closed", message: "Closed by the requester" } }),
   ]);
+  if (t.crowdfund && status === "COMPLETED") {
+    const { mirrorEvent } = await import("@/lib/crowd/agent");
+    const { settleTask } = await import("@/lib/crowd/lifecycle");
+    await mirrorEvent(t.id, "closed", "發起人以目前成果結案。The proposer closed the task with the results so far.");
+    await settleTask(t.id);
+  }
   if (status === "COMPLETED")
     await notify(userId, {
       type: "task.closed",
@@ -73,7 +81,16 @@ export async function closeTask(userId: string, taskId: string) {
     });
 }
 
-/** Can `viewerId` see this task? Owners always; others only if public */
-export function canView(task: { userId: string; isPublic: boolean }, viewerId?: string | null) {
-  return task.isPublic || task.userId === viewerId;
+/** Can `viewerId` see this task? Owners always; others only if public (crowdfunding drafts only the proposer) */
+export function canView(task: { userId: string; isPublic: boolean; status?: string }, viewerId?: string | null) {
+  if (task.userId === viewerId) return true;
+  return task.isPublic && task.status !== "DRAFT";
+}
+
+/** May `viewerId` download the results? The requester, and for crowdfunded tasks every backer whose pledge was collected */
+export async function canDownload(task: { id: string; userId: string; crowdfund: boolean }, viewerId?: string | null) {
+  if (!viewerId) return false;
+  if (task.userId === viewerId) return true;
+  if (!task.crowdfund) return false;
+  return (await db.pledge.count({ where: { taskId: task.id, userId: viewerId, status: "CHARGED" } })) > 0;
 }

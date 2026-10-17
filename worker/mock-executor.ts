@@ -32,6 +32,9 @@ export class MockExecutor implements Executor {
       usage.tokenCostUsd = tokenCostUsd(m, usage);
       progress.set(task.id, usage);
       await ctx.log(`[mock runner] step ${i + 1}/${steps}`);
+      if (task.crowdfund && ctx.progress && (i + 1 === Math.ceil(steps / 2) || i + 1 === steps)) {
+        await ctx.progress({ done: i + 1 === steps ? 3 : 1, total: 3, current: "[mock] simulated milestone", note: "simulated progress (mock runner)" });
+      }
       if ((await ctx.onUsage({ ...usage }, Math.round((Date.now() - start) / 1000))) === "stop") {
         stopped = true;
         await ctx.log("[mock runner] budget exhausted — stopping");

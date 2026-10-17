@@ -10,6 +10,9 @@ import { TokenManager } from "@/components/token-manager";
 import { DeviceList } from "@/components/device-list";
 import { LocalDate } from "@/components/date";
 import { StatusBadge } from "@/components/status-badge";
+import { CardManager } from "@/components/crowd";
+import { activeCards } from "@/lib/crowd/cards";
+import { pointBalance, pointHistory } from "@/lib/crowd/points";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,8 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
     db.conversationShare.findMany({ where: { ownerId: me!.id, revokedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   const plans = await listPlans();
+  const tc = await getTranslations("crowd.account");
+  const [points, pointRows, cards] = await Promise.all([pointBalance(me!.id), pointHistory(me!.id, 30), activeCards(me!.id)]);
   const planName = (id: string | null, code: string) => {
     const p = plans.find((x) => x.id === id || x.code === code);
     return p ? (locale.startsWith("zh") ? p.name : p.nameEn) : code;
@@ -55,6 +60,38 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
         <h2 className="h3">{t("publisher")}</h2>
         <p className="text-sm text-muted">{t("publisherHelp")}</p>
         <PublisherForm current={me!.publisher} />
+      </section>
+
+      <section id="points" className="card space-y-3 p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="h3">{tc("points")}</h2>
+          <span className="text-xl font-extrabold text-accent">{tc("balance", { n: points })}</span>
+        </div>
+        <p className="text-sm text-muted">{tc("pointsNote")}</p>
+        {pointRows.length === 0 ? (
+          <p className="text-sm text-muted">{tc("noHistory")}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-line">
+              {pointRows.map((r) => (
+                <tr key={r.id}>
+                  <td className="py-2 text-xs text-muted"><LocalDate value={r.createdAt} /></td>
+                  <td className="py-2">
+                    {tc(`reason.${r.reason}` as "reason.leftover")}
+                    {r.taskId && <> · <Link href={`/tasks/${r.taskId}`} className="text-accent">{r.note ?? "task"}</Link></>}
+                  </td>
+                  <td className={`py-2 text-right font-mono ${r.delta > 0 ? "text-ok" : ""}`}>{r.delta > 0 ? `+${r.delta}` : r.delta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section id="cards" className="card space-y-3 p-6">
+        <h2 className="h3">{tc("cards")}</h2>
+        <p className="text-sm text-muted">{tc("cardsNote")}</p>
+        <CardManager cards={cards.map((c) => ({ id: c.id, last4: c.last4 }))} />
       </section>
 
       <section id="subscription" className="card space-y-3 p-6">

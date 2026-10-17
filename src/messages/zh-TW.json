@@ -271,7 +271,11 @@
     "PENDING_REVIEW": "待審核",
     "APPROVED": "已審核",
     "REJECTED": "未通過",
-    "REVOKED": "已撤銷"
+    "REVOKED": "已撤銷",
+    "DRAFT": "草稿",
+    "FUNDING": "眾籌中",
+    "CHARGING": "請款中",
+    "UNFUNDED": "未達標"
   },
   "comments": {
     "title": "留言討論",
@@ -283,7 +287,13 @@
     "reply": "回覆",
     "delete": "刪除",
     "deleted": "此留言已刪除",
-    "confirmDelete": "確定要刪除這則留言？"
+    "confirmDelete": "確定要刪除這則留言？",
+    "kind": {
+      "status": "Agent 回報",
+      "reference": "參考資訊",
+      "comment": "留言"
+    },
+    "markReference": "標記為給 Agent 的參考資訊（只有發起人與出資者可以標記；Agent 只把它當參考資料）"
   },
   "skills": {
     "lead": "提交、下載、評分與討論 SinoBee 技能。技能遵循 Agent Skills 標準，可與其他支援此標準的 agent 互通；可以只是一份 SKILL.md，也可以是含腳本、參考文件、範例與固定流程的完整技能包。",
@@ -618,7 +628,8 @@
         "storage": "鏡像儲存",
         "boltchain": "Boltchain",
         "hub": "Skill Hub 簽章",
-        "runner": "委託任務執行"
+        "runner": "委託任務執行",
+        "crowd": "眾籌任務"
       },
       "sections": "設定分類",
       "search": "搜尋設定名稱、代碼或環境變數…",
@@ -644,7 +655,8 @@
         "storage": "成果檔案的鏡像儲存位置。",
         "boltchain": "分散式儲存與存證。",
         "hub": "技能審核通過後的簽章金鑰。",
-        "runner": "委託任務容器的資源與映像檔。"
+        "runner": "委託任務容器的資源與映像檔。",
+        "crowd": "每份金額、提案費、眾籌期與服務費、參考檔案、額度出資。"
       }
     },
     "nav": {
@@ -939,7 +951,9 @@
     "purpose": {
       "TASK_BUDGET": "委託預算",
       "TASK_TOPUP": "補充經費",
-      "SUBSCRIPTION": "訂閱"
+      "SUBSCRIPTION": "訂閱",
+      "CROWD_PROPOSAL": "眾籌提案費",
+      "CROWD_PLEDGE": "眾籌出資"
     },
     "pstatus": {
       "PENDING": "待確認",
@@ -1159,7 +1173,9 @@
     "ok": {
       "SUBSCRIPTION": "訂閱已生效，電子發票會寄到你的 Email。",
       "TASK_BUDGET": "已收到 {amount} TWD 委託預算，任務已排入執行。",
-      "TASK_TOPUP": "已補充 {amount} TWD，任務會從中斷處繼續。"
+      "TASK_TOPUP": "已補充 {amount} TWD，任務會從中斷處繼續。",
+      "CROWD_PROPOSAL": "已收到 {amount} TWD 提案費，可以開始規格對話。",
+      "CROWD_PLEDGE": "已收到 {amount} TWD 眾籌出資。"
     },
     "pending": "正在向 Oen 確認付款結果，這個頁面會自動更新。",
     "charging": "等待繳費：完成超商或 ATM 繳費後會自動更新（最長 3 天）。",
@@ -1175,7 +1191,8 @@
     },
     "toTask": "回到委託",
     "toAccount": "回到帳戶",
-    "retry": "重新付款"
+    "retry": "重新付款",
+    "toProposal": "回到提案"
   },
   "legal": {
     "nav": "條款與政策",
@@ -1188,6 +1205,177 @@
     },
     "refunds": {
       "title": "退款政策"
+    }
+  },
+  "crowd": {
+    "title": "眾籌任務",
+    "lead": "多人一起出資，讓 SinoBee 完成大家都需要的任務。每份 NT${price}，可一次出資 1、5 或 20 份；未達標不扣款。",
+    "new": "發起眾籌",
+    "newTitle": "發起眾籌任務",
+    "newLead": "先用對話把想法整理成需求規格，再開放大家出資。眾籌期間只綁卡、不扣款，達標才請款；結案後用不完的經費會依出資比例轉為平台點數。",
+    "steps": {
+      "0": "描述想法並支付提案費 NT${fee}",
+      "1": "與 AI 對話產生規格、執行方法與驗收標的",
+      "2": "選擇眾籌期間（7 天免服務費）開放出資",
+      "3": "達標後執行，Agent 在留言區回報進度"
+    },
+    "form": {
+      "title": "任務名稱",
+      "description": "想做什麼",
+      "descriptionHint": "用你自己的話描述需求、背景與期待的成果，下一步的對話會把它整理成規格。",
+      "model": "執行模型",
+      "useSkill": "使用技能 {skill}",
+      "create": "建立提案",
+      "creating": "建立中…"
+    },
+    "edit": {
+      "title": "眾籌提案",
+      "draft": "草稿：只有你看得到。完成規格並支付提案費後即可開始眾籌。",
+      "credit": "提案額度",
+      "creditLeft": "剩餘 {amount} TWD",
+      "creditNone": "尚未支付提案費",
+      "buyFee": "支付提案費 NT${fee}",
+      "buyMore": "加購提案費 NT${fee}",
+      "feeNote": "提案費不可退還，換算為規格對話的 Token 與參考檔案的儲存空間。額度用完時對話會停止，可再加購；達標時未用完的額度會併入任務預算（不算份數、不轉點數）。",
+      "discard": "放棄提案",
+      "confirmDiscard": "放棄後提案會取消，已支付的提案費不退還。確定？"
+    },
+    "chat": {
+      "title": "規格對話",
+      "empty": "說說你想要的成果，AI 會提問並起草規格。",
+      "placeholder": "回答問題或補充需求…",
+      "send": "送出",
+      "sending": "思考中…",
+      "needFee": "支付提案費後即可開始對話。",
+      "outOfCredit": "提案額度已用完，加購提案費後可繼續對話。",
+      "cost": "本輪 {cost} TWD"
+    },
+    "spec": {
+      "title": "需求規格",
+      "empty": "尚未產生規格。開始對話，或直接手動填寫。",
+      "summary": "需求摘要",
+      "scope": "範圍",
+      "outOfScope": "不包含",
+      "deliverables": "交付物",
+      "method": "執行方法與里程碑",
+      "acceptance": "驗收標的",
+      "estimate": "成本估算",
+      "p50": "P50（TWD）",
+      "p90": "P90（TWD）",
+      "basis": "估算依據",
+      "stretch": "延伸目標",
+      "risks": "風險與假設",
+      "onePerLine": "每行一項",
+      "stretchHint": "每行一項：名稱 | 金額",
+      "save": "儲存規格",
+      "saved": "已儲存",
+      "edit": "手動編輯",
+      "version": "第 {v} 版"
+    },
+    "files": {
+      "title": "參考檔案",
+      "note": "{free} MB 內只扣儲存費；超過後每 {block} MB 扣 1 份（NT${price}）提案額度，總上限 {max} MB。",
+      "upload": "上傳",
+      "uploading": "上傳中…",
+      "used": "已用 {used} MB",
+      "remove": "刪除",
+      "empty": "沒有參考檔案。",
+      "vis": {
+        "PUBLIC": "公開",
+        "BACKERS": "僅出資者",
+        "AGENT": "僅 Agent"
+      }
+    },
+    "open": {
+      "title": "開始眾籌",
+      "duration": "眾籌期間",
+      "days": "{days} 天",
+      "fee": "服務費 {rate}%",
+      "free": "免服務費",
+      "goal": "目標金額（TWD）",
+      "minGoal": "最低 {min} TWD（P90 估算加服務費，以每份 {price} 元進位）",
+      "startEarly": "達標即提前開始",
+      "startEarlyHint": "勾選後，承諾金額一達標就請款並開始執行；剩餘期間的出資會即時請款並加入預算。",
+      "submit": "開始眾籌",
+      "missing": "規格尚缺：{list}",
+      "needFee": "請先支付提案費。",
+      "confirm": "開始後規格就不能再修改。確定開始眾籌？"
+    },
+    "panel": {
+      "goal": "目標",
+      "pledged": "已承諾",
+      "collected": "已收款",
+      "backers": "{n} 位出資者",
+      "deadline": "截止",
+      "left": "剩餘",
+      "shares": "{n} 份",
+      "source": "出資方式",
+      "card": "信用卡",
+      "cardLast4": "信用卡 •••• {last4}",
+      "points": "平台點數（餘額 {n}）",
+      "quota": "訂閱額度",
+      "noCard": "尚未綁定信用卡",
+      "addCard": "綁定信用卡",
+      "cardNote": "眾籌期間只綁卡、不扣款；達標後一次請款，電子發票寄到你的 Email。",
+      "pointsNote": "立即扣點；未達標會退回點數。",
+      "quotaNote": "立即扣訂閱額度；未達標或有剩餘時退回額度，不轉現金或點數。",
+      "pledge": "出資 {amount} TWD",
+      "pledging": "處理中…",
+      "mine": "我的出資",
+      "withdraw": "撤回",
+      "confirmWithdraw": "確定撤回這筆出資？",
+      "login": "登入後即可出資。",
+      "closed": "這個任務目前不接受出資。",
+      "leftover": "結案後用不完的經費依出資比例轉為平台點數，可用於其他眾籌，不退現金。",
+      "chargingNote": "眾籌已達標，正在向出資者請款。",
+      "unfundedNote": "眾籌未達標，沒有人被扣款。",
+      "fundedNote": "已達標，任務執行中。",
+      "needsFundingNote": "預算已用完：現在出資會立即請款並讓任務繼續執行。",
+      "proposal": "提案內容",
+      "files": "參考檔案",
+      "p": {
+        "ACTIVE": "待請款",
+        "CHARGED": "已收款",
+        "FAILED": "扣款失敗",
+        "CANCELLED": "已撤回",
+        "RELEASED": "已退回",
+        "REFUNDED": "已退款"
+      },
+      "returned": "退回 {n}",
+      "pointsShort": "點數",
+      "back": "參與眾籌",
+      "retention": "眾籌成果保留 {days} 天，所有已收款的出資者都可以下載。"
+    },
+    "account": {
+      "points": "平台點數",
+      "balance": "餘額 {n} 點",
+      "pointsNote": "1 點 = NT$1，只能用於眾籌出資，不可轉讓、不能兌換現金。",
+      "history": "點數紀錄",
+      "noHistory": "還沒有點數紀錄。",
+      "reason": {
+        "leftover": "結案剩餘",
+        "pledge": "出資",
+        "release": "未達標退回",
+        "platform": "平台補償",
+        "admin": "管理員調整"
+      },
+      "cards": "信用卡",
+      "cardsNote": "由 Oen 保存卡片（3D 驗證），本站只保存加密後的扣款代碼，用於眾籌達標後請款。",
+      "noCards": "尚未綁定信用卡。",
+      "addCard": "綁定信用卡",
+      "remove": "移除",
+      "confirmRemove": "確定移除這張卡？"
+    },
+    "mock": {
+      "title": "模擬綁卡（開發用）",
+      "ok": "完成綁卡",
+      "decline": "綁定會被拒絕扣款的卡",
+      "fail": "綁卡失敗"
+    },
+    "list": {
+      "funding": "眾籌中",
+      "emptyFunding": "目前沒有進行中的眾籌。",
+      "progress": "{pledged} / {goal} TWD"
     }
   }
 }

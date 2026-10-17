@@ -1,4 +1,9 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import * as tar from "tar";
+import { db } from "../src/lib/db";
 import Docker from "dockerode";
 import { PassThrough, Readable } from "node:stream";
 import { createGzip } from "node:zlib";
@@ -94,6 +99,40 @@ async function installSkill(c: Docker.Container, task: TaskWithRefs, ctx: RunCon
   await ctx.log(`Installed skill ${sv.skill.publisher.publisher}/${sv.skill.name}@${sv.version} (exit ${r.code})`);
 }
 
+/** Copy a crowdfunded task's reference files into <workdir>/inputs (first run only) */
+async function copyInputs(c: Docker.Container, task: TaskWithRefs, workdir: string, ctx: RunContext) {
+  const files = await db.taskInputFile.findMany({ where: { taskId: task.id, deletedAt: null } });
+  if (!files.length) return;
+  const tmp = await mkdtemp(path.join(tmpdir(), "sb-inputs-"));
+  try {
+    await mkdir(path.join(tmp, "inputs"), { recursive: true });
+    for (const f of files) await writeFile(path.join(tmp, "inputs", f.filename), await getObject(f.key));
+    const file = path.join(tmp, "inputs.tar");
+    await tar.c({ cwd: tmp, file, portable: true }, ["inputs"]);
+    await c.putArchive(await readFile(file), { path: workdir });
+    await exec(c, ["sh", "-c", `chown -R bee ${workdir}/inputs 2>/dev/null; true`]);
+    await ctx.log(`Copied ${files.length} reference file(s) into inputs/`);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+}
+
+/** outputs/progress.json → {done, total, current, note} (null when missing or unchanged) */
+async function readProgress(c: Docker.Container, workdir: string, last: { hash: string }) {
+  const r = await exec(c, ["sh", "-c", `cat ${workdir}/outputs/progress.json 2>/dev/null | head -c 20000`]).catch(() => ({ code: 1, output: "" }));
+  if (!r.output.trim()) return null;
+  const hash = createHash("sha256").update(r.output).digest("hex");
+  if (hash === last.hash) return null;
+  last.hash = hash;
+  try {
+    const j = JSON.parse(r.output) as { milestones?: { name?: string; done?: boolean }[]; current?: unknown; note?: unknown };
+    const ms = Array.isArray(j.milestones) ? j.milestones : [];
+    return { done: ms.filter((m) => m?.done).length, total: ms.length, current: typeof j.current === "string" ? j.current.slice(0, 300) : undefined, note: typeof j.note === "string" ? j.note.slice(0, 500) : undefined };
+  } catch {
+    return null;
+  }
+}
+
 async function readUsage(c: Docker.Container, session: string): Promise<Usage> {
   const py = [
     "import sqlite3, json, os",
@@ -117,6 +156,8 @@ export class DockerExecutor implements Executor {
     const workdir = `${HOME}/workspace/tasks/${task.id}`;
     await exec(c, ["mkdir", "-p", `${workdir}/outputs`]);
     if (task.skillVersion && !ctx.continuation) await installSkill(c, task, ctx);
+    if (task.crowdfund && !ctx.continuation) await copyInputs(c, task, workdir, ctx);
+    const progressSeen = { hash: "" };
 
     const prompt = buildPrompt(task, workdir, ctx.continuation);
     await ctx.log(ctx.continuation ? "Continuing the task in the user's container" : "Starting SinoBee in the user's container", { container: containerName(task.userId) });
@@ -134,6 +175,10 @@ export class DockerExecutor implements Executor {
       await new Promise((r) => setTimeout(r, 15_000));
       if (done) break;
       usage = await readUsage(c, session).catch(() => usage);
+      if (task.crowdfund && ctx.progress) {
+        const p = await readProgress(c, workdir, progressSeen);
+        if (p) await ctx.progress(p).catch(() => undefined);
+      }
       const elapsed = Math.round((Date.now() - started) / 1000);
       const decision = await ctx.onUsage(usage, elapsed);
       if (decision === "stop" || Date.now() - started > maxMs) {

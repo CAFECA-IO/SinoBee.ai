@@ -1,0 +1,92 @@
+import { randomBytes } from "node:crypto";
+import { db } from "../db";
+import { config } from "../config";
+import { HttpError } from "../errors";
+import { createCardBinding } from "../oen";
+import { mockAllowed } from "../payment-mode";
+import { open, seal } from "../settings/box";
+
+/**
+ * Saved cards (Oen token checkout).
+ *
+ *  1. startBinding: a pending SavedCard keyed by Oen's checkout-token id; the browser opens Oen's binding page
+ *     (3-D Secure). Nothing is charged.
+ *  2. Oen POSTs a notification with purpose "token". It is unsigned and the token cannot be looked up later, so it
+ *     is accepted only for a pending binding we created (the 27-character id is known to Oen, us and the buyer's
+ *     browser) and only once. A forged token would simply fail when charged.
+ *  3. The token is sealed with the settings key (it works like a password) and used by the crowdfunding charges.
+ */
+
+export async function startBinding(userId: string, opts: { returnTo: string; email?: string }) {
+  const back = `${config.origin}${opts.returnTo.startsWith("/") ? opts.returnTo : "/account"}`;
+  if (mockAllowed()) {
+    const bindingId = `mock_${randomBytes(12).toString("hex")}`;
+    const card = await db.savedCard.create({ data: { userId, bindingId } });
+    return { id: card.id, url: `${config.origin}/pay/mock-card/${card.id}?back=${encodeURIComponent(opts.returnTo)}` };
+  }
+  const b = await createCardBinding({ customId: userId, payerEmail: opts.email, successUrl: back, failureUrl: back, note: "SinoBee.ai crowdfunding" });
+  const card = await db.savedCard.create({ data: { userId, bindingId: b.id } });
+  return { id: card.id, url: b.url };
+}
+
+type TokenNotice = { purpose?: unknown; id?: unknown; success?: unknown; token?: unknown; paymentInfo?: unknown; customId?: unknown; message?: unknown };
+
+/** Apply a token notification (from the webhook, or the mock binding page). Returns what happened. */
+export async function applyTokenNotice(body: TokenNotice): Promise<{ card?: string; status?: string; ignored?: string }> {
+  const id = typeof body.id === "string" ? body.id : "";
+  if (!/^[A-Za-z0-9_-]{10,60}$/.test(id)) return { ignored: "no binding id" };
+  const card = await db.savedCard.findUnique({ where: { bindingId: id } });
+  if (!card) return { ignored: "unknown binding" };
+  if (card.status !== "pending") return { card: card.id, status: card.status, ignored: "already applied" };
+  if (typeof body.customId === "string" && body.customId && body.customId !== card.userId) return { ignored: "customId mismatch" };
+  const ok = body.success === true && typeof body.token === "string" && body.token.length >= 8;
+  const last4 = typeof body.paymentInfo === "string" ? body.paymentInfo.replace(/\D/g, "").slice(-4) || null : null;
+  const r = await db.savedCard.updateMany({
+    where: { id: card.id, status: "pending" },
+    data: ok
+      ? { status: "active", tokenSealed: seal(body.token as string), last4, activatedAt: new Date(), error: null }
+      : { status: "failed", error: typeof body.message === "string" ? body.message.slice(0, 200) : "binding failed" },
+  });
+  if (r.count === 1 && ok) await retryFailedPledges(card.userId);
+  return { card: card.id, status: ok ? "active" : "failed" };
+}
+
+/** A new card was saved: failed pledges of that backer still inside their grace period are retried with it */
+async function retryFailedPledges(userId: string) {
+  const card = await latestCard(userId);
+  if (!card) return;
+  await db.pledge.updateMany({ where: { userId, source: "CARD", status: "FAILED", task: { status: { in: ["CHARGING", "QUEUED", "RUNNING", "NEEDS_FUNDING"] } } }, data: { cardId: card.id } });
+  const { retryBacker } = await import("./lifecycle");
+  await retryBacker(userId).catch((e) => console.warn("crowd retry", (e as Error).message));
+}
+
+export async function activeCards(userId: string) {
+  return db.savedCard.findMany({ where: { userId, status: "active" }, orderBy: { activatedAt: "desc" }, select: { id: true, last4: true, activatedAt: true } });
+}
+
+export async function latestCard(userId: string) {
+  return db.savedCard.findFirst({ where: { userId, status: "active" }, orderBy: { activatedAt: "desc" } });
+}
+
+/** The card's token (server side only) */
+export function cardToken(card: { tokenSealed: string | null }): string {
+  if (!card.tokenSealed) throw new HttpError(400, "card is not ready");
+  return open(card.tokenSealed);
+}
+
+/** Forget a card. Oen has no delete API, so removing it here (and the token with it) is what deletes it. */
+export async function removeCard(userId: string, cardId: string) {
+  const card = await db.savedCard.findUnique({ where: { id: cardId } });
+  if (!card || card.userId !== userId) throw new HttpError(404, "card not found");
+  const waiting = await db.pledge.count({ where: { cardId, status: { in: ["ACTIVE", "FAILED"] } } });
+  if (waiting) throw new HttpError(400, "this card backs pledges that are not charged yet; add another card first or cancel those pledges");
+  await db.savedCard.update({ where: { id: cardId }, data: { status: "removed", tokenSealed: null, removedAt: new Date() } });
+}
+
+/** Mock binding page (development): pretend the buyer finished 3-D Secure */
+export async function completeMockBinding(userId: string, cardId: string, ok: boolean, behaviour: "ok" | "decline" = "ok") {
+  if (!mockAllowed()) throw new HttpError(404, "not found");
+  const card = await db.savedCard.findUnique({ where: { id: cardId } });
+  if (!card || card.userId !== userId) throw new HttpError(404, "card not found");
+  return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "4242" : undefined, customId: userId });
+}

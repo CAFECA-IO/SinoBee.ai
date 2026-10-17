@@ -271,7 +271,11 @@
     "PENDING_REVIEW": "Pending review",
     "APPROVED": "Reviewed",
     "REJECTED": "Rejected",
-    "REVOKED": "Revoked"
+    "REVOKED": "Revoked",
+    "DRAFT": "Draft",
+    "FUNDING": "Crowdfunding",
+    "CHARGING": "Charging",
+    "UNFUNDED": "Not funded"
   },
   "comments": {
     "title": "Discussion",
@@ -283,7 +287,13 @@
     "reply": "Reply",
     "delete": "Delete",
     "deleted": "This comment was deleted",
-    "confirmDelete": "Delete this comment?"
+    "confirmDelete": "Delete this comment?",
+    "kind": {
+      "status": "Agent report",
+      "reference": "Reference",
+      "comment": "Comment"
+    },
+    "markReference": "Mark as reference information for the agent (proposer and backers only; the agent treats it as data)"
   },
   "skills": {
     "lead": "Submit, download, rate and discuss SinoBee skills. Skills follow the Agent Skills standard and work with other compatible agents — a single SKILL.md or a full bundle with scripts, references, examples and fixed workflows.",
@@ -618,7 +628,8 @@
         "storage": "Mirror storage",
         "boltchain": "Boltchain",
         "hub": "Skill Hub signing",
-        "runner": "Task runner"
+        "runner": "Task runner",
+        "crowd": "Crowdfunding"
       },
       "sections": "Sections",
       "search": "Search by name, key or environment variable…",
@@ -644,7 +655,8 @@
         "storage": "Where result files are mirrored.",
         "boltchain": "Distributed storage and notarization.",
         "hub": "Key that signs approved skills.",
-        "runner": "Resources and image of task containers."
+        "runner": "Resources and image of task containers.",
+        "crowd": "Share price, proposal fee, durations and fees, reference files, quota pledges."
       }
     },
     "nav": {
@@ -939,7 +951,9 @@
     "purpose": {
       "TASK_BUDGET": "Commission budget",
       "TASK_TOPUP": "Top-up",
-      "SUBSCRIPTION": "Subscription"
+      "SUBSCRIPTION": "Subscription",
+      "CROWD_PROPOSAL": "Proposal fee",
+      "CROWD_PLEDGE": "Crowdfunding pledge"
     },
     "pstatus": {
       "PENDING": "Pending",
@@ -1159,7 +1173,9 @@
     "ok": {
       "SUBSCRIPTION": "Your subscription is active. Oen emails the e-invoice.",
       "TASK_BUDGET": "{amount} TWD budget received; the task is queued.",
-      "TASK_TOPUP": "{amount} TWD added; the task continues where it stopped."
+      "TASK_TOPUP": "{amount} TWD added; the task continues where it stopped.",
+      "CROWD_PROPOSAL": "Proposal fee of {amount} TWD received; you can start the spec dialogue.",
+      "CROWD_PLEDGE": "Pledge of {amount} TWD received."
     },
     "pending": "Checking the result with Oen; this page updates by itself.",
     "charging": "Waiting for your convenience-store or ATM payment (up to 3 days); this page updates afterwards.",
@@ -1175,7 +1191,8 @@
     },
     "toTask": "Back to the task",
     "toAccount": "Back to my account",
-    "retry": "Try again"
+    "retry": "Try again",
+    "toProposal": "Back to the proposal"
   },
   "legal": {
     "nav": "Terms and policies",
@@ -1188,6 +1205,177 @@
     },
     "refunds": {
       "title": "Refund Policy"
+    }
+  },
+  "crowd": {
+    "title": "Crowdfunded tasks",
+    "lead": "Back the tasks you need with others. One share is NT${price}; pledge 1, 5 or 20 shares at a time. Nothing is charged unless the goal is reached.",
+    "new": "Start a crowdfund",
+    "newTitle": "Start a crowdfunded task",
+    "newLead": "Turn your idea into a spec with an AI dialogue, then open it for pledges. Cards are only saved during the campaign and charged once the goal is reached; unused budget becomes platform points for the backers.",
+    "steps": {
+      "0": "Describe the idea and pay the NT${fee} proposal fee",
+      "1": "Draft the spec, method and acceptance criteria with AI",
+      "2": "Pick a period (7 days has no service fee) and open pledges",
+      "3": "Once funded the agent runs and reports progress in the comments"
+    },
+    "form": {
+      "title": "Task name",
+      "description": "What should be done",
+      "descriptionHint": "Describe the need, context and expected results in your own words; the dialogue turns it into a spec.",
+      "model": "Model",
+      "useSkill": "Use the skill {skill}",
+      "create": "Create proposal",
+      "creating": "Creating…"
+    },
+    "edit": {
+      "title": "Crowdfunding proposal",
+      "draft": "Draft: only you can see it. Finish the spec and pay the proposal fee to open pledges.",
+      "credit": "Proposal credit",
+      "creditLeft": "{amount} TWD left",
+      "creditNone": "Proposal fee not paid yet",
+      "buyFee": "Pay the NT${fee} proposal fee",
+      "buyMore": "Buy another NT${fee} proposal fee",
+      "feeNote": "The proposal fee is non-refundable and becomes credit for the spec dialogue tokens and reference file storage. When it runs out the dialogue stops until you buy more; unused credit joins the task budget when funded (not a share, never points).",
+      "discard": "Discard proposal",
+      "confirmDiscard": "Discard this proposal? The proposal fee is not refunded."
+    },
+    "chat": {
+      "title": "Spec dialogue",
+      "empty": "Tell us the result you want; the AI asks questions and drafts the spec.",
+      "placeholder": "Answer or add details…",
+      "send": "Send",
+      "sending": "Thinking…",
+      "needFee": "Pay the proposal fee to start the dialogue.",
+      "outOfCredit": "Proposal credit used up; buy another proposal fee to continue.",
+      "cost": "This turn {cost} TWD"
+    },
+    "spec": {
+      "title": "Spec",
+      "empty": "No spec yet. Start the dialogue or fill it in by hand.",
+      "summary": "Summary",
+      "scope": "Scope",
+      "outOfScope": "Out of scope",
+      "deliverables": "Deliverables",
+      "method": "Method and milestones",
+      "acceptance": "Acceptance criteria",
+      "estimate": "Cost estimate",
+      "p50": "P50 (TWD)",
+      "p90": "P90 (TWD)",
+      "basis": "Basis",
+      "stretch": "Stretch goals",
+      "risks": "Risks and assumptions",
+      "onePerLine": "One per line",
+      "stretchHint": "One per line: title | amount",
+      "save": "Save spec",
+      "saved": "Saved",
+      "edit": "Edit by hand",
+      "version": "Version {v}"
+    },
+    "files": {
+      "title": "Reference files",
+      "note": "Up to {free} MB costs only storage; every further {block} MB uses one share (NT${price}) of credit, {max} MB in total.",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "used": "{used} MB used",
+      "remove": "Remove",
+      "empty": "No reference files.",
+      "vis": {
+        "PUBLIC": "Public",
+        "BACKERS": "Backers only",
+        "AGENT": "Agent only"
+      }
+    },
+    "open": {
+      "title": "Open crowdfunding",
+      "duration": "Period",
+      "days": "{days} days",
+      "fee": "{rate}% service fee",
+      "free": "No service fee",
+      "goal": "Goal (TWD)",
+      "minGoal": "At least {min} TWD (P90 estimate plus the fee, in whole shares of {price})",
+      "startEarly": "Start as soon as the goal is reached",
+      "startEarlyHint": "Charge and start once the pledges reach the goal; later pledges are charged at once and added to the budget.",
+      "submit": "Open crowdfunding",
+      "missing": "The spec is missing: {list}",
+      "needFee": "Pay the proposal fee first.",
+      "confirm": "The spec cannot change after opening. Open crowdfunding now?"
+    },
+    "panel": {
+      "goal": "Goal",
+      "pledged": "Pledged",
+      "collected": "Collected",
+      "backers": "{n} backers",
+      "deadline": "Ends",
+      "left": "Time left",
+      "shares": "{n} shares",
+      "source": "Pay with",
+      "card": "Card",
+      "cardLast4": "Card •••• {last4}",
+      "points": "Points ({n} available)",
+      "quota": "Subscription quota",
+      "noCard": "No card saved",
+      "addCard": "Save a card",
+      "cardNote": "During the campaign the card is only saved; it is charged once when the goal is reached and the e-invoice goes to your email.",
+      "pointsNote": "Points are deducted now and returned if the goal is missed.",
+      "quotaNote": "Quota is deducted now; it comes back as quota (never cash or points) if the goal is missed or budget is left.",
+      "pledge": "Pledge {amount} TWD",
+      "pledging": "Working…",
+      "mine": "My pledges",
+      "withdraw": "Withdraw",
+      "confirmWithdraw": "Withdraw this pledge?",
+      "login": "Sign in to pledge.",
+      "closed": "This task is not taking pledges.",
+      "leftover": "Unused budget becomes platform points for the backers, in proportion to their pledges (no cash refunds).",
+      "chargingNote": "The goal is reached; backers are being charged.",
+      "unfundedNote": "The goal was not reached; nobody was charged.",
+      "fundedNote": "Funded; the task is running.",
+      "needsFundingNote": "Budget used up: pledges now are charged at once and the run continues.",
+      "proposal": "Proposal",
+      "files": "Reference files",
+      "p": {
+        "ACTIVE": "To be charged",
+        "CHARGED": "Collected",
+        "FAILED": "Card declined",
+        "CANCELLED": "Withdrawn",
+        "RELEASED": "Returned",
+        "REFUNDED": "Refunded"
+      },
+      "returned": "{n} returned",
+      "pointsShort": "Points",
+      "back": "Back this task",
+      "retention": "Crowdfunded results are kept {days} days; every backer whose pledge was collected can download them."
+    },
+    "account": {
+      "points": "Platform points",
+      "balance": "{n} points",
+      "pointsNote": "1 point = NT$1, only for crowdfunding pledges; not transferable and never paid out in cash.",
+      "history": "History",
+      "noHistory": "No points yet.",
+      "reason": {
+        "leftover": "Leftover",
+        "pledge": "Pledge",
+        "release": "Returned (not funded)",
+        "platform": "Platform credit",
+        "admin": "Admin adjustment"
+      },
+      "cards": "Cards",
+      "cardsNote": "Oen keeps the card (3-D Secure); this site stores only an encrypted charge token, used when a crowdfund reaches its goal.",
+      "noCards": "No card saved.",
+      "addCard": "Save a card",
+      "remove": "Remove",
+      "confirmRemove": "Remove this card?"
+    },
+    "mock": {
+      "title": "Mock card binding (development)",
+      "ok": "Save the card",
+      "decline": "Save a card that will be declined",
+      "fail": "Fail the binding"
+    },
+    "list": {
+      "funding": "Crowdfunding now",
+      "emptyFunding": "No open crowdfunds right now.",
+      "progress": "{pledged} / {goal} TWD"
     }
   }
 }

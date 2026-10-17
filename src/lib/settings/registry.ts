@@ -29,7 +29,7 @@ export type SettingDef = {
   required?: boolean;
 };
 
-export const GROUPS = ["payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner"] as const;
+export const GROUPS = ["payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner", "crowd"] as const;
 export type SettingGroup = (typeof GROUPS)[number];
 
 /** payment providers offered in /admin → Settings → Payments; each lists its own fields below */
@@ -137,6 +137,19 @@ export const SETTINGS: SettingDef[] = [
   { key: "runner.network", env: "RUNNER_NETWORK", type: "text", group: "runner", label: L("容器網路", "Container network") },
   { key: "runner.pollSeconds", env: "RUNNER_POLL_SECONDS", type: "number", group: "runner", default: "10", label: L("輪詢秒數", "Poll seconds"), restart: true },
   { key: "runner.maxTaskHours", env: "RUNNER_MAX_TASK_HOURS", type: "number", group: "runner", default: "12", label: L("任務最長時數", "Max task hours") },
+
+  // ───── crowdfunding ─────
+  { key: "crowd.sharePrice", env: "CROWD_SHARE_PRICE_TWD", type: "number", group: "crowd", default: "30", label: L("每份金額（TWD）", "Share price (TWD)") },
+  { key: "crowd.proposalFee", env: "CROWD_PROPOSAL_FEE_TWD", type: "number", group: "crowd", default: "30", label: L("眾籌提案費（TWD）", "Proposal fee (TWD)"), help: L("不可退還；換算為規格對話 token 與儲存空間額度", "Non-refundable; becomes credit for the spec dialogue and storage") },
+  { key: "crowd.feeRates", env: "CROWD_FEE_RATES", type: "text", group: "crowd", default: "7:0,30:0.03,90:0.06,180:0.10", label: L("眾籌期與服務費率", "Durations and service fee rates"), help: L("天數:費率，以逗號分隔", "days:rate, comma separated") },
+  { key: "crowd.freeFileMb", env: "CROWD_FREE_FILE_MB", type: "number", group: "crowd", default: "50", label: L("免費參考檔案（MB）", "Free reference files (MB)") },
+  { key: "crowd.blockMb", env: "CROWD_FILE_BLOCK_MB", type: "number", group: "crowd", default: "50", label: L("超額計費單位（MB）", "Extra space block (MB)"), help: L("每個單位扣 1 份提案額度", "Each block uses one share of proposal credit") },
+  { key: "crowd.maxFileMb", env: "CROWD_MAX_FILE_MB", type: "number", group: "crowd", default: "500", label: L("參考檔案上限（MB）", "Reference files limit (MB)") },
+  { key: "crowd.chargeGraceDays", env: "CROWD_CHARGE_GRACE_DAYS", type: "number", group: "crowd", default: "3", label: L("扣款失敗寬限天數", "Failed charge grace (days)") },
+  { key: "crowd.specModel", env: "CROWD_SPEC_MODEL", type: "text", group: "crowd", default: "anthropic/claude-sonnet-5-5", label: L("規格對話模型", "Spec dialogue model") },
+  { key: "crowd.quotaPeriodShare", env: "CROWD_QUOTA_PERIOD_SHARE", type: "number", group: "crowd", default: "0.2", label: L("每期額度出資上限（占方案用量比例）", "Quota pledges per period (share of plan usage)") },
+  { key: "crowd.quotaTaskShare", env: "CROWD_QUOTA_TASK_SHARE", type: "number", group: "crowd", default: "0.5", label: L("每任務額度出資上限（占目標比例）", "Quota pledges per task (share of goal)") },
+  { key: "crowd.resultsDays", env: "CROWD_RESULTS_DAYS", type: "number", group: "crowd", default: "90", label: L("眾籌成果保存天數", "Crowdfunded results kept (days)") },
 ];
 
 export const SETTING = Object.fromEntries(SETTINGS.map((d) => [d.key, d])) as Record<string, SettingDef>;

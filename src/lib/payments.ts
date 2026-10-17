@@ -3,6 +3,8 @@ import { config } from "./config";
 import { HttpError } from "./errors";
 import { notify } from "./notify";
 import { audit } from "./roles";
+import { mockAllowed } from "./payment-mode";
+export { mockAllowed };
 import { DEAD, PAID, REFUNDED, createCheckout, getTransaction, orderTransactions, refundTransaction, type OenInvoice, type OenProduct, type OenTransaction } from "./oen";
 import { addPeriod, assertPlanBuyable, cancelPeriod } from "./subscriptions";
 import type { Payment, PaymentPurpose, Prisma } from "@/generated/prisma/client";
@@ -28,9 +30,10 @@ const PRODUCT: Record<PaymentPurpose, { code: string; zh: string }> = {
   TASK_BUDGET: { code: "TASK-BUDGET", zh: "委託任務預算" },
   TASK_TOPUP: { code: "TASK-TOPUP", zh: "委託任務補充經費" },
   SUBSCRIPTION: { code: "SUB", zh: "SinoBee.ai 訂閱" },
+  CROWD_PROPOSAL: { code: "CROWD-PROPOSAL", zh: "眾籌提案費" },
+  CROWD_PLEDGE: { code: "CROWD-PLEDGE", zh: "眾籌出資" },
 };
 
-const mockAllowed = () => config.payments.mode === "mock" && process.env.NODE_ENV !== "production";
 
 function product(pay: { purpose: PaymentPurpose; planCode?: string | null; planName?: string | null; days?: number }, amount: number): OenProduct {
   const p = PRODUCT[pay.purpose];
@@ -173,6 +176,12 @@ async function grant(paymentId: string) {
     return;
   }
   if (!pay.taskId) return;
+  if (pay.purpose === "CROWD_PROPOSAL") {
+    const { grantProposalCredit } = await import("./crowd/proposal");
+    return grantProposalCredit(pay.taskId, pay.amountTwd ?? 0, pay.id);
+  }
+  // card pledges are booked by the crowdfunding charge itself (src/lib/crowd/lifecycle.ts)
+  if (pay.purpose === "CROWD_PLEDGE") return;
   const task = await db.task.findUniqueOrThrow({ where: { id: pay.taskId } });
   const wasWaiting = task.status === "AWAITING_PAYMENT" || task.status === "NEEDS_FUNDING";
   await db.task.update({ where: { id: task.id }, data: { budget: { increment: pay.amount }, ...(wasWaiting ? { status: "QUEUED", fundingRequestedAt: null } : {}) } });
@@ -194,8 +203,13 @@ export async function syncPayment(paymentId: string): Promise<Payment> {
  * Webhook body → which payment to re-check. Unknown ids are ignored without calling Oen, so forged posts cost
  * nothing; known ids are re-read from Oen (the body itself is never trusted).
  */
-export async function handleWebhook(body: unknown): Promise<{ payment?: string; status?: string; ignored?: string }> {
-  const b = (body ?? {}) as { id?: unknown; transactionId?: unknown };
+export async function handleWebhook(body: unknown): Promise<{ payment?: string; status?: string; ignored?: string; card?: string }> {
+  const b = (body ?? {}) as { id?: unknown; transactionId?: unknown; purpose?: unknown };
+  // card binding (token checkout): cannot be re-read from Oen, accepted only for a pending binding of ours
+  if (b.purpose === "token") {
+    const { applyTokenNotice } = await import("./crowd/cards");
+    return applyTokenNotice(b as Parameters<typeof applyTokenNotice>[0]);
+  }
   const id = typeof b.id === "string" ? b.id : typeof b.transactionId === "string" ? b.transactionId : "";
   if (!/^[A-Za-z0-9_-]{10,40}$/.test(id)) return { ignored: "no transaction id" };
   const pay = await db.payment.findUnique({ where: { oenId: id } });
@@ -216,7 +230,8 @@ export async function handleWebhook(body: unknown): Promise<{ payment?: string; 
  *  - otherwise, 15 minutes after the checkout page expired → EXPIRED
  */
 export async function reconcilePayments(now = new Date()) {
-  const pending = await db.payment.findMany({ where: { status: "PENDING", provider: { in: ["OEN", "MOCK"] }, createdAt: { lt: new Date(now.getTime() - 60_000) } }, take: 100, orderBy: { createdAt: "asc" } });
+  // card pledge charges have no checkout; src/lib/crowd/lifecycle.ts resolves their unknown outcomes
+  const pending = await db.payment.findMany({ where: { status: "PENDING", purpose: { not: "CROWD_PLEDGE" }, provider: { in: ["OEN", "MOCK"] }, createdAt: { lt: new Date(now.getTime() - 60_000) } }, take: 100, orderBy: { createdAt: "asc" } });
   let settled = 0;
   for (const pay of pending) {
     const abandoned = (pay.checkoutExpiresAt ?? pay.createdAt).getTime() + 15 * 60_000 < now.getTime();
@@ -261,8 +276,12 @@ export async function completeMockPayment(userId: string, paymentId: string, ok:
 export async function refundable(pay: Payment): Promise<number> {
   if (pay.status !== "CONFIRMED" || pay.refundedTwd > 0 || !pay.amountTwd) return 0;
   if (!pay.taskId) return pay.amountTwd;
+  // proposal fees are non-refundable (an admin can still refund a platform error in the Oen CRM)
+  if (pay.purpose === "CROWD_PROPOSAL") return 0;
   const t = await db.task.findUnique({ where: { id: pay.taskId } });
   if (!t) return pay.amountTwd;
+  // a pledge charged before funding (campaign still charging) can be refunded whole
+  if (pay.purpose === "CROWD_PLEDGE" && !t.fundedAt) return pay.amountTwd;
   const unspent = Math.floor(Number(t.budget) - Math.ceil(Number(t.charged)));
   return Math.max(0, Math.min(pay.amountTwd, unspent));
 }
@@ -300,7 +319,12 @@ async function recordRefund(pay: Payment, amount: number, reason: string | null,
   });
   if (done.count !== 1) return db.payment.findUniqueOrThrow({ where: { id: pay.id } });
   if (pay.purpose === "SUBSCRIPTION") await cancelPeriod(pay.id);
-  else if (pay.taskId) {
+  else if (pay.purpose === "CROWD_PLEDGE" && pay.taskId) {
+    if (full) await db.pledge.updateMany({ where: { paymentId: pay.id }, data: { status: "REFUNDED" } });
+    const t = await db.task.findUnique({ where: { id: pay.taskId } });
+    if (t?.fundedAt) await db.task.update({ where: { id: pay.taskId }, data: { budget: { decrement: amount } } });
+    await db.taskEvent.create({ data: { taskId: pay.taskId, type: "refund", message: `Refunded ${amount} TWD of a pledge`, data: { payment: pay.id } } });
+  } else if (pay.taskId) {
     await db.task.update({ where: { id: pay.taskId }, data: { budget: { decrement: amount } } });
     await db.taskEvent.create({ data: { taskId: pay.taskId, type: "refund", message: `Refunded ${amount} TWD`, data: { payment: pay.id } } });
   }

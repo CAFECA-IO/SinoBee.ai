@@ -25,6 +25,12 @@ export class StubOen {
   merchant = "sinobee";
   txs = new Map<string, StubTx>();
   calls: string[] = [];
+  /** card bindings: id → {customId, token?} */
+  bindings = new Map<string, { customId?: string; token?: string; body: Record<string, unknown> }>();
+  /** saved card tokens → how charges behave ("ok" or an error code such as T0004) */
+  tokens = new Map<string, string>();
+  /** Idempotency-Key → first response */
+  idem = new Map<string, { status: number; j: object }>();
   server?: http.Server;
   url = "";
 
@@ -46,6 +52,36 @@ export class StubOen {
         if (req.method === "POST" && body.merchantId !== this.merchant) return bad("V0001", "merchantId mismatch");
         const u = new URL(req.url ?? "/", "http://x");
         let m: RegExpMatchArray | null;
+        if (req.method === "POST" && u.pathname === "/checkout-token") {
+          if (!("successUrl" in body) || !("failureUrl" in body)) return bad("V0001", "successUrl and failureUrl are required");
+          const id = randomBytes(30).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 27);
+          this.bindings.set(id, { customId: body.customId, body });
+          return ok({ id });
+        }
+        if (req.method === "POST" && u.pathname === "/token/transactions") {
+          const key = String(req.headers["idempotency-key"] ?? "");
+          if (key && this.idem.has(key)) {
+            const first = this.idem.get(key)!;
+            return send(first.status, first.j);
+          }
+          const remember = (status: number, j: object) => {
+            if (key) this.idem.set(key, { status, j });
+            return send(status, j);
+          };
+          const sum = (body.productDetails ?? []).reduce((a: number, p: { quantity: number; unitPrice: number }) => a + p.quantity * p.unitPrice, 0);
+          if (!Number.isInteger(body.amount) || body.amount < 1 || sum !== body.amount) return remember(400, { code: "V0001", message: "PRODUCT_AMOUNT_NOT_MATCH" });
+          const behaviour = this.tokens.get(body.token);
+          if (!behaviour) return remember(401, { code: "A0001", message: "token invalid" });
+          const tx: StubTx = {
+            id: "P" + randomBytes(8).toString("hex").toUpperCase(),
+            transactionId: randomBytes(30).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 27),
+            amount: body.amount, orderId: body.orderId, status: behaviour === "ok" ? "charged" : "failed", createdAt: new Date().toISOString(), refundAmount: 0, body,
+            paidAt: behaviour === "ok" ? new Date().toISOString() : undefined,
+          };
+          this.txs.set(tx.transactionId, tx);
+          if (behaviour !== "ok") return remember(400, { code: behaviour, message: "declined" });
+          return remember(200, { code: "S0000", data: { id: tx.id, authCode: "123456" }, message: "" });
+        }
         if (req.method === "POST" && u.pathname === "/checkout") {
           const sum = (body.productDetails ?? []).reduce((a: number, p: { quantity: number; unitPrice: number }) => a + p.quantity * p.unitPrice, 0);
           if (!Number.isInteger(body.amount) || body.amount < 1) return bad("V0001", "amount");
@@ -104,6 +140,17 @@ export class StubOen {
     tx.status = status;
     if (status === "charged") tx.paidAt = new Date().toISOString();
     return tx;
+  }
+
+  /** the customer completes (or abandons) the card binding page; returns the token notification body */
+  bindCard(bindingId: string, ok = true, behaviour = "ok") {
+    const b = this.bindings.get(bindingId)!;
+    const token = ok ? randomBytes(20).toString("hex") : undefined;
+    if (token) {
+      b.token = token;
+      this.tokens.set(token, behaviour);
+    }
+    return { purpose: "token", merchantId: this.merchant, id: bindingId, transactionId: bindingId, success: ok, token, paymentInfo: ok ? "4242" : undefined, customId: b.customId, message: ok ? "" : "3DS_ABANDONED" };
   }
 
   /** the webhook body Oen would POST */

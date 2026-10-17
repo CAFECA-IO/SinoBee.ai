@@ -229,6 +229,49 @@ export const config = {
     },
   },
 
+  /** Crowdfunded tasks (src/lib/crowd) */
+  crowd: {
+    get sharePrice() {
+      return svNum("crowd.sharePrice");
+    },
+    get proposalFee() {
+      return svNum("crowd.proposalFee");
+    },
+    /** duration (days) → service fee rate, e.g. {7: 0, 30: 0.03} */
+    get feeRates(): Record<number, number> {
+      const out: Record<number, number> = {};
+      for (const part of sv("crowd.feeRates").split(",")) {
+        const [d, r] = part.split(":").map((x) => Number(x.trim()));
+        if (Number.isInteger(d) && d > 0 && Number.isFinite(r) && r >= 0 && r < 1) out[d] = r;
+      }
+      return out;
+    },
+    get freeFileBytes() {
+      return svNum("crowd.freeFileMb") * 1024 * 1024;
+    },
+    get blockBytes() {
+      return Math.max(1, svNum("crowd.blockMb")) * 1024 * 1024;
+    },
+    get maxFileBytes() {
+      return svNum("crowd.maxFileMb") * 1024 * 1024;
+    },
+    get chargeGraceDays() {
+      return svNum("crowd.chargeGraceDays");
+    },
+    get specModel() {
+      return sv("crowd.specModel");
+    },
+    get quotaPeriodShare() {
+      return svNum("crowd.quotaPeriodShare");
+    },
+    get quotaTaskShare() {
+      return svNum("crowd.quotaTaskShare");
+    },
+    get resultsDays() {
+      return svNum("crowd.resultsDays");
+    },
+  },
+
   /** Model relay for subscribers (/api/v1/llm/*); platform keys are settings (apiKeys.*) */
   llm: {
     providers: {

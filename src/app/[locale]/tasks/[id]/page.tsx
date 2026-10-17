@@ -7,7 +7,15 @@ import type { Buyer } from "@/components/checkout";
 import { config } from "@/lib/config";
 import { modelLabels } from "@/lib/models";
 import { chargeParts } from "@/lib/pricing";
-import { canView } from "@/lib/tasks/service";
+import { canDownload, canView } from "@/lib/tasks/service";
+import { redirect } from "@/i18n/navigation";
+import { CloseCrowdTask, InputFiles, PledgePanel } from "@/components/crowd";
+import { pledgeTotals } from "@/lib/crowd/pledges";
+import { activeCards } from "@/lib/crowd/cards";
+import { pointBalance } from "@/lib/crowd/points";
+import { canReadFile } from "@/lib/crowd/proposal";
+import { sharePrice } from "@/lib/crowd/rules";
+import { activeSubscription } from "@/lib/retention";
 import { StatusBadge } from "@/components/status-badge";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
@@ -43,6 +51,27 @@ export default async function TaskPage({ params }: P) {
   });
   if (!task || !canView(task, me?.id)) notFound();
   const owner = me?.id === task.userId;
+  if (task.crowdfund && task.status === "DRAFT" && owner) redirect({ href: `/crowd/${task.id}/edit`, locale });
+  const tc = await getTranslations("crowd");
+  const crowd = task.crowdfund
+    ? await (async () => {
+        const totals = await pledgeTotals(task.id);
+        const mine = me ? await db.pledge.findMany({ where: { taskId: task.id, userId: me.id }, orderBy: { createdAt: "desc" } }) : [];
+        const files = await db.taskInputFile.findMany({ where: { taskId: task.id, deletedAt: null }, orderBy: { createdAt: "asc" } });
+        const visible = [];
+        for (const f of files) if (await canReadFile(task, f, me?.id)) visible.push({ id: f.id, filename: f.filename, sizeBytes: Number(f.sizeBytes), visibility: f.visibility });
+        return {
+          totals,
+          mine: mine.map((p) => ({ id: p.id, shares: p.shares, amountTwd: p.amountTwd, source: p.source, status: p.status, returnedTwd: p.returnedTwd })),
+          backer: mine.some((p) => ["ACTIVE", "CHARGED"].includes(p.status)),
+          files: visible,
+          cards: me ? (await activeCards(me.id)).map((c) => ({ id: c.id, last4: c.last4 })) : [],
+          points: me ? await pointBalance(me.id) : 0,
+          hasQuota: me ? !!(await activeSubscription(me.id)) : false,
+        };
+      })()
+    : null;
+  const mayDownload = await canDownload(task, me?.id);
   const up = task.votes.filter((v) => v.value > 0).length;
   const down = task.votes.length - up;
   const myVote = task.votes.find((v) => v.userId === me?.id)?.value ?? 0;
@@ -56,7 +85,7 @@ export default async function TaskPage({ params }: P) {
     ["vm", parts.vm],
     ["s3", parts.s3],
   ] as const;
-  const live = ["QUEUED", "RUNNING", "AWAITING_PAYMENT"].includes(task.status);
+  const live = ["QUEUED", "RUNNING", "AWAITING_PAYMENT", "CHARGING"].includes(task.status);
   const who = task.user.publisher ?? task.user.handle ?? `${task.user.account.slice(0, 6)}…${task.user.account.slice(-4)}`;
 
   return (
@@ -85,6 +114,35 @@ export default async function TaskPage({ params }: P) {
             </div>
           </header>
 
+          {crowd && (
+            <section className="card space-y-3 p-6">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <div className="text-xs text-muted">{tc("panel.pledged")}</div>
+                  <div className="text-2xl font-extrabold">NT${crowd.totals.pledged.toLocaleString("en-US")}</div>
+                </div>
+                <div className="text-right text-sm text-muted">
+                  {tc("panel.goal")} NT${(task.goalTwd ?? 0).toLocaleString("en-US")} · {tc("panel.backers", { n: crowd.totals.backers })}
+                </div>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-panel-2">
+                <div className="h-full bg-accent" style={{ width: `${Math.min(100, (crowd.totals.pledged / Math.max(1, task.goalTwd ?? 1)) * 100)}%` }} />
+              </div>
+              <div className="flex flex-wrap justify-between gap-2 text-xs text-muted">
+                {task.status === "FUNDING" && task.deadlineAt && (
+                  <span>
+                    {tc("panel.left")} <Countdown to={task.deadlineAt.toISOString()} /> · {tc("panel.deadline")} <LocalDate value={task.deadlineAt} />
+                  </span>
+                )}
+                {task.status === "CHARGING" && <span>{tc("panel.chargingNote")}</span>}
+                {task.status === "UNFUNDED" && <span>{tc("panel.unfundedNote")}</span>}
+                {["QUEUED", "RUNNING", "COMPLETED"].includes(task.status) && <span>{tc("panel.fundedNote")}</span>}
+                {task.status === "NEEDS_FUNDING" && <span className="text-warn">{tc("panel.needsFundingNote")}</span>}
+              </div>
+              <p className="text-xs text-muted">{tc("panel.leftover")}</p>
+            </section>
+          )}
+
           {owner && task.status === "NEEDS_FUNDING" && (
             <div className="rounded-2xl border border-warn/50 bg-warn-soft p-5 text-warn">
               <b>{t("needsFundingTitle")}</b>
@@ -99,8 +157,14 @@ export default async function TaskPage({ params }: P) {
           )}
 
           <section className="card p-6">
-            <h2 className="h3">{t("prompt")}</h2>
-            <p className="mt-3 whitespace-pre-wrap text-sm">{task.prompt}</p>
+            <h2 className="h3">{crowd ? tc("panel.proposal") : t("prompt")}</h2>
+            {crowd ? (
+              <div className="mt-3">
+                <Markdown>{task.prompt}</Markdown>
+              </div>
+            ) : (
+              <p className="mt-3 whitespace-pre-wrap text-sm">{task.prompt}</p>
+            )}
             {task.evalCriteria && (
               <>
                 <h3 className="mt-5 font-semibold">{t("criteria")}</h3>
@@ -144,10 +208,27 @@ export default async function TaskPage({ params }: P) {
               {me ? <TaskVote taskId={task.id} mine={myVote} /> : <span className="text-sm text-muted">{t("loginToRate")}</span>}
             </section>
           )}
-          <Comments targetType="TASK" targetId={task.id} />
+          {crowd && crowd.files.length > 0 && (
+            <section className="card space-y-3 p-6">
+              <h2 className="h3">{tc("panel.files")}</h2>
+              <InputFiles taskId={task.id} files={crowd.files} editable={false} />
+            </section>
+          )}
+          <Comments targetType="TASK" targetId={task.id} canReference={!!crowd && (owner || crowd.backer)} />
         </div>
 
         <aside className="space-y-4">
+          {crowd && (
+            <div className="card space-y-3 p-5">
+              <div className="font-semibold">{tc("panel.back")}</div>
+              {me ? (
+                <PledgePanel taskId={task.id} status={task.status} price={sharePrice()} cards={crowd.cards} points={crowd.points} hasQuota={crowd.hasQuota} buyer={(me.billing ?? null) as Buyer | null} mine={crowd.mine} />
+              ) : (
+                <p className="text-sm text-muted">{tc("panel.login")}</p>
+              )}
+            </div>
+          )}
+          {owner && crowd && task.status === "NEEDS_FUNDING" && <CloseCrowdTask taskId={task.id} />}
           {owner && (
             <>
               <div className="card space-y-3 p-5">
@@ -179,10 +260,10 @@ export default async function TaskPage({ params }: P) {
                 </dl>
                 <p className="text-[11px] text-muted">{t("rateNote")}</p>
               </div>
-              <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} buyer={(me?.billing ?? null) as Buyer | null} />
+              {!crowd && <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} buyer={(me?.billing ?? null) as Buyer | null} />}
             </>
           )}
-          {owner && (
+          {mayDownload && (
             <div className="card space-y-3 p-5">
               <div className="font-semibold">{t("results")}</div>
               {task.artifacts.length === 0 && <p className="text-sm text-muted">{t("noResults")}</p>}
@@ -210,10 +291,10 @@ export default async function TaskPage({ params }: P) {
                   </div>
                 );
               })}
-              <p className="text-xs text-muted">{t("retentionNote", { days: config.retention.freeDays })}</p>
+              <p className="text-xs text-muted">{task.crowdfund ? tc("panel.retention", { days: config.crowd.resultsDays }) : t("retentionNote", { days: config.retention.freeDays })}</p>
             </div>
           )}
-          {!owner && task.isPublic && <p className="card p-5 text-sm text-muted">{t("publicNote")}</p>}
+          {!mayDownload && task.isPublic && !crowd && <p className="card p-5 text-sm text-muted">{t("publicNote")}</p>}
         </aside>
       </div>
     </div>

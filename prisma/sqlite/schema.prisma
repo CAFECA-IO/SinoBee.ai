@@ -62,6 +62,9 @@ model User {
   adminActions  AdminAudit[]  @relation("auditActor")
   modelPrices   ModelPrice[]
   usage         UsageLedger[]
+  pledges       Pledge[]
+  savedCards    SavedCard[]
+  points        PointLedger[]
 }
 
 enum UserRole {
@@ -306,6 +309,8 @@ model Comment {
   parent     Comment?      @relation("thread", fields: [parentId], references: [id], onDelete: Cascade)
   replies    Comment[]     @relation("thread")
   body       String
+  /// "comment" (discussion), "reference" (a backer's reference info, read by the agent), "status" (agent report)
+  kind       String        @default("comment")
   deletedAt  DateTime?
   createdAt  DateTime      @default(now())
 
@@ -320,6 +325,14 @@ enum TaskKind {
 }
 
 enum TaskStatus {
+  /// crowdfunding proposal being written (spec dialogue, reference files)
+  DRAFT
+  /// crowdfunding open: pledges are collected (cards are bound, not charged)
+  FUNDING
+  /// goal reached: card pledges are being charged (retries during the grace period)
+  CHARGING
+  /// crowdfunding ended without reaching the goal (nothing charged)
+  UNFUNDED
   AWAITING_PAYMENT
   QUEUED
   RUNNING
@@ -385,6 +398,37 @@ model Task {
   votes     TaskVote[]
   payments  Payment[]
   report    EvaluationReport?
+  pledges    Pledge[]
+  inputFiles TaskInputFile[]
+
+  // ── crowdfunding (crowdfund = true) ──
+  crowdfund         Boolean   @default(false)
+  /// goal in whole TWD (a multiple of the share price)
+  goalTwd           Int?
+  /// 7, 30, 90 or 180
+  durationDays      Int?
+  deadlineAt        DateTime?
+  /// start charging as soon as the goal is reached instead of at the deadline
+  startEarly        Boolean   @default(false)
+  /// platform service fee rate snapshotted when funding opens (0 for 7 days)
+  serviceFeeRate    Decimal? 
+  serviceFeeTwd     Int       @default(0)
+  /// proposal: {summary, scope, outOfScope, deliverables[], method[], acceptance[], estimate {p50Twd, p90Twd, basis}, stretch[], risks[]}
+  spec              Json?
+  specVersion       Int       @default(0)
+  /// spec dialogue [{role: "user" | "assistant", content, at}]
+  specChat          Json?
+  /// proposal fee credit (published-price TWD) and what the spec dialogue, storage and extra file space used
+  proposalCreditTwd Decimal   @default(0)
+  proposalUsedTwd   Decimal   @default(0)
+  /// unused proposal credit moved into the budget when funded (kept by the platform at settlement, never points)
+  proposalToBudgetTwd Decimal @default(0)
+  fundingStartedAt  DateTime?
+  fundedAt          DateTime?
+  /// end of the grace period for failed card charges
+  chargeDeadlineAt  DateTime?
+  /// leftover budget returned to backers (points / quota)
+  settledAt         DateTime?
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
@@ -470,6 +514,10 @@ model EvaluationReport {
 enum PaymentPurpose {
   TASK_BUDGET
   TASK_TOPUP
+  /// crowdfunding proposal fee (credit for the spec dialogue, storage and extra file space)
+  CROWD_PROPOSAL
+  /// a backer's card pledges for one task, charged with the saved card token
+  CROWD_PLEDGE
   SUBSCRIPTION
 }
 
@@ -526,6 +574,7 @@ model Payment {
   providerStatus String?
   status      PaymentStatus  @default(PENDING)
   txHash      String?        @unique
+  pledges     Pledge[]
   error       String?
   meta        Json?
   createdAt   DateTime       @default(now())
@@ -953,4 +1002,119 @@ model Anchor {
 
   @@unique([targetType, targetId])
   @@index([status, nextTryAt])
+}
+
+
+// ───────────────────────── Crowdfunding ─────────────────────────
+
+enum PledgeSource {
+  CARD
+  POINTS
+  QUOTA
+}
+
+enum PledgeStatus {
+  /// card: bound, not charged yet; points / quota: already deducted
+  ACTIVE
+  CHARGED
+  /// card charge failed (retried until the grace period ends)
+  FAILED
+  /// withdrawn by the backer before charging
+  CANCELLED
+  /// campaign ended without funding: points / quota given back, card never charged
+  RELEASED
+  /// card charge refunded (funding fell short after charging)
+  REFUNDED
+}
+
+/** One pledge action: shares × share price, paid with a saved card (charged later), points or subscription quota */
+model Pledge {
+  id            String       @id @default(cuid())
+  taskId        String
+  task          Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source        PledgeSource
+  shares        Int
+  amountTwd     Int
+  status        PledgeStatus @default(ACTIVE)
+  cardId        String?
+  card          SavedCard?   @relation(fields: [cardId], references: [id])
+  /// the CROWD_PLEDGE payment that charged it (one per backer and task)
+  paymentId     String?
+  payment       Payment?     @relation(fields: [paymentId], references: [id])
+  usageLedgerId String?      @unique
+  /// leftover given back at settlement (points for CARD / POINTS, quota for QUOTA)
+  returnedTwd   Int          @default(0)
+  error         String?
+  createdAt     DateTime     @default(now())
+  chargedAt     DateTime?
+  updatedAt     DateTime     @updatedAt
+
+  @@index([taskId, status])
+  @@index([userId, createdAt])
+}
+
+/** A card saved with Oen (token checkout). The token arrives only through the token notification. */
+model SavedCard {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Oen checkout-token id (also the id in the token notification)
+  bindingId   String    @unique
+  /// sealed with the settings key; null until the notification arrives
+  tokenSealed String?
+  last4       String?
+  /// pending | active | failed | removed
+  status      String    @default("pending")
+  error       String?
+  createdAt   DateTime  @default(now())
+  activatedAt DateTime?
+  removedAt   DateTime?
+  pledges     Pledge[]
+
+  @@index([userId, status])
+}
+
+/** Platform points: 1 point = 1 TWD, only for crowdfunding pledges, not transferable, no cash-out */
+model PointLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int
+  /// leftover | pledge | release | platform | admin
+  reason    String
+  /// idempotency key, e.g. "leftover:<pledgeId>"
+  ref       String?  @unique
+  taskId    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum FileVisibility {
+  /// anyone who can see the task
+  PUBLIC
+  /// backers and the proposer
+  BACKERS
+  /// only the agent (and the proposer)
+  AGENT
+}
+
+/** Reference files uploaded with a crowdfunding proposal; copied into the task's inputs/ folder */
+model TaskInputFile {
+  id          String         @id @default(cuid())
+  taskId      String
+  task        Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  key         String
+  filename    String
+  contentType String
+  sizeBytes   BigInt
+  sha256      String
+  visibility  FileVisibility @default(BACKERS)
+  createdAt   DateTime       @default(now())
+  deletedAt   DateTime?
+
+  @@index([taskId])
 }
