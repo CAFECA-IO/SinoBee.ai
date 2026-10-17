@@ -188,3 +188,59 @@ test("drafting runs in the background (no long request for a proxy to cut off); 
   assert.ok(failed.error && failed.error.length > 0, failed.error);
   assert.equal(failed.hasSpec, false);
 });
+
+test("a model ID the provider does not know (404) falls through to the next usable model; the real error is shown", async () => {
+  const http = await import("node:http");
+  const seen: string[] = [];
+  const srv = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const model = JSON.parse(body).model as string;
+      seen.push(`${req.url} ${model}`);
+      res.setHeader("content-type", "application/json");
+      if (req.url!.startsWith("/gemini")) {
+        res.statusCode = 404; // Gemini's OpenAI endpoint wraps the error in an array
+        return res.end(JSON.stringify([{ error: { code: 404, message: `models/${model} is not found for API version v1main`, status: "NOT_FOUND" } }]));
+      }
+      if (req.url!.startsWith("/down")) {
+        res.statusCode = 502;
+        return res.end("<html><body>Bad gateway</body></html>");
+      }
+      res.end(JSON.stringify({ choices: [{ message: { content: "pong" } }], usage: { prompt_tokens: 10, completion_tokens: 2 } }));
+    });
+  });
+  await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+  const env = ["GEMINI_API_KEY", "LLM_BASE_GEMINI", "OPENAI_API_KEY", "LLM_BASE_OPENAI", "CROWD_SPEC_MODEL", "ANTHROPIC_API_KEY"] as const;
+  const keep = Object.fromEntries(env.map((k) => [k, process.env[k]]));
+  const { platformChat } = await import("../src/lib/platform-model");
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    Object.assign(process.env, { GEMINI_API_KEY: "g", LLM_BASE_GEMINI: `${base}/gemini`, OPENAI_API_KEY: "o", LLM_BASE_OPENAI: `${base}/openai`, CROWD_SPEC_MODEL: "gemini/gemini-3.1-pro" });
+    const r = await platformChat({ system: "s", messages: [{ role: "user", content: "ping" }], maxTokens: 100 });
+    assert.equal(r.text, "pong");
+    assert.equal(r.model.modelId.split("/")[0], "openai");
+    assert.equal(seen[0], "/gemini/chat/completions gemini-3.1-pro", "the admin's choice was tried first");
+    seen.length = 0;
+    await platformChat({ system: "s", messages: [{ role: "user", content: "ping" }], maxTokens: 100 });
+    assert.ok(seen[0].startsWith("/openai"), "a model that just failed is tried last for a while");
+
+    // every model fails: the error names each model and the provider's own message
+    process.env.LLM_BASE_OPENAI = `${base}/down`;
+    delete process.env.GEMINI_API_KEY;
+    await assert.rejects(platformChat({ system: "s", messages: [{ role: "user", content: "ping" }], maxTokens: 100 }), (e: Error & { status?: number }) => {
+      assert.match(e.message, /openai\/gpt-[^:]+: 502 Bad gateway/);
+      return true;
+    });
+    process.env.GEMINI_API_KEY = "g";
+    delete process.env.OPENAI_API_KEY;
+    await assert.rejects(platformChat({ system: "s", messages: [{ role: "user", content: "ping" }], maxTokens: 100 }), /gemini\/gemini-3\.1-pro: 404 models\/gemini-3\.1-pro is not found/);
+  } finally {
+    srv.close();
+    for (const k of env) {
+      if (keep[k] === undefined) delete process.env[k];
+      else process.env[k] = keep[k];
+    }
+  }
+});

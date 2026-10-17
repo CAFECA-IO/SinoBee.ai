@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
-import { NO_PLATFORM_MODEL, platformModel } from "../platform-model";
+import { NO_PLATFORM_MODEL, platformChat, usableModels } from "../platform-model";
 import { audit } from "../roles";
 import type { Prisma } from "@/generated/prisma/client";
 import { DEFAULT_CHECKLIST, DIMENSIONS, type ChecklistItem, type Dimension } from "./checklist-default";
@@ -131,10 +131,7 @@ export async function editDraftWithAi(actorId: string, instruction: string): Pro
   const text = instruction.trim().slice(0, 4000);
   if (!text) throw new HttpError(400, "describe the change");
   const draft = await draftChecklist();
-  const pm = await platformModel();
-  const model = pm?.model;
-  const p = pm?.api;
-  if (!model || !p) {
+  if (!(await usableModels()).length) {
     if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
     // development stand-in: echo the draft unchanged
     return { items: await saveDraft(actorId, draft.items), reply: "(development stand-in) No model key is configured; the draft is unchanged." };
@@ -147,14 +144,7 @@ export async function editDraftWithAi(actorId: string, instruction: string): Pro
     'Answer with ONE JSON object only: {"reply": "<what you changed, in the admin\'s language>", "items": [{"id"?, "dimension", "zh", "en"}, ...]} — the full list.',
   ].join("\n");
   const user = `Current draft:\n${JSON.stringify(draft.items)}\n\nChange requested:\n${text}`;
-  const upstream = model.modelId.split("/").slice(1).join("/");
-  const r =
-    p.kind === "anthropic"
-      ? await fetch(`${p.base}/v1/messages`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": p.key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: upstream, system, messages: [{ role: "user", content: user }], max_tokens: 16000 }) })
-      : await fetch(`${p.base}/chat/completions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${p.key}` }, body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: 16000 }) });
-  const j = (await r.json().catch(() => ({}))) as { content?: { text?: string }[]; choices?: { message?: { content?: string } }[]; error?: { message?: string } };
-  if (!r.ok) throw new HttpError(502, `model error: ${j.error?.message ?? r.status}`);
-  const out = p.kind === "anthropic" ? (j.content ?? []).map((c) => c.text ?? "").join("") : (j.choices?.[0]?.message?.content ?? "");
+  const { text: out } = await platformChat({ system, messages: [{ role: "user", content: user }], maxTokens: 16000, timeoutMs: 240_000 });
   let parsed: { reply?: unknown; items?: unknown };
   try {
     parsed = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1));

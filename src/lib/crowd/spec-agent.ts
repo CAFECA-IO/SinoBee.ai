@@ -3,7 +3,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { currentModels, type ModelPriceView } from "../models";
 import { costTwd } from "../llm/quota";
-import { NO_PLATFORM_MODEL, platformModel } from "../platform-model";
+import { NO_PLATFORM_MODEL, platformChat, usableModels, type ChatMessage, type ChatUsage } from "../platform-model";
 import type { Prisma } from "@/generated/prisma/client";
 import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
 import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
@@ -62,47 +62,17 @@ function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: 
   ].join("\n");
 }
 
-type Usage = { prompt: number; output: number; cacheRead: number; cacheWrite: number };
+type Usage = ChatUsage;
 
-async function callModel(model: ModelPriceView, system: string, messages: { role: "user" | "assistant"; content: string }[]): Promise<{ text: string; usage: Usage }> {
-  const provider = model.modelId.split("/")[0];
-  const p = config.llm.providers[provider];
-  const upstream = model.modelId.split("/").slice(1).join("/");
-  if (!p?.key) {
+/** The platform model (falling back to the next usable one on errors); the development stand-in when no key is set */
+async function callModel(system: string, messages: ChatMessage[]): Promise<{ text: string; usage: Usage; model: ModelPriceView | null }> {
+  if (!(await usableModels()).length) {
     if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
     // the development stand-in answers at once; tests can slow it down to watch a running job
     if (process.env.SPEC_MOCK_DELAY_MS) await new Promise((r) => setTimeout(r, Number(process.env.SPEC_MOCK_DELAY_MS)));
-    return mockReply(messages);
+    return { ...mockReply(messages), model: null };
   }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 240_000);
-  try {
-    if (p.kind === "anthropic") {
-      const r = await fetch(`${p.base}/v1/messages`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": p.key, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: upstream, system, messages, max_tokens: MAX_OUTPUT }),
-        signal: ctrl.signal,
-      });
-      const j = (await r.json().catch(() => ({}))) as { content?: { type: string; text?: string }[]; usage?: Record<string, number>; error?: { message?: string } };
-      if (!r.ok) throw new HttpError(502, `spec model error: ${j.error?.message ?? r.status}`);
-      const u = j.usage ?? {};
-      const cacheRead = u.cache_read_input_tokens ?? 0;
-      const cacheWrite = u.cache_creation_input_tokens ?? 0;
-      return { text: (j.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join(""), usage: { prompt: (u.input_tokens ?? 0) + cacheRead + cacheWrite, output: u.output_tokens ?? 0, cacheRead, cacheWrite } };
-    }
-    const r = await fetch(`${p.base}/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${p.key}` },
-      body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, ...messages], [provider === "openai" ? "max_completion_tokens" : "max_tokens"]: provider === "openai" ? MAX_OUTPUT * 2 : MAX_OUTPUT }),
-      signal: ctrl.signal,
-    });
-    const j = (await r.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; error?: { message?: string } };
-    if (!r.ok) throw new HttpError(502, `spec model error: ${j.error?.message ?? r.status}`);
-    return { text: j.choices?.[0]?.message?.content ?? "", usage: { prompt: j.usage?.prompt_tokens ?? 0, output: j.usage?.completion_tokens ?? 0, cacheRead: j.usage?.prompt_tokens_details?.cached_tokens ?? 0, cacheWrite: 0 } };
-  } finally {
-    clearTimeout(timer);
-  }
+  return platformChat({ system, messages, maxTokens: MAX_OUTPUT });
 }
 
 /** Development stand-in when no model key is configured (never in production) */
@@ -222,16 +192,13 @@ export async function startTurn(userId: string, taskId: string, message: string)
 
 async function ask(task: Task, chat: ChatTurn[], message: string) {
   const models = await currentModels();
-  // the model configured for the platform (or the first one with an API key), never a fixed vendor
-  const pm = await platformModel();
-  if (!pm && process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
-  const model = pm?.model ?? models[0];
-  if (!model) throw new HttpError(503, NO_PLATFORM_MODEL);
   const current = task.spec ? normalizeSpec(task.spec) : null;
   const skill = task.skillVersionId ? (await db.skillVersion.findUnique({ where: { id: task.skillVersionId }, include: { skill: true } }))?.skill.name : null;
   const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: message }];
-  const { text: answer, usage } = await callModel(model, systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
-  const cost = costTwd(model.twd, usage);
+  // the model configured for the platform (or the next one with an API key that works), never a fixed vendor
+  const { text: answer, usage, model } = await callModel(systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
+  const priced = model ?? models[0];
+  const cost = priced ? costTwd(priced.twd, usage) : 0;
   // the call already happened: charge it even if it takes the credit slightly below zero
   await useCredit(task.id, cost, { allowOverdraw: true });
   return { parsed: parseAnswer(answer), cost, current };

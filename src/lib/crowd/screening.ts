@@ -2,7 +2,7 @@ import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { notify } from "../notify";
-import { platformModel } from "../platform-model";
+import { platformChat, usableModels } from "../platform-model";
 import { addDays } from "../retention";
 import { audit } from "../roles";
 import type { Prisma, Task } from "@/generated/prisma/client";
@@ -44,9 +44,8 @@ export type Screening = {
 const RETRY_MS = 5 * 60_000;
 const LEASE_MS = 10 * 60_000;
 
-type Model = { modelId: string };
 
-async function askDimension(model: Model, p: { kind: "openai" | "anthropic"; base: string; key: string }, task: Task, items: ChecklistItem[], notes: ReviewerNote[]): Promise<ItemResult[]> {
+async function askDimension(task: Task, items: ChecklistItem[], notes: ReviewerNote[]): Promise<ItemResult[]> {
   const spec = task.spec ? normalizeSpec(task.spec) : null;
   const files = await db.taskInputFile.findMany({ where: { taskId: task.id, deletedAt: null }, select: { filename: true, visibility: true, sizeBytes: true } });
   const proposal = JSON.stringify({ title: task.title, model: task.model, goalTwd: task.goalTwd, durationDays: task.durationDays, description: task.prompt, spec, referenceFiles: files.map((f) => ({ name: f.filename, visibility: f.visibility, bytes: Number(f.sizeBytes) })) }).slice(0, 40_000);
@@ -59,14 +58,7 @@ async function askDimension(model: Model, p: { kind: "openai" | "anthropic"; bas
   ].join("\n");
   const reviewer = notes.length ? `\n\nPlatform reviewer's notes:\n${notes.map((n) => `- ${n.text}`).join("\n")}` : "";
   const user = `Checklist:\n${items.map((i) => `${i.id}: ${i.en}`).join("\n")}\n\nProposal (JSON):\n${proposal}${reviewer}`;
-  const upstream = model.modelId.split("/").slice(1).join("/");
-  const r =
-    p.kind === "anthropic"
-      ? await fetch(`${p.base}/v1/messages`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": p.key, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: upstream, system, messages: [{ role: "user", content: user }], max_tokens: 4000 }) })
-      : await fetch(`${p.base}/chat/completions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${p.key}` }, body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, { role: "user", content: user }], max_tokens: 4000 }) });
-  const j = (await r.json().catch(() => ({}))) as { content?: { text?: string }[]; choices?: { message?: { content?: string } }[]; error?: { message?: string } };
-  if (!r.ok) throw new Error(`model error: ${j.error?.message ?? r.status}`);
-  const out = p.kind === "anthropic" ? (j.content ?? []).map((c) => c.text ?? "").join("") : (j.choices?.[0]?.message?.content ?? "");
+  const { text: out } = await platformChat({ system, messages: [{ role: "user", content: user }], maxTokens: 4000, timeoutMs: 180_000 });
   const parsed = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as { results?: { id?: unknown; pass?: unknown; note?: unknown }[] };
   const byId = new Map((parsed.results ?? []).map((x) => [String(x.id), x]));
   // an item the model skipped counts as not passed
@@ -78,17 +70,14 @@ async function askDimension(model: Model, p: { kind: "openai" | "anthropic"; bas
 
 /** Every checklist item for this proposal; null when no model can be used right now */
 async function aiScreen(task: Task, items: ChecklistItem[], notes: ReviewerNote[]): Promise<ItemResult[] | null> {
-  const pm = await platformModel();
-  const model = pm?.model;
-  const p = pm?.api;
-  if (!model || !p) {
+  if (!(await usableModels()).length) {
     if (process.env.NODE_ENV === "production") return null;
     // development stand-in: everything passes unless the proposal is marked [review] (a reviewer note with [clear] clears it)
     const flagged = `${task.title}\n${task.prompt}`.includes("[review]") && !notes.some((n) => n.text.includes("[clear]"));
     return items.map((i, n) => ({ id: i.id, pass: !(flagged && n === 0), note: flagged && n === 0 ? "flagged by the development stand-in" : undefined }));
   }
   try {
-    const parts = await Promise.all(DIMENSIONS.map((d) => items.filter((i) => i.dimension === d)).filter((g) => g.length).map((g) => askDimension(model, p, task, g, notes)));
+    const parts = await Promise.all(DIMENSIONS.map((d) => items.filter((i) => i.dimension === d)).filter((g) => g.length).map((g) => askDimension(task, g, notes)));
     return parts.flat();
   } catch (e) {
     console.warn("screening", task.id, (e as Error).message);
