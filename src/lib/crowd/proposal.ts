@@ -187,9 +187,10 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
   await db.specRevision.create({ data: { taskId, version: 1, spec: spec as unknown as Prisma.InputJsonValue, note: "opened" } });
   await db.task.update({ where: { id: taskId }, data: { specVersion: 1 } });
   await db.taskEvent.create({ data: { taskId, type: "funding.submitted", message: `Submitted for crowdfunding: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate } } });
-  // the period starts when the campaign opens (now, or after an admin review)
-  const { screenProposal } = await import("./screening");
-  await screenProposal(taskId);
+  // the worker screens it against the checklist; the period starts when the campaign opens
+  const { queueScreening, screenProposal } = await import("./screening");
+  if (config.crowd.screening === "off") await screenProposal(taskId);
+  else await queueScreening(taskId);
   return db.task.findUniqueOrThrow({ where: { id: taskId } });
 }
 

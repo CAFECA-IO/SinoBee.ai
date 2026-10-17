@@ -443,6 +443,8 @@ model Task {
   /// set when an admin takes the campaign down after a report
   takenDownAt       DateTime?
   /// version of the crowdfunding terms (with the screening checklist) the proposer agreed to
+  /// next AI screening attempt by the worker (null = not queued)
+  screenAt          DateTime?
   termsVersion      Int?
   /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
   stretchUnlocked   Int       @default(0)
@@ -462,6 +464,7 @@ model Task {
   @@index([userId, createdAt])
   @@index([isPublic, createdAt])
   @@index([crowdfund, status, deadlineAt])
+  @@index([status, screenAt])
 }
 
 model TaskEvent {
@@ -1020,6 +1023,8 @@ model Anchor {
   salt       String
   /// [{name, sha256, keccak, size}]
   files      Json
+  /// public certificate: the files themselves are kept on Boltchain (content read from the target when issuing)
+  publicFiles Boolean  @default(false)
   root       String?
   txHash     String?
   status     String    @default("pending")

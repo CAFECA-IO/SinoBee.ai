@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
@@ -743,25 +743,86 @@ export function TopupForm({ taskId, price }: { taskId: string; price: number }) 
 
 // ───────────── P2: sharing, reports, screening, categories ─────────────
 
-export function ShareButton({ title }: { title: string }) {
+export type ShareInfo = { url: string; title: string; description: string; imageUrl: string; imageAlt: string };
+
+/** Where each platform takes a link (they read the picture, title and summary from the page's Open Graph tags) */
+const SHARE_TARGETS: { key: string; label: string; href: (s: ShareInfo) => string }[] = [
+  { key: "facebook", label: "Facebook", href: (s) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(s.url)}` },
+  { key: "x", label: "X", href: (s) => `https://x.com/intent/post?text=${encodeURIComponent(s.title)}&url=${encodeURIComponent(s.url)}` },
+  { key: "line", label: "LINE", href: (s) => `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(s.url)}` },
+  { key: "threads", label: "Threads", href: (s) => `https://www.threads.net/intent/post?text=${encodeURIComponent(`${s.title}\n${s.url}`)}` },
+  { key: "linkedin", label: "LinkedIn", href: (s) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(s.url)}` },
+  { key: "telegram", label: "Telegram", href: (s) => `https://t.me/share/url?url=${encodeURIComponent(s.url)}&text=${encodeURIComponent(s.title)}` },
+  { key: "whatsapp", label: "WhatsApp", href: (s) => `https://wa.me/?text=${encodeURIComponent(`${s.title} ${s.url}`)}` },
+];
+
+export function ShareButton({ share }: { share: ShareInfo }) {
   const t = useTranslations("crowd.share");
-  const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<"" | "link" | "text">("");
+  const [canNative, setCanNative] = useState(false);
+  useEffect(() => setCanNative(typeof navigator !== "undefined" && !!navigator.share), []);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  const copy = async (what: "link" | "text") => {
+    await navigator.clipboard.writeText(what === "link" ? share.url : `${share.title}\n${share.description}\n${share.url}`).catch(() => undefined);
+    setCopied(what);
+    setTimeout(() => setCopied(""), 2000);
+  };
+  const host = (() => {
+    try {
+      return new URL(share.url).host;
+    } catch {
+      return "";
+    }
+  })();
   return (
-    <button
-      className="btn-ghost !py-1.5 text-sm"
-      onClick={async () => {
-        const url = window.location.href.split("?")[0];
-        if (navigator.share) {
-          await navigator.share({ title, url }).catch(() => undefined);
-          return;
-        }
-        await navigator.clipboard.writeText(url).catch(() => undefined);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }}
-    >
-      {copied ? t("copied") : t("share")}
-    </button>
+    <>
+      <button className="btn-ghost !py-1.5 text-sm" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        {t("share")}
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label={t("title")} className="card w-full max-w-lg space-y-4 p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="h3">{t("title")}</h2>
+              <button className="text-muted hover:text-ink" onClick={() => setOpen(false)} aria-label={t("close")}>✕</button>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-line">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={share.imageUrl} alt={share.imageAlt} width={1200} height={630} className="aspect-[1200/630] w-full bg-surface object-cover" />
+              <div className="space-y-1 p-3">
+                <div className="text-xs uppercase text-muted">{host}</div>
+                <div className="line-clamp-2 font-semibold">{share.title}</div>
+                <div className="line-clamp-2 text-sm text-muted">{share.description}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {SHARE_TARGETS.map((p) => (
+                <a key={p.key} href={p.href(share)} target="_blank" rel="noopener noreferrer" className="btn-ghost justify-center !py-2 text-sm" data-share={p.key}>
+                  {p.label}
+                </a>
+              ))}
+              {canNative && (
+                <button className="btn-ghost justify-center !py-2 text-sm" onClick={() => navigator.share({ title: share.title, text: share.description, url: share.url }).catch(() => undefined)}>
+                  {t("more")}
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input className="input flex-1 font-mono text-xs" readOnly value={share.url} onFocus={(e) => e.currentTarget.select()} aria-label={t("link")} />
+              <button className="btn-primary !py-2 text-sm" onClick={() => copy("link")}>{copied === "link" ? t("copied") : t("copy")}</button>
+            </div>
+            <button className="text-xs text-accent underline" onClick={() => copy("text")}>{copied === "text" ? t("copiedText") : t("copyText")}</button>
+            <p className="text-xs text-muted">{t("hint")}</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -796,31 +857,75 @@ export function ReportButton({ taskId }: { taskId: string }) {
   );
 }
 
+/** Admin: re-review only (the AI decides), optionally with a note the model reads as context */
 export function ScreeningActions({ taskId }: { taskId: string }) {
   const t = useTranslations("crowd.screening");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
   const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button
-        className="btn-ghost !py-2"
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          setErr("");
-          try {
-            await send(`/api/admin/crowd/${taskId}/screening`, "POST", {});
-            router.refresh();
-          } catch (e) {
-            setErr((e as Error).message);
-          }
-          setBusy(false);
-        }}
-      >
-        {t("rerun")}
-      </button>
-      {err && <p className="w-full text-sm text-err">{err}</p>}
+    <div className="space-y-2">
+      <label className="block text-sm">
+        {t("note")}
+        <textarea className="input mt-1 h-20" maxLength={2000} value={note} placeholder={t("notePlaceholder")} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          className="btn-primary !py-2"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setErr("");
+            try {
+              await send(`/api/admin/crowd/${taskId}/screening`, "POST", note.trim() ? { note: note.trim() } : {});
+              setNote("");
+              setDone(true);
+              router.refresh();
+            } catch (e) {
+              setErr((e as Error).message);
+            }
+            setBusy(false);
+          }}
+        >
+          {t("rerun")}
+        </button>
+        {done && <span className="text-xs text-ok">{t("requested")}</span>}
+      </div>
+      <p className="text-xs text-muted">{t("rerunHelp")}</p>
+      {err && <p className="text-sm text-err">{err}</p>}
+    </div>
+  );
+}
+
+/** The latest screening result: counts, items not met, platform notes */
+export function ScreeningResult({ screening }: { screening: { decision: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] } }) {
+  const t = useTranslations("crowd.screening");
+  const failed = screening.failedCount ?? screening.failed?.length ?? 0;
+  return (
+    <div className="space-y-2 text-sm">
+      {screening.total ? <p className="font-semibold">{t("result", { passed: screening.passed ?? 0, failed, total: screening.total, v: screening.checklistVersion ?? 0 })}</p> : null}
+      {screening.decision === "rejected" && screening.reasons.length > 0 && (
+        <details open={screening.reasons.length <= 5}>
+          <summary className="cursor-pointer text-err">{t("reasons")}（{screening.reasons.length}）</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-err">
+            {screening.reasons.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {screening.notes && screening.notes.length > 0 && (
+        <div>
+          <div className="text-xs text-muted">{t("notes")}</div>
+          <ul className="list-disc space-y-1 pl-5">
+            {screening.notes.map((n, i) => (
+              <li key={i} className="whitespace-pre-wrap">{n.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

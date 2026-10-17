@@ -157,6 +157,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.screening", env: "CROWD_SCREENING", type: "select", group: "crowd", default: "ai", options: ["ai", "off"], label: L("提案審核", "Proposal screening"), help: L("ai：AI 依公開的審核清單逐題審核，全部符合才開放；off：不審核（僅限開發）", "ai: a model checks every item of the public checklist and the campaign opens only if all pass; off: none (development only)") },
   { key: "crowd.pledgeMinKyc", env: "CROWD_PLEDGE_MIN_KYC", type: "number", group: "crowd", default: "0", label: L("出資最低實名等級", "Minimum KYC level to pledge"), help: L("0 = 不限制", "0 = no limit") },
   { key: "crowd.voteMinKyc", env: "CROWD_VOTE_MIN_KYC", type: "number", group: "crowd", default: "0", label: L("驗收投票最低實名等級", "Minimum KYC level to vote"), help: L("0 = 不限制", "0 = no limit") },
+  { key: "crowd.facebookAppId", env: "FACEBOOK_APP_ID", type: "text", group: "crowd", label: L("Facebook App ID（分享）", "Facebook App ID (sharing)"), help: L("填入後分享頁會加上 fb:app_id，可用 Facebook 分享偵錯工具檢查", "Adds fb:app_id to shared pages (checked by Facebook's Sharing Debugger)") },
+  { key: "crowd.xSite", env: "X_SITE", type: "text", group: "crowd", label: L("X 帳號（分享）", "X account (sharing)"), help: L("例如 @SinoBeeAI，加在 twitter:site", "For example @SinoBeeAI, used as twitter:site") },
+  { key: "crowd.ogFontUrl", env: "OG_FONT_URL", type: "url", group: "crowd", default: "https://fonts.googleapis.com/css2?family=Noto+Sans+TC", label: L("預覽圖中文字型來源", "Preview image CJK font source"), help: L("Google Fonts 相容的 CSS 網址，只下載預覽圖用到的字；也可設 OG_FONT_PATH 指向本機 TTF/OTF", "A Google Fonts-style CSS URL (only the characters used are fetched); or set OG_FONT_PATH to a local TTF/OTF") },
   { key: "crowd.resultsDays", env: "CROWD_RESULTS_DAYS", type: "number", group: "crowd", default: "90", label: L("眾籌成果保存天數", "Crowdfunded results kept (days)") },
 ];
 

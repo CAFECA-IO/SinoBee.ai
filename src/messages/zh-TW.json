@@ -1223,7 +1223,9 @@
       "pending": "存證處理中",
       "off": "尚未啟用 Boltchain 存證",
       "markdown": "下載 Markdown 原文",
-      "verify": "下載的原文雜湊值應與證書記錄的 SHA-256 相同。"
+      "verify": "下載的原文雜湊值應與證書記錄的 SHA-256 相同。",
+      "public": "條款 Markdown 原文已公開保存在 Boltchain 上，可在證書頁下載，並由瀏覽器逐區塊核對雜湊值。",
+      "publicPending": "存證完成後，條款 Markdown 原文會公開保存在 Boltchain 上，可在證書頁下載。"
     }
   },
   "crowd": {
@@ -1488,7 +1490,15 @@
     },
     "share": {
       "share": "分享",
-      "copied": "已複製連結"
+      "copied": "已複製",
+      "title": "分享這個眾籌",
+      "close": "關閉",
+      "more": "更多…",
+      "link": "連結",
+      "copy": "複製連結",
+      "copyText": "複製標題、摘要與連結（貼到 Instagram、Discord 等）",
+      "copiedText": "已複製標題、摘要與連結",
+      "hint": "各平台會讀取這個頁面的預覽圖、標題與摘要；募資進度變化時預覽圖會自動更新。"
     },
     "report": {
       "report": "檢舉",
@@ -1497,12 +1507,20 @@
       "done": "已收到檢舉，平台會盡快處理。"
     },
     "screening": {
-      "pending": "提案審核中：AI 正依眾籌服務條款的審核項目逐題審核，全部符合即開始眾籌，期限從開始時起算。",
-      "rejected": "提案未通過審核（{passed}/{total} 項符合，第 {v} 版審核項目）。請依下列說明修改後再送出：",
-      "reasons": "審核意見",
-      "rerun": "重新執行 AI 審核",
+      "pending": "提案審核中：worker 會請 AI 依眾籌服務條款的審核項目逐題審核，全部符合即開始眾籌，期限從開始時起算。",
+      "rejected": "提案未通過審核：通過 {passed} 項、未通過 {failed} 項（共 {total} 項，第 {v} 版審核項目）。任何一項未通過即不通過，請依下列說明修改後再送出：",
+      "reasons": "未通過原因",
+      "rerun": "覆核",
+      "rerunHelp": "管理員無法直接核准或駁回，只能請 AI 再審一次；可補充說明供 AI 參考，結果仍需全部項目符合。",
+      "note": "補充說明（選填）",
+      "notePlaceholder": "例如：提案中的資料來源皆為政府開放資料，授權為政府資料開放授權條款。",
+      "notes": "平台補充說明",
+      "queued": "已排入審核，worker 會在數秒內開始。",
       "waiting": "等待審核模型（會自動重試）",
-      "result": "審核結果：{passed}/{total} 項符合（第 {v} 版）"
+      "result": "通過 {passed} 項、未通過 {failed} 項（共 {total} 項，第 {v} 版）",
+      "sentBack": "已退回，待發起人修改",
+      "requested": "已送出覆核",
+      "inProgress": "審核中"
     },
     "agreeTerms": "我已閱讀並同意<terms>眾籌服務條款</terms>（含全部提案審核項目）。"
   },

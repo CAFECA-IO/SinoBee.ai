@@ -27,4 +27,4 @@ We may change the screening items; a change is published on this page as a new v
 
 - When you submit a proposal you agree to these terms, all of the screening items above and the screening result, and you confirm that the proposal and any reference files you upload do not infringe anyone's rights.
 - When you pledge you agree to these terms and authorize us to charge your saved card the amount you pledged once the task reaches its goal.
-- The full markdown text of every version of these terms is notarized on Boltchain and can be checked through the BOLTCHAIN certificate link on this page.
+- The markdown text of every version of these terms is kept publicly on Boltchain with an evidence certificate; download and check it through the BOLTCHAIN certificate link on this page.

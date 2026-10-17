@@ -63,7 +63,7 @@ async function openCampaign(goal: number, specExtra = {}) {
   oen.pay((await txOf(c.id)).transactionId);
   await pay.syncPayment(c.id);
   await proposal.saveSpec(ann.id, t.id, SPEC(goal * 0.9, specExtra));
-  return proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false });
+  return screened(proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false }));
 }
 
 const expire = (id: string) => db.task.update({ where: { id }, data: { deadlineAt: new Date(Date.now() - 1000) } });
@@ -258,3 +258,12 @@ test("reference notes for the agent: only reference comments, wrapped as untrust
   assert.match(n.markdown, /fares\.csv/);
   assert.ok(!n.markdown.includes("nice idea"));
 });
+
+/** submit, then let the worker screen it (as the worker loop does) */
+async function screened(p: Promise<{ id: string }>) {
+  const t = await p;
+  const { screeningTick } = await import("../src/lib/crowd/screening");
+  await screeningTick();
+  const { db: d } = await import("../src/lib/db");
+  return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}

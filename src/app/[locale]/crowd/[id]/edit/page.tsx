@@ -42,12 +42,22 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
       </div>
       {screening?.decision === "rejected" && (
         <div className="mt-4 space-y-2 rounded-xl bg-err-soft p-4 text-sm text-err">
-          <p>{t("screening.rejected", { passed: screening.passed ?? 0, total: screening.total ?? 0, v: screening.checklistVersion ?? 0 })}</p>
+          <p>{t("screening.rejected", { passed: screening.passed ?? 0, failed: screening.failedCount ?? screening.failed?.length ?? 0, total: screening.total ?? 0, v: screening.checklistVersion ?? 0 })}</p>
           <ul className="list-disc space-y-1 pl-5">
             {screening.reasons.map((r, i) => (
               <li key={i}>{r}</li>
             ))}
           </ul>
+          {screening.notes && screening.notes.length > 0 && (
+            <div className="text-ink">
+              <div className="text-xs text-muted">{t("screening.notes")}</div>
+              <ul className="list-disc space-y-1 pl-5">
+                {screening.notes.map((n, i) => (
+                  <li key={i} className="whitespace-pre-wrap">{n.text}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">

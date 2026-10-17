@@ -75,7 +75,7 @@ async function openCampaign(goal: number, opts: { days?: number; startEarly?: bo
   const t = await proposal.createDraft(ann.id, { title: `Crowd ${goal}`, description: "Collect and compare public transport data", model: MODEL });
   await payFee(ann.id, t.id);
   await proposal.saveSpec(ann.id, t.id, { summary: "s", deliverables: ["report.md"], method: ["collect", "analyse"], acceptance: ["covers every city"], estimate: { p50Twd: goal / 2, p90Twd: goal * 0.9 } });
-  return proposal.openFunding(ann.id, t.id, { durationDays: opts.days ?? 7, goalTwd: goal, startEarly: opts.startEarly ?? false });
+  return screened(proposal.openFunding(ann.id, t.id, { durationDays: opts.days ?? 7, goalTwd: goal, startEarly: opts.startEarly ?? false }));
 }
 
 test("rules: goals in whole shares, fee by period, file blocks", () => {
@@ -133,7 +133,7 @@ test("proposal: fee credit, spec dialogue charged to it, files, opening checks",
   await proposal.saveSpec(ann.id, t.id, { summary: "MRT ridership", deliverables: ["report.md"], method: ["download", "analyse"], acceptance: ["every station"], estimate: { p50Twd: 300, p90Twd: 540 } });
   await assert.rejects(proposal.openFunding(ann.id, t.id, { durationDays: 30, goalTwd: 540, startEarly: false }), /at least 570/);
   await assert.rejects(proposal.openFunding(ann.id, t.id, { durationDays: 30, goalTwd: 575, startEarly: false }), /multiple of 30/);
-  const opened = await proposal.openFunding(ann.id, t.id, { durationDays: 30, startEarly: false });
+  const opened = await screened(proposal.openFunding(ann.id, t.id, { durationDays: 30, startEarly: false }));
   assert.equal(opened.status, "FUNDING");
   assert.equal(opened.goalTwd, 570);
   assert.equal(Number(opened.serviceFeeRate), 0.03);
@@ -325,3 +325,12 @@ test("worker events become agent comments and notify the audience", async () => 
   assert.ok(!c.some((x) => x.body === "noise"));
   assert.ok(await db.notification.findFirst({ where: { userId: ann.id, type: "crowd.run.started" } }), "the proposer is told");
 });
+
+/** submit, then let the worker screen it (as the worker loop does) */
+async function screened(p: Promise<{ id: string }>) {
+  const t = await p;
+  const { screeningTick } = await import("../src/lib/crowd/screening");
+  await screeningTick();
+  const { db: d } = await import("../src/lib/db");
+  return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}

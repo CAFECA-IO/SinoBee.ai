@@ -14,6 +14,7 @@ import { tally } from "@/lib/crowd/review";
 import { reputation } from "@/lib/crowd/reputation";
 import { normalizeAcceptance, normalizeSpec } from "@/lib/crowd/rules";
 import { pledgeTotals } from "@/lib/crowd/pledges";
+import { crowdMetadata, crowdShare } from "@/lib/crowd/share";
 import { activeCards } from "@/lib/crowd/cards";
 import { pointBalance } from "@/lib/crowd/points";
 import { canReadFile } from "@/lib/crowd/proposal";
@@ -30,14 +31,12 @@ export const dynamic = "force-dynamic";
 type P = { params: Promise<{ locale: string; id: string }> };
 
 export async function generateMetadata({ params }: P) {
-  const { id } = await params;
-  const t = await db.task.findUnique({ where: { id }, select: { title: true, isPublic: true, status: true, crowdfund: true, spec: true, goalTwd: true } });
+  const { id, locale } = await params;
+  const t = await db.task.findUnique({ where: { id }, select: { title: true, isPublic: true, status: true, crowdfund: true } });
   if (!t?.isPublic || t.status === "DRAFT") return { title: "Task", robots: { index: false } };
   if (!t.crowdfund) return { title: t.title };
-  // crowdfunds are shared: give link previews the summary and the goal
-  const summary = (t.spec as { summary?: string } | null)?.summary ?? "";
-  const description = `${summary.slice(0, 150)}${summary.length > 150 ? "…" : ""} · NT$${t.goalTwd ?? 0}`;
-  return { title: t.title, description, openGraph: { title: t.title, description, type: "website" }, twitter: { card: "summary", title: t.title, description } };
+  // crowdfunds are shared: picture, title and summary for every platform's link preview
+  return (await crowdMetadata(id, locale)) ?? { title: t.title, robots: { index: false } };
 }
 
 export default async function TaskPage({ params }: P) {
@@ -61,6 +60,7 @@ export default async function TaskPage({ params }: P) {
   const owner = me?.id === task.userId;
   if (task.crowdfund && task.status === "DRAFT" && owner) redirect({ href: `/crowd/${task.id}/edit`, locale });
   const tc = await getTranslations("crowd");
+  const share = task.crowdfund ? await crowdShare(task.id, locale) : null;
   const crowd = task.crowdfund
     ? await (async () => {
         const totals = await pledgeTotals(task.id);
@@ -118,7 +118,7 @@ export default async function TaskPage({ params }: P) {
               <StatusBadge status={task.status} />
               {!task.isPublic && <span className="chip">🔒 {t("private")}</span>}
               {crowd && task.category && <span className="chip">{tc(`categories.${task.category}` as "categories.other")}</span>}
-              {crowd && task.isPublic && <ShareButton title={task.title} />}
+              {crowd && share && <ShareButton share={{ url: share.url, title: share.title, description: share.description, imageUrl: share.imageUrl, imageAlt: share.imageAlt }} />}
             </div>
             {crowd && (
               <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -143,12 +143,8 @@ export default async function TaskPage({ params }: P) {
           {crowd && task.status === "SCREENING" && (
             <section className="card space-y-2 p-6">
               <p className="text-sm text-warn">{tc("screening.pending")}</p>
-              {me?.isAdmin && (
-                <>
-                  {(task.screening as { decision?: string } | null)?.decision === "pending" && <p className="text-xs text-muted">{tc("screening.waiting")}</p>}
-                  <ScreeningActions taskId={task.id} />
-                </>
-              )}
+              {(task.screening as { decision?: string } | null)?.decision === "pending" && <p className="text-xs text-muted">{tc("screening.waiting")}</p>}
+              {me?.isAdmin && <ScreeningActions taskId={task.id} />}
             </section>
           )}
 

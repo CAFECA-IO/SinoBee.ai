@@ -231,6 +231,16 @@ export const config = {
 
   /** Crowdfunded tasks (src/lib/crowd) */
   crowd: {
+    get facebookAppId() {
+      return sv("crowd.facebookAppId") || "";
+    },
+    get xSite() {
+      const v = (sv("crowd.xSite") || "").trim();
+      return v ? (v.startsWith("@") ? v : `@${v}`) : "";
+    },
+    get ogFontUrl() {
+      return sv("crowd.ogFontUrl") || "https://fonts.googleapis.com/css2?family=Noto+Sans+TC";
+    },
     get sharePrice() {
       return svNum("crowd.sharePrice");
     },

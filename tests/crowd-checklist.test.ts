@@ -96,9 +96,10 @@ test("with Boltchain on, every new legal version is queued for notarization (sha
     const files = a!.files as { sha256: string; size: number }[];
     assert.equal(files[0].sha256, `0x${v.sha256}`);
     assert.equal(files[0].size, Buffer.byteLength(v.markdown, "utf8"));
-    assert.deepEqual(await legal.legalCertificate(v.id), { code: null, pending: true });
+    assert.equal(a!.publicFiles, true, "the markdown itself is published");
+    assert.deepEqual(await legal.legalCertificate(v.id), { code: null, pending: true, publicFiles: true });
     await db.legalVersion.update({ where: { id: v.id }, data: { anchorCode: "ABCDEFGHJKMNPQRS" } });
-    assert.deepEqual(await legal.legalCertificate(v.id), { code: "ABCDEFGHJKMNPQRS", pending: false });
+    assert.deepEqual(await legal.legalCertificate(v.id), { code: "ABCDEFGHJKMNPQRS", pending: false, publicFiles: true });
   } finally {
     for (const k of ["BOLT_RPC_URL", "BOLT_WALLET_KEY", "BOLT_MASTER_KEY", "BOLT_CERTIFICATES"]) delete process.env[k];
   }

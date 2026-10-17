@@ -1223,7 +1223,9 @@
       "pending": "Notarization pending",
       "off": "Boltchain notarization is not enabled",
       "markdown": "Download the markdown",
-      "verify": "The SHA-256 of the downloaded text matches the certificate."
+      "verify": "The SHA-256 of the downloaded text matches the certificate.",
+      "public": "The markdown text of these terms is kept publicly on Boltchain: download it from the certificate page, where your browser checks every block against the hashes.",
+      "publicPending": "Once notarized, the markdown text of these terms is kept publicly on Boltchain and can be downloaded from the certificate page."
     }
   },
   "crowd": {
@@ -1488,7 +1490,15 @@
     },
     "share": {
       "share": "Share",
-      "copied": "Link copied"
+      "copied": "Copied",
+      "title": "Share this crowdfund",
+      "close": "Close",
+      "more": "More…",
+      "link": "Link",
+      "copy": "Copy link",
+      "copyText": "Copy title, summary and link (for Instagram, Discord and others)",
+      "copiedText": "Title, summary and link copied",
+      "hint": "Platforms read this page's picture, title and summary; the picture updates as funding progresses."
     },
     "report": {
       "report": "Report",
@@ -1497,12 +1507,20 @@
       "done": "Thanks, the platform will look at it."
     },
     "screening": {
-      "pending": "Under screening: an AI is checking every item of the Crowdfunding Terms; the campaign opens as soon as all are met, and its period starts then.",
-      "rejected": "The proposal did not pass screening ({passed}/{total} items met, checklist version {v}). Fix the following and submit again:",
-      "reasons": "Review notes",
-      "rerun": "Run the AI screening again",
+      "pending": "Under screening: the worker has an AI check every item of the Crowdfunding Terms; the campaign opens as soon as all are met, and its period starts then.",
+      "rejected": "The proposal did not pass screening: {passed} items met, {failed} not met (of {total}, checklist version {v}). Any item not met fails the proposal. Fix the following and submit again:",
+      "reasons": "Items not met",
+      "rerun": "Re-review",
+      "rerunHelp": "Admins cannot approve or reject; they can only have the AI review again, optionally with a note it reads as context. Every item must still be met.",
+      "note": "Note for the AI (optional)",
+      "notePlaceholder": "For example: every data source in the proposal is government open data under the Open Government Data License.",
+      "notes": "Platform notes",
+      "queued": "Queued: the worker starts within seconds.",
       "waiting": "Waiting for the screening model (retried automatically)",
-      "result": "Screening: {passed}/{total} items met (version {v})"
+      "result": "{passed} met, {failed} not met (of {total}, version {v})",
+      "sentBack": "Sent back to the proposer",
+      "requested": "Re-review requested",
+      "inProgress": "In screening"
     },
     "agreeTerms": "I have read and agree to the <terms>Crowdfunding Terms</terms>, including every proposal screening item."
   },

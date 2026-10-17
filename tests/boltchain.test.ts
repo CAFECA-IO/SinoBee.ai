@@ -155,6 +155,50 @@ test("content hashes are notarized with Certificates and verifiable by code", as
   assert.equal((await keeper.requestAnchor("tool-version", "tv1", files))!.id, a!.id);
 });
 
+test("public certificates keep the files themselves: legal markdown can be downloaded block by block and checked", async () => {
+  const { snapshotLegal, legalCertificate } = await import("../src/lib/legal-versions");
+  const v = await snapshotLegal("terms", "zh-TW");
+  const queued = await db.anchor.findUniqueOrThrow({ where: { targetType_targetId: { targetType: "legal", targetId: v.id } } });
+  assert.equal(queued.publicFiles, true);
+  assert.deepEqual(await legalCertificate(v.id), { code: null, pending: true, publicFiles: true });
+  await keeper.anchorPending(20);
+  const done = await db.anchor.findUniqueOrThrow({ where: { id: queued.id } });
+  assert.equal(done.status, "issued", done.error ?? "");
+  assert.equal((await db.legalVersion.findUniqueOrThrow({ where: { id: v.id } })).anchorCode, done.code);
+  assert.deepEqual(await legalCertificate(v.id), { code: done.code, pending: false, publicFiles: true });
+  const c = node.certs.get(certs.decodeCode(done.code!)!)!;
+  assert.equal(c.publicFiles, true);
+  // what the explorer does (verify.js downloadFile): manifest → chunks → bytes, checked against the certificate
+  const { cidFromBytes, checkBlock } = await import("../src/lib/boltchain/cid");
+  const { hexToBytes } = await import("viem");
+  const mcid = cidFromBytes(hexToBytes(c.manifest));
+  const [mb] = await swarm.getBlocks([mcid]);
+  const man = JSON.parse(Buffer.from(mb).toString("utf8")) as { files: { sha256: string; chunks: string[] }[] };
+  assert.equal(man.files.length, 1);
+  assert.ok(man.files[0].chunks.length >= 1);
+  const parts = await swarm.getBlocks(man.files[0].chunks);
+  parts.forEach((b, i) => checkBlock(man.files[0].chunks[i], b));
+  const text = Buffer.concat(parts.map((b) => Buffer.from(b))).toString("utf8");
+  assert.equal(text, v.markdown, "the exact markdown is on Boltchain");
+  assert.equal(certs.hashFile(Buffer.from(text, "utf8")).sha256, `0x${v.sha256}`);
+  assert.deepEqual(Buffer.from(mb), Buffer.from(certs.certManifest(done.files as never, done.salt as `0x${string}`, [man.files[0].chunks])));
+  // every block (manifest and chunks) is listed in the deal the certificate paid for
+  const hosted = node.hosted.get(cidFromBytes(hexToBytes(node.deals[Number(c.deal)].root)))!;
+  assert.ok(hosted.has(mcid) && man.files[0].chunks.every((x) => hosted.has(x)));
+});
+
+test("public certificates: files larger than one block are cut into 256 KiB blocks; content must match the hashes", async () => {
+  const big = randomBytes(600 * 1024);
+  const chunks = certs.chunkFile(big);
+  assert.equal(chunks.length, 3);
+  assert.deepEqual(chunks.map((c) => c.bytes.length), [262144, 262144, 600 * 1024 - 524288]);
+  assert.equal(certs.chunkFile(new Uint8Array(0)).length, 1, "an empty file is one empty block");
+  const f = certs.hashFile(big);
+  const r = await certs.issue([f], certs.newSalt(), [big]);
+  assert.equal(node.certs.get(r.codeHex)!.publicFiles, true);
+  await assert.rejects(certs.issue([f], certs.newSalt(), [randomBytes(10)]), /does not match its hashes/);
+});
+
 test("policies: shares keep 2 copies only until they expire; expired objects are shredded", async () => {
   const until = new Date(Date.now() + 10 * 3600_000);
   await storage.putObject("shares/p1/share.json", Buffer.from("{}"), "application/json", { keepUntil: until });

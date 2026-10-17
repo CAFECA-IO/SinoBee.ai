@@ -34,6 +34,7 @@ export async function LegalPage({ doc, locale }: { doc: LegalDoc; locale: string
             {t("notary.markdown")}
           </a>
         </div>
+        {cert.publicFiles && <p className="text-xs text-muted">{cert.code ? t("notary.public") : t("notary.publicPending")}</p>}
       </header>
       <article className="card p-6 sm:p-8">
         <Markdown>{version.markdown}</Markdown>

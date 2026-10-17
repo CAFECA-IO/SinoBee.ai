@@ -325,6 +325,7 @@ async function loop() {
   let lastCleanup = 0;
   let lastReconcile = 0;
   let lastCrowd = 0;
+  let lastScreen = 0;
   while (!stopping) {
     try {
       const ids = await claim(config.runner.concurrency - running.size);
@@ -351,8 +352,13 @@ async function loop() {
       if (Date.now() - lastCrowd > 60_000) {
         lastCrowd = Date.now();
         const c = await crowdTick().catch((e) => (log("crowdfunding error", e), null));
-        await screeningTick().catch((e) => log("screening error", e));
         if (c && (c.ended || c.settled)) log("crowdfunding", c);
+      }
+      // submitted proposals are screened right away
+      if (Date.now() - lastScreen > 10_000) {
+        lastScreen = Date.now();
+        const n = await screeningTick().catch((e) => (log("screening error", e), 0));
+        if (n) log("proposals screened", n);
       }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();

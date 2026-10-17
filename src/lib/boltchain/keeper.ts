@@ -218,15 +218,32 @@ export async function checkBalance() {
 
 // ---------- anchors (notarization) ----------
 
-/** Queue content hashes to be notarized (idempotent per target). Files are hashed now; nothing else is kept. */
-export async function requestAnchor(targetType: string, targetId: string, files: FileHash[]) {
+/**
+ * Queue content hashes to be notarized (idempotent per target). Files are hashed now; nothing else is kept. With
+ * `publicFiles` the content is read back from the target when the certificate is issued (see publicContent) and kept
+ * on Boltchain for anyone to download.
+ */
+export async function requestAnchor(targetType: string, targetId: string, files: FileHash[], opts: { publicFiles?: boolean } = {}) {
   if (!config.boltchain.enabled || !config.boltchain.certificates) return null;
   const { newSalt } = await import("./certificates");
-  return db.anchor.upsert({
+  const publicFiles = !!opts.publicFiles;
+  const row = await db.anchor.upsert({
     where: { targetType_targetId: { targetType, targetId } },
-    create: { targetType, targetId, salt: newSalt(), files: files as unknown as object },
+    create: { targetType, targetId, salt: newSalt(), files: files as unknown as object, publicFiles },
     update: {},
   });
+  // a request made public before it was issued
+  if (publicFiles && !row.publicFiles && row.status === "pending") return db.anchor.update({ where: { id: row.id }, data: { publicFiles: true } });
+  return row;
+}
+
+/** The exact bytes of a public anchor's files, in order (only targets whose content is meant to be public) */
+async function publicContent(targetType: string, targetId: string): Promise<Uint8Array[]> {
+  if (targetType === "legal") {
+    const v = await db.legalVersion.findUniqueOrThrow({ where: { id: targetId }, select: { markdown: true } });
+    return [new TextEncoder().encode(v.markdown)];
+  }
+  throw new Error(`${targetType} cannot be published`);
 }
 
 export async function anchorPending(limit = 4) {
@@ -236,7 +253,7 @@ export async function anchorPending(limit = 4) {
     const lease = await db.anchor.updateMany({ where: { id: a.id, status: "pending", nextTryAt: a.nextTryAt }, data: { nextTryAt: new Date(Date.now() + 15 * 60_000) } });
     if (lease.count !== 1) continue;
     try {
-      const r = await issue(a.files as unknown as FileHash[], a.salt as `0x${string}`);
+      const r = await issue(a.files as unknown as FileHash[], a.salt as `0x${string}`, a.publicFiles ? await publicContent(a.targetType, a.targetId) : undefined);
       await db.anchor.update({ where: { id: a.id }, data: { code: r.code, root: r.root, txHash: r.txHash, status: "issued", issuedAt: new Date(), error: null } });
       await onAnchored(a.targetType, a.targetId, r.code);
       log(`anchored ${a.targetType}/${a.targetId} → ${r.code}`);

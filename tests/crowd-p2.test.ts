@@ -67,7 +67,7 @@ async function submit(title: string, opts: { goal?: number; category?: "data" | 
   oen.pay((await txOf(c.id)).transactionId);
   await pay.syncPayment(c.id);
   await proposal.saveSpec(ann.id, t.id, { summary: "s", deliverables: ["report.md"], method: ["collect"], acceptance: ["covers every route"], estimate: { p50Twd: 50, p90Twd: goal * 0.9 } });
-  return proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false });
+  return screened(proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false }));
 }
 
 test("screening: every checklist item must pass; a failed item sends the proposal back with the reasons", async () => {
@@ -92,17 +92,42 @@ test("screening: every checklist item must pass; a failed item sends the proposa
   assert.ok(await db.notification.findFirst({ where: { userId: ann.id, type: "crowd.screening_rejected" } }));
   await assert.rejects(pledges.pledge(bob.id, flagged.id, { shares: 1, source: "CARD", buyer }), /not taking pledges/);
   assert.ok(!(await explore.listCampaigns({})).some((c) => c.id === flagged.id));
-  await assert.rejects(screening.rerunScreening(admin.id, flagged.id), /not waiting/);
+  assert.equal((flagged.screening as { failedCount: number }).failedCount, 1, "result: passed and failed counts");
+  assert.ok(await db.taskEvent.findFirst({ where: { taskId: flagged.id, type: "screening.rejected", message: { contains: `${fs.total - 1} of ${fs.total} checklist items met, 1 not met` } } }));
+  // the admin can only ask for a re-review (with a note for the AI); the checklist result still decides
+  await screening.rerunScreening(admin.id, flagged.id, "Phone numbers here are the bus operators' public service lines.");
+  let back = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
+  assert.equal(back.status, "SCREENING", "queued for the worker");
+  assert.equal((back.screening as { decision: string }).decision, "queued");
+  await screening.screeningTick();
+  back = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
+  assert.equal(back.status, "DRAFT", "still not met: sent back again");
+  const again = back.screening as { notes: { text: string }[]; failedCount: number };
+  assert.equal(again.failedCount, 1);
+  assert.match(again.notes[0].text, /public service lines/, "the note is kept with the result");
+  assert.ok(await db.adminAudit.findFirst({ where: { action: "crowd.screening.rerun", targetId: flagged.id } }));
+  await assert.rejects(screening.rerunScreening(admin.id, ok.id), /not waiting/, "an open campaign cannot be re-screened");
 
   // fixed and resubmitted: screened again, opens, the period starts now
   await proposal.updateDraft(ann.id, flagged.id, { title: "Bus stop accessibility survey" });
   await db.task.update({ where: { id: flagged.id }, data: { prompt: "Survey bus stop accessibility from public data" } });
-  await proposal.openFunding(ann.id, flagged.id, { durationDays: 30, startEarly: false });
+  await screened(proposal.openFunding(ann.id, flagged.id, { durationDays: 30, startEarly: false }));
   const row = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
   assert.equal(row.status, "FUNDING");
   assert.match(row.prompt, /Survey bus stop accessibility/, "description kept on resubmission");
   assert.equal(await db.specRevision.count({ where: { taskId: flagged.id } }), 1);
   assert.ok(Math.abs(row.deadlineAt!.getTime() - Date.now() - 30 * DAY) < 60_000, "30 days from opening");
+
+  // a note that settles the failed item: the AI passes every item on re-review and the campaign opens
+  const second = await submit("Weather station list [review]");
+  assert.equal(second.status, "DRAFT");
+  await screening.rerunScreening(admin.id, second.id, "The station list is published by the Central Weather Administration [clear]");
+  assert.equal(await screening.screeningTick(), 1);
+  const opened = await db.task.findUniqueOrThrow({ where: { id: second.id } });
+  assert.equal(opened.status, "FUNDING");
+  assert.equal((opened.screening as { passed: number; total: number; failedCount: number }).failedCount, 0);
+  assert.ok(await db.notification.findFirst({ where: { userId: ann.id, type: "crowd.screening_passed" } }));
+  await life.takedownCrowd(second.id, "test cleanup");
 
   process.env.CROWD_SCREENING = "off";
   assert.equal((await submit("Unscreened [review]")).status, "FUNDING");
@@ -191,3 +216,12 @@ test("reputation and the explore listing", async () => {
   assert.ok((await explore.listCampaigns({ view: "funded" })).length >= 2);
   assert.ok(!(await explore.listCampaigns({ view: "funded" })).some((c) => c.title === "Funded then reported"), "taken down ones are hidden");
 });
+
+/** submit, then let the worker screen it (as the worker loop does) */
+async function screened(p: Promise<{ id: string }>) {
+  const t = await p;
+  const { screeningTick } = await import("../src/lib/crowd/screening");
+  await screeningTick();
+  const { db: d } = await import("../src/lib/db");
+  return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}

@@ -1,4 +1,4 @@
-import { ScreeningActions } from "@/components/crowd";
+import { ScreeningActions, ScreeningResult } from "@/components/crowd";
 import { ChecklistEditor } from "@/components/checklist-editor";
 import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -277,37 +277,73 @@ async function ChecklistAdmin() {
   );
 }
 
-/** Proposals waiting for the AI screening, and the latest screening results */
+/** Proposals in screening, proposals sent back by it (re-review possible), and the latest results */
 async function Screening() {
   const t = await getTranslations("admin");
   const tc = await getTranslations("crowd.screening");
   const waiting = await db.task.findMany({ where: { status: "SCREENING" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
-  const recent = await db.taskEvent.findMany({ where: { type: { in: ["screening.rejected", "funding.opened"] }, task: { crowdfund: true } }, include: { task: { select: { id: true, title: true, screening: true } } }, orderBy: { createdAt: "desc" }, take: 30 });
+  const recent = await db.taskEvent.findMany({
+    where: { type: { in: ["screening.rejected", "screening.passed", "funding.opened"] }, task: { crowdfund: true } },
+    include: { task: { select: { id: true, title: true, status: true, screening: true, user: { select: { handle: true, account: true } } } } },
+    orderBy: { createdAt: "desc" },
+    take: 60,
+  });
+  // the newest result per proposal; sent-back ones can be re-reviewed while still in draft
+  const seen = new Set<string>();
+  const latest = recent.filter((e) => !(e.type === "funding.opened" && (e.data as { by?: string } | null)?.by === "ai") && !seen.has(e.taskId) && (seen.add(e.taskId), true));
+  const sentBack = latest.filter((e) => e.type === "screening.rejected" && e.task.status === "DRAFT" && (e.task.screening as ScreeningData | null)?.decision === "rejected");
+  const others = latest.filter((e) => !sentBack.includes(e));
   return (
     <div className="space-y-6">
-      {waiting.length === 0 ? (
-        <p className="text-muted">{t("empty")}</p>
-      ) : (
-        waiting.map((r) => (
-          <div key={r.id} className="card space-y-2 p-5 text-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
-              <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+      <section className="space-y-3">
+        <h2 className="h3">{tc("inProgress")} · {waiting.length}</h2>
+        {waiting.length === 0 ? (
+          <p className="text-muted">{t("empty")}</p>
+        ) : (
+          waiting.map((r) => {
+            const sc = r.screening as ScreeningData | null;
+            return (
+              <div key={r.id} className="card space-y-3 p-5 text-sm">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+                  <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+                </div>
+                <p className="text-xs text-muted">{sc?.decision === "pending" ? tc("waiting") : tc("queued")}</p>
+                {sc && <ScreeningResult screening={sc} />}
+                <ScreeningActions taskId={r.id} />
+              </div>
+            );
+          })
+        )}
+      </section>
+      {sentBack.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="h3">{tc("sentBack")} · {sentBack.length}</h2>
+          {sentBack.map((e) => (
+            <div key={e.id} className="card space-y-3 p-5 text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-err">✗</span>
+                <Link href={`/tasks/${e.task.id}`} className="font-semibold text-accent">{e.task.title}</Link>
+                <span className="text-xs text-muted">@{e.task.user.handle ?? e.task.user.account} · <LocalDate value={e.createdAt} /></span>
+              </div>
+              <ScreeningResult screening={e.task.screening as ScreeningData} />
+              <ScreeningActions taskId={e.task.id} />
             </div>
-            <p className="text-xs text-muted">{tc("waiting")}</p>
-            <ScreeningActions taskId={r.id} />
-          </div>
-        ))
+          ))}
+        </section>
       )}
-      {recent.length > 0 && (
+      {others.length > 0 && (
         <div className="card divide-y divide-line text-sm">
-          {recent.map((e) => {
-            const sc = e.task.screening as { passed?: number; total?: number; checklistVersion?: number } | null;
+          {others.map((e) => {
+            const d = e.data as { passed?: number; failed?: string[] | number; total?: number; v?: number } | null;
+            const sc = e.task.screening as ScreeningData | null;
+            const ok = e.type !== "screening.rejected";
+            const failed = Array.isArray(d?.failed) ? d.failed.length : (d?.failed ?? 0);
             return (
               <div key={e.id} className="flex flex-wrap items-center gap-3 p-3">
-                <span className={e.type === "funding.opened" ? "text-ok" : "text-err"}>{e.type === "funding.opened" ? "✓" : "✗"}</span>
+                <span className={ok ? "text-ok" : "text-err"}>{ok ? "✓" : "✗"}</span>
                 <Link href={`/tasks/${e.task.id}`} className="text-accent">{e.task.title}</Link>
-                {sc?.total ? <span className="text-xs text-muted">{tc("result", { passed: sc.passed ?? 0, total: sc.total, v: sc.checklistVersion ?? 0 })}</span> : null}
+                {d?.total ? <span className="text-xs text-muted">{tc("result", { passed: d.passed ?? 0, failed, total: d.total, v: d.v ?? sc?.checklistVersion ?? 0 })}</span> : null}
                 <span className="ml-auto text-xs text-muted"><LocalDate value={e.createdAt} /></span>
               </div>
             );
@@ -317,6 +353,8 @@ async function Screening() {
     </div>
   );
 }
+
+type ScreeningData = { decision: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] };
 
 /** Crowdfunded tasks whose acceptance review was rejected with no rework left */
 async function Disputes() {

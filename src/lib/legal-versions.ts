@@ -8,7 +8,8 @@ import { LEGAL_DOCS, legalText, type LegalDoc } from "./legal";
  * kept as the exact markdown shown on the site and notarized on Boltchain: a new version is recorded whenever the
  * rendered text changes (settings, a new checklist, a code update), and its SHA-256 is anchored with the
  * Certificates contract. The legal pages show the BOLTCHAIN badge with the certificate link and offer the markdown
- * so anyone can check the hash against the certificate.
+ * so anyone can check the hash against the certificate. The certificate is public: the markdown itself is kept on
+ * Boltchain and can be downloaded from the certificate page, so the text survives even without this site.
  */
 
 export const LEGAL_LOCALES = ["zh-TW", "en"] as const;
@@ -32,7 +33,7 @@ export async function snapshotLegal(doc: LegalDoc, locale: string) {
   if (!row.anchorCode && config.boltchain.enabled) {
     const { requestAnchor } = await import("./boltchain/keeper");
     const { hashFile } = await import("./boltchain/certificates");
-    await requestAnchor("legal", row.id, [hashFile(new TextEncoder().encode(markdown))]).catch((e) => console.warn("legal anchor", (e as Error).message));
+    await requestAnchor("legal", row.id, [hashFile(new TextEncoder().encode(markdown))], { publicFiles: true }).catch((e) => console.warn("legal anchor", (e as Error).message));
   }
   return row;
 }
@@ -46,7 +47,8 @@ export async function snapshotAllLegal() {
 /** Certificate state of a version for the page: issued code, or pending when Boltchain is on */
 export async function legalCertificate(versionId: string) {
   const row = await db.legalVersion.findUnique({ where: { id: versionId } });
-  if (row?.anchorCode) return { code: row.anchorCode, pending: false };
   const anchor = await db.anchor.findUnique({ where: { targetType_targetId: { targetType: "legal", targetId: versionId } } });
-  return { code: anchor?.code ?? null, pending: !!anchor && anchor.status !== "issued" };
+  const publicFiles = !!anchor?.publicFiles;
+  if (row?.anchorCode) return { code: row.anchorCode, pending: false, publicFiles };
+  return { code: anchor?.code ?? null, pending: !!anchor && anchor.status !== "issued", publicFiles };
 }
