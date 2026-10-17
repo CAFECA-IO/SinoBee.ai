@@ -2,7 +2,7 @@ import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { notify } from "../notify";
-import { currentModels } from "../models";
+import { platformModel } from "../platform-model";
 import { addDays } from "../retention";
 import { audit } from "../roles";
 import type { Prisma, Task } from "@/generated/prisma/client";
@@ -78,11 +78,10 @@ async function askDimension(model: Model, p: { kind: "openai" | "anthropic"; bas
 
 /** Every checklist item for this proposal; null when no model can be used right now */
 async function aiScreen(task: Task, items: ChecklistItem[], notes: ReviewerNote[]): Promise<ItemResult[] | null> {
-  const models = await currentModels();
-  const model = models.find((m) => m.modelId === config.crowd.specModel) ?? models.find((m) => m.enabled);
-  const provider = model?.modelId.split("/")[0] ?? "";
-  const p = config.llm.providers[provider];
-  if (!model || !p?.key) {
+  const pm = await platformModel();
+  const model = pm?.model;
+  const p = pm?.api;
+  if (!model || !p) {
     if (process.env.NODE_ENV === "production") return null;
     // development stand-in: everything passes unless the proposal is marked [review] (a reviewer note with [clear] clears it)
     const flagged = `${task.title}\n${task.prompt}`.includes("[review]") && !notes.some((n) => n.text.includes("[clear]"));

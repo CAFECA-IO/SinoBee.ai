@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
-import { currentModels } from "../models";
+import { NO_PLATFORM_MODEL, platformModel } from "../platform-model";
 import { audit } from "../roles";
 import type { Prisma } from "@/generated/prisma/client";
 import { DEFAULT_CHECKLIST, DIMENSIONS, type ChecklistItem, type Dimension } from "./checklist-default";
@@ -131,12 +131,11 @@ export async function editDraftWithAi(actorId: string, instruction: string): Pro
   const text = instruction.trim().slice(0, 4000);
   if (!text) throw new HttpError(400, "describe the change");
   const draft = await draftChecklist();
-  const models = await currentModels();
-  const model = models.find((m) => m.modelId === config.crowd.specModel) ?? models.find((m) => m.enabled);
-  const provider = model?.modelId.split("/")[0] ?? "";
-  const p = config.llm.providers[provider];
-  if (!model || !p?.key) {
-    if (process.env.NODE_ENV === "production") throw new HttpError(503, "no model available");
+  const pm = await platformModel();
+  const model = pm?.model;
+  const p = pm?.api;
+  if (!model || !p) {
+    if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
     // development stand-in: echo the draft unchanged
     return { items: await saveDraft(actorId, draft.items), reply: "(development stand-in) No model key is configured; the draft is unchanged." };
   }

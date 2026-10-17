@@ -122,3 +122,26 @@ async function anyCard(userId: string) {
   await pay.handleWebhook(oen.bindCard(card.bindingId));
   return card.id;
 }
+
+test("the platform model follows the admin settings and the keys that are set, never a fixed vendor", async () => {
+  const { platformModel, usableModels } = await import("../src/lib/platform-model");
+  const keep = { a: process.env.ANTHROPIC_API_KEY, o: process.env.OPENAI_API_KEY, m: process.env.CROWD_SPEC_MODEL };
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    assert.equal(await platformModel(), null, "no key at all");
+    process.env.OPENAI_API_KEY = "sk-test";
+    const usable = await usableModels();
+    assert.ok(usable.length > 0 && usable.every((u) => u.provider === "openai"), "only providers with a key");
+    process.env.CROWD_SPEC_MODEL = "anthropic/claude-sonnet-5-5";
+    assert.equal((await platformModel())!.provider, "openai", "the chosen model has no key: the first usable one");
+    const second = usable[usable.length - 1].model.modelId;
+    process.env.CROWD_SPEC_MODEL = second;
+    assert.equal((await platformModel())!.model.modelId, second, "the admin's choice when it has a key");
+  } finally {
+    for (const [k, v] of [["ANTHROPIC_API_KEY", keep.a], ["OPENAI_API_KEY", keep.o], ["CROWD_SPEC_MODEL", keep.m]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});

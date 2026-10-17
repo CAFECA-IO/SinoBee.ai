@@ -3,6 +3,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { currentModels, type ModelPriceView } from "../models";
 import { costTwd } from "../llm/quota";
+import { NO_PLATFORM_MODEL, platformModel } from "../platform-model";
 import type { Prisma } from "@/generated/prisma/client";
 import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
 import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
@@ -67,7 +68,7 @@ async function callModel(model: ModelPriceView, system: string, messages: { role
   const p = config.llm.providers[provider];
   const upstream = model.modelId.split("/").slice(1).join("/");
   if (!p?.key) {
-    if (process.env.NODE_ENV === "production") throw new HttpError(503, `${provider} models are not available right now`);
+    if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
     return mockReply(messages);
   }
   const ctrl = new AbortController();
@@ -165,8 +166,11 @@ const busy = new Set<string>();
 
 async function ask(task: Task, chat: ChatTurn[], message: string) {
   const models = await currentModels();
-  const model = models.find((m) => m.modelId === config.crowd.specModel) ?? models.find((m) => m.enabled);
-  if (!model) throw new HttpError(503, "no model available for the spec dialogue");
+  // the model configured for the platform (or the first one with an API key), never a fixed vendor
+  const pm = await platformModel();
+  if (!pm && process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
+  const model = pm?.model ?? models[0];
+  if (!model) throw new HttpError(503, NO_PLATFORM_MODEL);
   const current = task.spec ? normalizeSpec(task.spec) : null;
   const skill = task.skillVersionId ? (await db.skillVersion.findUnique({ where: { id: task.skillVersionId }, include: { skill: true } }))?.skill.name : null;
   const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: message }];
