@@ -171,6 +171,8 @@ skills:
   - Visibility: `LINK`, `LOGIN` (optionally limited to specific CAFECA accounts, by address or @handle), or `PUBLIC`.
   - Multipart upload with attachments (25 MB each, 100 MB per share); default expiry 30 days; the server refuses conversations that still contain obvious secrets. Viewers can import a share into their own SinoBee ("Continue in my SinoBee").
   - Owners can change the visibility, set expiry, and revoke a share. Viewers can report a share; admins handle reports with a takedown.
+  - Document shares (`kind: "doc"`): a report or interactive page a skill made, with the files it uses at their relative paths (`entry` names the main file). Conversation shares carry linked reports the same way, under `doc<n>/`. Markdown renders on the page (images, KaTeX math, mermaid); HTML/SVG runs in a sandboxed frame from `/api/shares/<id>/raw/<cap>/<path>`: an opaque origin with no cookies, a CSP that limits its network to the share's own files, and a 12-hour capability in the path instead of a session. Opened directly in a tab, such a page redirects to the share page.
+  - Link previews: SinoBee sends a description and a 1200×630 picture (`thumb`); `/s/<id>` emits Open Graph and X card tags and `/api/shares/<id>/og` serves the picture, for LINK and PUBLIC shares only. Only PUBLIC shares may be indexed.
 
 ### Boltchain storage and notarization
 

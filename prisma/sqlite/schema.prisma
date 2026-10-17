@@ -825,6 +825,13 @@ model ConversationShare {
   contentHash String
   messages    Int
   model       String?
+  /// "chat" (a conversation) or "doc" (a report or interactive page a skill made: `entry` is its main file)
+  kind        String          @default("chat")
+  entry       String?
+  /// summary for link previews (Open Graph / X cards); shown only for LINK and PUBLIC shares
+  description String?
+  /// storage key of the 1200×630 link-preview picture
+  ogKey       String?
   views       Int             @default(0)
   expiresAt   DateTime?
   revokedAt   DateTime?

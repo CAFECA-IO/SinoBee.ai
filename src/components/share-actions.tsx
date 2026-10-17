@@ -5,18 +5,19 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { SINOBEE_PORT } from "@/lib/links";
 
-export function ShareOwnerActions({ id, visibility, accounts }: { id: string; visibility: string; accounts: string[] }) {
+export function ShareOwnerActions({ id, visibility, accounts, description = "", thumbnail = null }: { id: string; visibility: string; accounts: string[]; description?: string; thumbnail?: string | null }) {
   const t = useTranslations("share");
   const router = useRouter();
   const [vis, setVis] = useState(visibility);
   const [list, setList] = useState(accounts.join("\n"));
   const [msg, setMsg] = useState("");
+  const [desc, setDesc] = useState(description);
   const save = async () => {
     setMsg("");
     const r = await fetch(`/api/v1/shares/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ visibility: vis, ...(vis === "LOGIN" ? { accounts: list.split(/[\s,]+/).filter(Boolean) } : {}) }),
+      body: JSON.stringify({ visibility: vis, description: desc.trim() || null, ...(vis === "LOGIN" ? { accounts: list.split(/[\s,]+/).filter(Boolean) } : {}) }),
     });
     setMsg(r.ok ? t("saved") : (await r.json().catch(() => ({}))).error ?? r.statusText);
     if (r.ok) router.refresh();
@@ -37,6 +38,19 @@ export function ShareOwnerActions({ id, visibility, accounts }: { id: string; vi
           <span className="text-xs text-muted">{t("accountsHelp")}</span>
         </label>
       )}
+      <div className="grid gap-3 sm:grid-cols-[240px_1fr]">
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumbnail} alt={t("thumbnail")} className="aspect-[1200/630] w-full rounded-xl border border-line object-cover" />
+        ) : (
+          <div className="grid aspect-[1200/630] place-items-center rounded-xl border border-dashed border-line text-xs text-muted">{t("noThumbnail")}</div>
+        )}
+        <label className="block">
+          {t("description")}
+          <textarea className="input mt-1 h-24" maxLength={300} value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <span className="text-xs text-muted">{vis === "LOGIN" ? t("previewHidden") : t("previewHelp")}</span>
+        </label>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={save}>{t("save")}</button>
         <button

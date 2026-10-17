@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { dbTarget } from "../db-target";
@@ -43,6 +43,11 @@ function key(): Buffer {
   }
   console.log(`created ${f} — it encrypts the secrets stored in the database; back it up separately`);
   return (g.__sbSecretKey = k);
+}
+
+/** A MAC key for one purpose, derived from the secrets key (so it survives restarts and is shared by every instance) */
+export function macKey(purpose: string): Buffer {
+  return createHmac("sha256", key()).update(`sinobee.ai/${purpose}`).digest();
 }
 
 export const isSealed = (v: string) => v.startsWith(PREFIX);

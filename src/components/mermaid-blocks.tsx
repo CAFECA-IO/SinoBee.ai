@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { mmdFix } from "@/lib/mermaid-fix";
 
 /** Renders ```mermaid code blocks inside its children (mermaid is loaded only when one is present) */
 export function MermaidBlocks({ children }: { children: React.ReactNode }) {
@@ -26,8 +27,24 @@ export function MermaidBlocks({ children }: { children: React.ReactNode }) {
       let n = 0;
       for (const code of blocks) {
         if (cancelled) return;
+        const draw = async (src: string) => {
+          const id = `mmd-${Date.now()}-${n++}`;
+          try {
+            return (await w.mermaid.render(id, src)).svg as string;
+          } finally {
+            document.getElementById(`d${id}`)?.remove();
+          }
+        };
         try {
-          const { svg } = await w.mermaid.render(`mmd-${Date.now()}-${n++}`, code.textContent ?? "");
+          const src = code.textContent ?? "";
+          let svg: string;
+          try {
+            svg = await draw(src);
+          } catch (e) {
+            const fixed = mmdFix(src);
+            if (fixed === src) throw e;
+            svg = await draw(fixed);
+          }
           const div = document.createElement("div");
           div.className = "my-3 overflow-x-auto";
           div.innerHTML = svg;

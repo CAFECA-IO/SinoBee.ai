@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { handle, json } from "@/lib/http";
 import { userFromSessionOrBearer } from "@/lib/auth";
-import { MAX_SHARE_BYTES, MAX_TOTAL_BYTES, createShare, shareJson, type UploadFile } from "@/lib/shares/service";
+import { MAX_SHARE_BYTES, MAX_THUMB_BYTES, MAX_TOTAL_BYTES, createShare, shareJson, type UploadFile } from "@/lib/shares/service";
 
 /** The caller's shares */
 export const GET = handle(async (req: Request) => {
@@ -13,20 +13,25 @@ export const GET = handle(async (req: Request) => {
 
 /**
  * Share a conversation (already redacted by SinoBee).
- * JSON body, or multipart/form-data with a `share` JSON field and `files` (attachments up to 25 MB each, 100 MB total).
+ * JSON body, or multipart/form-data with a `share` JSON field, `files` (attachments up to 25 MB each, 100 MB total)
+ * and an optional `thumb` (the 1200×630 link-preview picture, PNG/JPEG/WebP ≤ 2 MB).
+ * A document share (`kind: "doc"`) sends the report or page and the files it uses, `entry` naming the main file.
  */
 export const POST = handle(async (req: Request) => {
   const user = await userFromSessionOrBearer(req, "shares:write");
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_TOTAL_BYTES + MAX_SHARE_BYTES * 1.4 + 1048576) return json({ error: "share too large" }, 413);
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_TOTAL_BYTES + MAX_SHARE_BYTES * 1.4 + MAX_THUMB_BYTES + 1048576) return json({ error: "share too large" }, 413);
   if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
     const form = await req.formData();
     const meta = form.get("share");
     if (typeof meta !== "string") return json({ error: "multipart field `share` (JSON) required" }, 400);
     const uploads: UploadFile[] = [];
     for (const f of form.getAll("files")) if (f instanceof File) uploads.push({ name: f.name || "file", mime: f.type || "application/octet-stream", bytes: Buffer.from(await f.arrayBuffer()) });
-    const s = await createShare(user, JSON.parse(meta), uploads);
+    const t = form.get("thumb");
+    const thumb = t instanceof File ? Buffer.from(await t.arrayBuffer()) : null;
+    const s = await createShare(user, JSON.parse(meta), uploads, thumb);
     return json(shareJson(s, config.origin), 201);
   }
-  const s = await createShare(user, await req.json());
+  const body = await req.json();
+  const s = await createShare(user, body, [], typeof body?.thumb === "string" ? Buffer.from(body.thumb, "base64") : null);
   return json(shareJson(s, config.origin), 201);
 });

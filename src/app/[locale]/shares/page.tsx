@@ -25,12 +25,19 @@ export default async function SharesPage({ params }: { params: Promise<{ locale:
       <h1 className="h1">{t("listTitle")}</h1>
       <p className="mt-2 text-muted">{t("listLead")}</p>
       {rows.length === 0 && <p className="mt-8 text-muted">{t("listEmpty")}</p>}
-      <div className="mt-8 space-y-3">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {rows.map((s) => (
-          <Link key={s.id} href={`/s/${s.id}`} className="card block p-4 transition hover:border-accent">
-            <div className="font-semibold">{s.title}</div>
-            <div className="mt-1 text-xs text-muted">
-              {s.owner.handle ? `@${s.owner.handle}` : ""} · {t("msgs", { n: s.messages })} · {t("views", { n: s.views })} · <LocalDate value={s.createdAt} withTime={false} />
+          <Link key={s.id} href={`/s/${s.id}`} className="card block overflow-hidden transition hover:border-accent">
+            {s.ogKey && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/shares/${s.id}/og`} alt="" loading="lazy" className="aspect-[1200/630] w-full border-b border-line object-cover" />
+            )}
+            <div className="p-4">
+              <div className="font-semibold">{s.title}</div>
+              {s.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{s.description}</p>}
+              <div className="mt-2 text-xs text-muted">
+                {s.owner.handle ? `@${s.owner.handle} · ` : ""}{s.kind === "doc" ? t("kindDoc") : t("msgs", { n: s.messages })} · {t("views", { n: s.views })} · <LocalDate value={s.createdAt} withTime={false} />
+              </div>
             </div>
           </Link>
         ))}

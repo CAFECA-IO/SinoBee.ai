@@ -34,13 +34,20 @@ const message = z.object({
 const file = z.object({ name: z.string().min(1).max(200), mime: z.string().max(100).default("application/octet-stream"), data: z.string().max(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8) });
 
 export const shareBody = z.object({
+  /** chat: a conversation; doc: a report or interactive page a skill made, `entry` names its main file */
+  kind: z.enum(["chat", "doc"]).default("chat"),
+  entry: z.string().max(300).nullish(),
   title: z.string().trim().min(1).max(160),
+  /** link-preview summary (Open Graph / X cards) */
+  description: z.string().trim().max(300).nullish(),
+  /** bundle paths of the multipart files, in order (some multipart parsers drop folders from file names) */
+  fileNames: z.array(z.string().max(300)).max(MAX_FILES).default([]),
   visibility: z.enum(["LINK", "LOGIN", "PUBLIC"]).default("LINK"),
   /** LOGIN only: CAFECA accounts (0x addresses) or @handles allowed to view; empty = any signed-in user */
   accounts: z.array(z.string().trim().max(64)).max(100).default([]),
   expiresInDays: z.number().int().min(1).max(365).nullable().optional(),
   model: z.string().max(120).nullish(),
-  messages: z.array(message).min(1).max(2000),
+  messages: z.array(message).max(2000),
   files: z.array(file).max(MAX_FILES).default([]),
   /** skills SinoBee used in the conversation (names) */
   skills: z.array(z.string().max(80)).max(50).default([]),
@@ -50,6 +57,9 @@ export const shareBody = z.object({
 
 export type ShareDoc = {
   v: 1;
+  kind?: "chat" | "doc";
+  entry?: string | null;
+  description?: string | null;
   title: string;
   model: string | null;
   created_at: string;
@@ -60,6 +70,33 @@ export type ShareDoc = {
 };
 
 export type UploadFile = { name: string; mime: string; bytes: Buffer };
+
+/** A bundle path (doc1/frames/t0915.jpg): folders kept, every part made safe, never .. or absolute */
+export function safePath(name: string): string {
+  const parts = name.replace(/\\/g, "/").split("/").map((x) => x.replace(/[\u0000-\u001f<>:"|?*]/g, "_").trim()).filter((x) => x && x !== "." && x !== "..");
+  return parts.map((x) => x.replace(/^\.+/, "_").slice(0, 120)).join("/").slice(0, 300) || "file";
+}
+
+/** Bundle files that only open inside the sandboxed document frame (/api/shares/<id>/raw/…) */
+export const DOC_MIME = /^(text\/(html|css|javascript|plain|csv|markdown)|application\/(javascript|json|wasm|xhtml\+xml)|image\/svg\+xml|font\/(woff2?|ttf|otf)|model\/gltf(\+json|-binary))$/;
+const EXT_MIME: Record<string, string> = {
+  md: "text/markdown", markdown: "text/markdown", html: "text/html", htm: "text/html", xhtml: "application/xhtml+xml", svg: "image/svg+xml",
+  css: "text/css", js: "text/javascript", mjs: "text/javascript", json: "application/json", txt: "text/plain", csv: "text/csv",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", mp4: "video/mp4", webm: "video/webm",
+  mp3: "audio/mpeg", wav: "audio/wav", woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf", wasm: "application/wasm",
+  glb: "model/gltf-binary", gltf: "model/gltf+json", pdf: "application/pdf",
+};
+export const mimeOf = (name: string, given = "") => EXT_MIME[name.split(".").pop()?.toLowerCase() ?? ""] ?? given;
+
+/** The link-preview picture: PNG / JPEG / WebP, at most 2 MB */
+export const MAX_THUMB_BYTES = 2 * 1024 * 1024;
+export function thumbMime(b: Buffer): string | null {
+  if (b.length > MAX_THUMB_BYTES || b.length < 16) return null;
+  if (b[0] === 0x89 && b.toString("latin1", 1, 4) === "PNG") return "image/png";
+  if (b[0] === 0xff && b[1] === 0xd8) return "image/jpeg";
+  if (b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") return "image/webp";
+  return null;
+}
 
 const ALPHA = "23456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
 const newId = () => Array.from({ length: 12 }, () => ALPHA[randomInt(ALPHA.length)]).join("");
@@ -97,17 +134,34 @@ export async function resolveAccounts(list: string[]): Promise<string[]> {
   return [...out];
 }
 
-export async function createShare(owner: User, input: unknown, uploads: UploadFile[] = []) {
+export async function createShare(owner: User, input: unknown, uploads: UploadFile[] = [], thumb: Buffer | null = null) {
   const b = shareBody.parse(input);
+  if (b.kind === "chat" && !b.messages.length) throw new HttpError(400, "messages: a conversation share needs at least one message");
   const all = [...b.files.map((f) => ({ name: f.name, mime: f.mime, bytes: Buffer.from(f.data, "base64") })), ...uploads];
   if (all.length > MAX_FILES) throw new HttpError(413, `at most ${MAX_FILES} attachments`);
-  const files = all.map((f, i) => ({ id: String(i + 1), name: f.name.replace(/[\\/]/g, "_").slice(0, 200), mime: SAFE_MIME.test(f.mime) ? f.mime : "application/octet-stream", bytes: f.bytes }));
+  const files = all.map((f, i) => {
+    // documents keep their folder layout so relative links between their files still work
+    const name = safePath(b.fileNames[i] ?? f.name);
+    const mime = mimeOf(name, f.mime.split(";")[0].trim());
+    // page types only as part of a document (they open in the sandboxed frame); a loose attachment stays a download
+    const doc = b.kind === "doc" || name.includes("/");
+    return { id: String(i + 1), name, mime: SAFE_MIME.test(mime) || (doc && DOC_MIME.test(mime)) ? mime : "application/octet-stream", bytes: f.bytes };
+  });
+  const entry = b.kind === "doc" ? safePath(b.entry ?? files[0]?.name ?? "") : null;
+  if (b.kind === "doc" && !files.some((f) => f.name === entry)) throw new HttpError(400, "entry: the document's main file is not among the files");
+  const og = thumb ? thumbMime(thumb) : null;
+  if (thumb && !og) throw new HttpError(400, "thumb: a PNG, JPEG or WebP picture of at most 2 MB");
   for (const f of files) if (f.bytes.length > MAX_FILE_BYTES) throw new HttpError(413, `${f.name} is larger than 25 MB`);
-  const leak = scanSecrets(JSON.stringify(b.messages) + "\n" + b.title);
+  // documents are scanned too: their text files are what viewers read
+  const docText = b.kind === "doc" ? files.filter((f) => DOC_MIME.test(f.mime) || f.mime === "text/markdown").map((f) => f.bytes.toString("utf8")).join("\n") : "";
+  const leak = scanSecrets(JSON.stringify(b.messages) + "\n" + b.title + "\n" + (b.description ?? "") + "\n" + docText);
   if (leak) throw new HttpError(422, `the conversation still contains a ${leak} — redact it in SinoBee and try again`);
   const id = newId();
   const doc: ShareDoc = {
     v: 1,
+    kind: b.kind,
+    entry,
+    description: b.description ?? null,
     title: b.title,
     model: b.model ?? null,
     created_at: new Date().toISOString(),
@@ -129,6 +183,8 @@ export async function createShare(owner: User, input: unknown, uploads: UploadFi
   // stored on Boltchain (2 copies) only until the share expires
   await putObject(objectKey, body, "application/json", { keepUntil: expiresAt });
   for (const f of files) await putObject(`shares/${id}/files/${f.id}`, f.bytes, f.mime, { keepUntil: expiresAt });
+  const ogKey = thumb && og ? `shares/${id}/og` : null;
+  if (ogKey) await putObject(ogKey, thumb!, og!, { keepUntil: expiresAt });
   const share = await db.conversationShare.create({
     data: {
       id,
@@ -140,13 +196,17 @@ export async function createShare(owner: User, input: unknown, uploads: UploadFi
       contentHash: `sha256:${hashFile(body).sha256.slice(2)}`,
       messages: b.messages.length,
       model: b.model ?? null,
+      kind: b.kind,
+      entry,
+      description: b.description ?? null,
+      ogKey,
       expiresAt,
       access: { create: accounts.map((account) => ({ account })) },
       files: { create: files.map((f) => ({ name: f.name, objectKey: `shares/${id}/files/${f.id}`, size: f.bytes.length, sha256: hashFile(f.bytes).sha256.slice(2), mime: f.mime })) },
     },
   });
   // decision 3: share.json and every file are notarized on Boltchain
-  await requestAnchor("share", id, [hashFile(body), ...files.map((f) => hashFile(f.bytes))]);
+  await requestAnchor("share", id, [hashFile(body), ...files.map((f) => hashFile(f.bytes)), ...(ogKey ? [hashFile(thumb!)] : [])]);
   return share;
 }
 
@@ -182,6 +242,7 @@ export async function revokeShare(id: string, by: User, reason = "owner") {
   // crypto-shred: deleting the objects destroys their keys and cancels the Boltchain deals
   await deleteObject(s.objectKey);
   for (const f of s.files) await deleteObject(f.objectKey);
+  if (s.ogKey) await deleteObject(s.ogKey);
   const r = await db.conversationShare.update({ where: { id }, data: { revokedAt: new Date() } });
   if (reason !== "owner") await db.report.updateMany({ where: { targetType: "share", targetId: id, resolvedAt: null }, data: { resolvedAt: new Date() } });
   return r;
@@ -192,6 +253,7 @@ export const shareUpdate = z.object({
   accounts: z.array(z.string().trim().max(64)).max(100).optional(),
   expiresInDays: z.number().int().min(1).max(365).nullable().optional(),
   title: z.string().trim().min(1).max(160).optional(),
+  description: z.string().trim().max(300).nullable().optional(),
 });
 
 export async function updateShare(id: string, owner: User, input: unknown) {
@@ -212,6 +274,7 @@ export async function updateShare(id: string, owner: User, input: unknown) {
       data: {
         visibility,
         ...(b.title ? { title: b.title } : {}),
+        ...(b.description !== undefined ? { description: b.description || null } : {}),
         ...(visibility !== "LOGIN" ? { restricted: false } : accounts ? { restricted: accounts.length > 0 } : {}),
         ...(b.expiresInDays !== undefined ? { expiresAt: b.expiresInDays ? new Date(Date.now() + b.expiresInDays * 86400_000) : null } : {}),
       },
@@ -219,9 +282,16 @@ export async function updateShare(id: string, owner: User, input: unknown) {
   ]);
 }
 
-export function shareJson(s: { id: string; title: string; visibility: string; restricted: boolean; messages: number; views: number; createdAt: Date; expiresAt: Date | null; revokedAt: Date | null; anchorCode: string | null; contentHash: string }, origin: string) {
+/** Anyone may see the link preview (title, description, picture): LINK and PUBLIC shares that are still live */
+export function previewable(s: { visibility: string; revokedAt: Date | null; expiresAt: Date | null }) {
+  return (s.visibility === "LINK" || s.visibility === "PUBLIC") && !s.revokedAt && !(s.expiresAt && s.expiresAt < new Date());
+}
+
+export function shareJson(s: { id: string; title: string; visibility: string; restricted: boolean; messages: number; views: number; createdAt: Date; expiresAt: Date | null; revokedAt: Date | null; anchorCode: string | null; contentHash: string; kind?: string; description?: string | null; ogKey?: string | null }, origin: string) {
   return {
-    id: s.id, url: `${origin}/s/${s.id}`, title: s.title, visibility: s.visibility, restricted: s.restricted, messages: s.messages, views: s.views,
+    id: s.id, url: `${origin}/s/${s.id}`, title: s.title, kind: s.kind ?? "chat", description: s.description ?? null,
+    thumbnail: s.ogKey ? `${origin}/api/shares/${s.id}/og` : null,
+    visibility: s.visibility, restricted: s.restricted, messages: s.messages, views: s.views,
     content_hash: s.contentHash, anchor: s.anchorCode, created_at: s.createdAt.toISOString(), expires_at: s.expiresAt?.toISOString() ?? null, revoked: !!s.revokedAt,
   };
 }

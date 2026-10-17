@@ -1114,7 +1114,17 @@
     "continueBtn": "在 SinoBee 開啟",
     "continueMore": "其他方式",
     "port": "SinoBee 的連接埠",
-    "reportTool": "檢舉這個工具"
+    "reportTool": "檢舉這個工具",
+    "thumbnail": "連結預覽縮圖",
+    "noThumbnail": "沒有縮圖（社群平台會顯示 SinoBee.ai 預設圖）",
+    "description": "摘要說明",
+    "previewHelp": "貼到 LINE、Facebook、X、Slack 等平台時，會顯示縮圖、標題與這段摘要。",
+    "previewHidden": "「需登入」的分享不會對外顯示標題、摘要與縮圖。",
+    "doc": "文件",
+    "kindDoc": "報告／互動頁面",
+    "back": "回到分享",
+    "docs": "公開的分享",
+    "fullscreen": "全螢幕"
   },
   "common": {
     "copy": "複製",

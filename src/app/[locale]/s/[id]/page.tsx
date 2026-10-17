@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
 import { loadShare, readDoc } from "@/lib/shares/service";
+import { shareMetadata } from "@/lib/shares/metadata";
+import { viewCap } from "@/lib/shares/view-cap";
+import { SharedDoc, encodePath, isDocFile } from "@/components/share-doc";
 import { certUrl, formatCode } from "@/lib/boltchain/certificates";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
@@ -14,11 +17,7 @@ import { config } from "@/lib/config";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
-  const { id } = await params;
-  const s = await db.conversationShare.findUnique({ where: { id }, select: { title: true, visibility: true, revokedAt: true } }).catch(() => null);
-  // only public shares expose their title to crawlers / link previews
-  const title = s && s.visibility === "PUBLIC" && !s.revokedAt ? s.title : "SinoBee";
-  return { title, robots: s?.visibility === "PUBLIC" ? undefined : { index: false, follow: false } };
+  return shareMetadata((await params).id);
 }
 
 export default async function SharePage({ params }: { params: Promise<{ locale: string; id: string }> }) {
@@ -45,12 +44,21 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
   if (!isOwner) await db.conversationShare.update({ where: { id }, data: { views: { increment: 1 } } });
   const doc = await readDoc(share.objectKey);
   const fileUrl = (fid: string) => `/api/shares/${id}/files/${fid}`;
+  const cap = viewCap(id);
+  const docHref = (p: string) => `/s/${id}/v/${encodePath(p)}`;
+  const byId = new Map(doc.files.map((f) => [f.id, f]));
+  // reports and pages the conversation links open in the share's document view; their own files are not listed
+  const linked = new Set(doc.messages.flatMap((m) => [...m.text.matchAll(/\]\(files\/(\d+)\)/g)].map((x) => x[1])));
+  const listed = doc.files.filter((f) => !f.name.includes("/") || linked.has(f.id));
   const media = new Map(doc.files.filter((f) => /^(video|audio)\//.test(f.mime)).map((f) => [f.id, f]));
   // images render inline; videos and audio play in the attachments section (markdown cannot embed them safely)
   const fix = (text: string) =>
     text
       .replace(/!\[([^\]]*)\]\(files\/(\d+)\)/g, (m0, alt, fid) => (media.has(fid) ? `[▶ ${alt || media.get(fid)!.name}](#file-${fid})` : m0))
-      .replace(/\]\(files\/(\d+)\)/g, (_m, fid) => `](${fileUrl(fid)})`);
+      .replace(/\]\(files\/(\d+)\)/g, (_m, fid) => {
+        const f = byId.get(fid);
+        return `](${f && isDocFile(f) ? docHref(f.name) : fileUrl(fid)})`;
+      });
   const access_ = isOwner ? await db.shareAccess.findMany({ where: { shareId: id } }) : [];
   return (
     <div className="container-x max-w-4xl space-y-6 py-10">
@@ -66,11 +74,15 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
           {t("by")} {share.owner.handle ? `@${share.owner.handle}` : share.owner.account.slice(0, 10) + "…"} · <LocalDate value={share.createdAt} />
           {share.expiresAt && <> · {t("until")} <LocalDate value={share.expiresAt} withTime={false} /></>}
         </p>
+        {share.description && <p className="text-[15px] leading-relaxed text-ink/90">{share.description}</p>}
         {doc.redactions.some((r) => r.count > 0) && (
           <p className="rounded-xl bg-accent-soft p-3 text-xs">{t("redacted", { list: doc.redactions.filter((r) => r.count > 0).map((r) => `${t(`rk.${r.kind}`)} × ${r.count}`).join("、") })}</p>
         )}
       </header>
 
+      {share.kind === "doc" && share.entry ? (
+        <SharedDoc id={id} cap={cap} files={share.files} path={share.entry} docHref={docHref} fullHref={`${docHref(share.entry)}?full=1`} fullLabel={t("fullscreen")} title={share.title} />
+      ) : (
       <MermaidBlocks>
         <div className="space-y-4">
           {doc.messages.map((m, i) => (
@@ -93,16 +105,17 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
           ))}
         </div>
       </MermaidBlocks>
+      )}
 
-      {doc.files.length > 0 && (
+      {share.kind !== "doc" && listed.length > 0 && (
         <section className="card space-y-3 p-5 text-sm">
           <h2 className="h3">{t("files")}</h2>
-          {doc.files.map((f) => (
+          {listed.map((f) => (
             <div key={f.id} id={`file-${f.id}`} className="space-y-2">
               {f.mime.startsWith("video/") && <video src={fileUrl(f.id)} controls preload="metadata" className="w-full max-w-2xl rounded-lg" />}
               {f.mime.startsWith("audio/") && <audio src={fileUrl(f.id)} controls className="w-full max-w-md" />}
-              <a href={fileUrl(f.id)} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-accent hover:border-accent">
-                <span className="truncate">📎 {f.name}</span>
+              <a href={isDocFile(f) ? docHref(f.name) : fileUrl(f.id)} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-accent hover:border-accent">
+                <span className="truncate">{isDocFile(f) ? "📄" : "📎"} {f.name.split("/").pop()}</span>
                 <span className="shrink-0 text-xs text-muted">{f.size >= 1048576 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.ceil(f.size / 1024)} KiB`}</span>
               </a>
             </div>
@@ -123,7 +136,7 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
       </section>
 
       {isOwner ? (
-        <ShareOwnerActions id={id} visibility={share.visibility} accounts={access_.map((a) => a.account)} />
+        <ShareOwnerActions id={id} visibility={share.visibility} accounts={access_.map((a) => a.account)} description={share.description ?? ""} thumbnail={share.ogKey ? `/api/shares/${id}/og` : null} />
       ) : (
         me && <ShareReport id={id} />
       )}

@@ -1114,7 +1114,17 @@
     "continueBtn": "Open in SinoBee",
     "continueMore": "Other ways",
     "port": "SinoBee port",
-    "reportTool": "Report this tool"
+    "reportTool": "Report this tool",
+    "thumbnail": "Link preview picture",
+    "noThumbnail": "No picture (platforms show the SinoBee.ai default)",
+    "description": "Summary",
+    "previewHelp": "LINE, Facebook, X, Slack and others show the picture, title and this summary when the link is pasted.",
+    "previewHidden": "Sign-in shares never show their title, summary or picture to others.",
+    "doc": "Document",
+    "kindDoc": "Report / interactive page",
+    "back": "Back to the share",
+    "docs": "Public shares",
+    "fullscreen": "Full screen"
   },
   "common": {
     "copy": "Copy",

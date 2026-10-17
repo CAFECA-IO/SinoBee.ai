@@ -82,7 +82,7 @@ test("size and shape limits", async () => {
   const s = await sh.createShare(owner, body({ files: [{ name: "../../x.html", mime: "text/html", data: "PGgxPg==" }] }));
   const f = (await db.shareFile.findMany({ where: { shareId: s.id } }))[0];
   assert.equal(f.mime, "application/octet-stream", "active content is never served as such");
-  assert.equal(f.name, ".._.._x.html");
+  assert.equal(f.name, "x.html");
 });
 
 test("default 30-day expiry, never-expiring on request, and the server-side secret scan", async () => {
@@ -95,4 +95,88 @@ test("default 30-day expiry, never-expiring on request, and the server-side secr
   await sh.createShare(owner, body({ messages: [{ role: "user", text: "postgres://demo:••••@db/shop" }] }));
   const sk = await sh.createShare(owner, body({ skills: ["sales-report"] }));
   assert.deepEqual((await sh.readDoc(sk.objectKey)).skills, ["sales-report"]);
+});
+
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 1)]);
+const doc = (o: Record<string, unknown> = {}) => ({
+  kind: "doc", entry: "report.md", title: "神經網路是什麼", description: "3Blue1Brown 用手寫數字拆解深度學習", visibility: "LINK", messages: [],
+  files: [
+    { name: "report.md", mime: "text/markdown", data: Buffer.from("# 標題\n\n![封面](cover.png)\n\n![圖](frames/t0915.jpg)\n\n[頁面](fig/page.html) $120^\\circ$").toString("base64") },
+    { name: "cover.png", mime: "image/png", data: PNG.toString("base64") },
+    { name: "frames/t0915.jpg", mime: "image/jpeg", data: Buffer.from("jpg").toString("base64") },
+    { name: "fig/page.html", mime: "text/html", data: Buffer.from("<script>1</script>").toString("base64") },
+    { name: "../../etc/passwd", mime: "text/plain", data: Buffer.from("x").toString("base64") },
+  ],
+  ...o,
+});
+
+test("document shares keep their folder layout, an entry, a description and a link-preview picture", async () => {
+  const s = await sh.createShare(owner, doc(), [], PNG);
+  assert.equal(s.kind, "doc");
+  assert.equal(s.entry, "report.md");
+  assert.equal(s.description, "3Blue1Brown 用手寫數字拆解深度學習");
+  assert.equal(s.ogKey, `shares/${s.id}/og`);
+  const { share } = await sh.loadShare(s.id, null);
+  assert.deepEqual(share!.files.map((f) => [f.name, f.mime]), [
+    ["report.md", "text/markdown"], ["cover.png", "image/png"], ["frames/t0915.jpg", "image/jpeg"], ["fig/page.html", "text/html"], ["etc/passwd", "text/plain"],
+  ]);
+  assert.deepEqual(await storage.getObject(s.ogKey!), PNG);
+  const j = sh.shareJson(s, "https://sinobee.ai");
+  assert.equal(j.thumbnail, `https://sinobee.ai/api/shares/${s.id}/og`);
+  assert.equal(j.kind, "doc");
+  // multipart uploads carry the bundle paths in fileNames
+  const m = await sh.createShare(owner, { ...doc(), files: [], fileNames: ["report.md", "img/a.png"] },
+    [{ name: "report.md", mime: "text/markdown", bytes: Buffer.from("# x") }, { name: "a.png", mime: "image/png", bytes: PNG }]);
+  assert.deepEqual((await sh.loadShare(m.id, null)).share!.files.map((f) => f.name), ["report.md", "img/a.png"]);
+});
+
+test("document shares are checked: entry present, picture is an image, secrets in the page are refused", async () => {
+  await assert.rejects(sh.createShare(owner, doc({ entry: "missing.md" })), /entry/);
+  await assert.rejects(sh.createShare(owner, doc(), [], Buffer.from("<svg onload=alert(1)>")), /thumb/);
+  await assert.rejects(sh.createShare(owner, doc({ files: [{ name: "report.md", mime: "text/markdown", data: Buffer.from("key sk-ant-" + "a".repeat(30)).toString("base64") }] })), /API key/);
+  await assert.rejects(sh.createShare(owner, { ...doc(), kind: "chat" }), /at least one message/);
+});
+
+test("link previews only for live LINK and PUBLIC shares", async () => {
+  const live = { visibility: "LINK", revokedAt: null, expiresAt: null };
+  assert.ok(sh.previewable(live));
+  assert.ok(sh.previewable({ ...live, visibility: "PUBLIC" }));
+  assert.ok(!sh.previewable({ ...live, visibility: "LOGIN" }));
+  assert.ok(!sh.previewable({ ...live, revokedAt: new Date() }));
+  assert.ok(!sh.previewable({ ...live, expiresAt: new Date(Date.now() - 1000) }));
+  assert.equal(sh.thumbMime(PNG), "image/png");
+  assert.equal(sh.thumbMime(Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(30)])), "image/jpeg");
+  assert.equal(sh.thumbMime(Buffer.alloc(sh.MAX_THUMB_BYTES + 1, 0x89)), null);
+  assert.equal(sh.safePath("../a/./b/../c.png"), "a/b/c.png");
+  assert.equal(sh.safePath("/abs/.hidden/x"), "abs/_hidden/x");
+});
+
+test("view capabilities name one share and expire", async () => {
+  const cap = await import("../src/lib/shares/view-cap");
+  const c = cap.viewCap("abcdef123456");
+  assert.ok(cap.checkCap("abcdef123456", c));
+  assert.ok(!cap.checkCap("abcdef123457", c));
+  assert.ok(!cap.checkCap("abcdef123456", c.slice(0, -1) + (c.endsWith("A") ? "B" : "A")));
+  assert.ok(!cap.checkCap("abcdef123456", c, Date.now() + 15 * 3600_000));
+  assert.ok(!cap.checkCap("abcdef123456", "zzzz.short"));
+});
+
+test("shared Markdown: relative images and documents point into the share, nothing climbs out", async () => {
+  const { rebaseMarkdown, joinPath } = await import("../src/lib/shares/doc-paths");
+  assert.equal(joinPath("doc1", "../x.png"), "x.png");
+  assert.equal(joinPath("", "../x.png"), null);
+  const names = new Set(["doc1/report.md", "doc1/cover.png", "doc1/frames/t 1.jpg", "doc1/fig/page.html", "secret.txt"]);
+  const out = rebaseMarkdown("![c](cover.png) ![f](<frames/t 1.jpg>) [p](fig/page.html) [s](../../secret.txt) [w](https://x.y) ![m](missing.png)",
+    "doc1/report.md", names, "abcdef123456", "CAP", (p) => `/s/abcdef123456/v/${p}`);
+  assert.equal(out, "![c](</api/shares/abcdef123456/raw/CAP/doc1/cover.png>) ![f](</api/shares/abcdef123456/raw/CAP/doc1/frames/t%201.jpg>) " +
+    "[p](</s/abcdef123456/v/doc1/fig/page.html>) [s](../../secret.txt) [w](https://x.y) ![m](missing.png)");
+});
+
+test("mermaid labels the lexer rejects are quoted; money is not math", async () => {
+  const { mmdFix } = await import("../src/lib/mermaid-fix");
+  assert.equal(mmdFix("quadrantChart\n  x-axis 低 (長) --> 高 (短)\n  quadrant-1 好 (a)\n  點 (B58): [0.1, 0.9]"),
+    'quadrantChart\n  x-axis "低 (長)" --> "高 (短)"\n  quadrant-1 "好 (a)"\n  "點 (B58)": [0.1, 0.9]');
+  assert.equal(mmdFix("flowchart LR\n  A[引擎 (V6)] -->|好 (x)| B{V6/V8?}"), 'flowchart LR\n  A["引擎 (V6)"] -->|"好 (x)"| B{"V6/V8?"}');
+  const { escapeMoney } = await import("../src/lib/markdown-money");
+  assert.equal(escapeMoney("NT$500 與 US$5，`a$1` 角度 $120^\\circ$"), "NT\\$500 與 US\\$5，`a$1` 角度 $120^\\circ$");
 });
