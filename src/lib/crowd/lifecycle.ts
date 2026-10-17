@@ -11,6 +11,7 @@ import { bookPoints } from "./points";
 import { releasePledge, returnQuota } from "./pledges";
 import { normalizeSpec, serviceFee, sharePrice, unlockedStretch } from "./rules";
 import { HttpError } from "../errors";
+import { offeredModel, pricingSettings } from "../models";
 
 /**
  * Crowdfunding lifecycle (run by the worker every minute through crowdTick; pledges and card bindings also nudge it):
@@ -226,6 +227,12 @@ async function collected(taskId: string) {
 }
 
 async function fund(task: Task, now: Date) {
+  // prices are snapshotted when the money is in, not when the proposal was drafted (campaigns can last 180 days)
+  const model = await offeredModel(task.model);
+  if (model) {
+    const { fx, buffer } = await pricingSettings();
+    await db.task.update({ where: { id: task.id }, data: { usdTwdRate: fx, priceBuffer: buffer, modelPriceUsd: model.usd } });
+  }
   const got = await collected(task.id);
   const rate = num(task.serviceFeeRate);
   const fee = serviceFee(got, rate);
@@ -241,8 +248,11 @@ async function fund(task: Task, now: Date) {
   await postStatus(task.id, `募資完成：實收 NT$${got}，任務已排入執行。Funded with NT$${got}; the task is queued.`, { notifyTitle: "募資完成 Funded", type: "crowd.funded" });
 }
 
-async function failCampaign(task: Task, reason: string) {
-  const r = await db.task.updateMany({ where: { id: task.id, status: { in: ["FUNDING", "CHARGING"] } }, data: { status: "UNFUNDED", finishedAt: new Date() } });
+async function failCampaign(task: Task, reason: string, opts: { takedown?: boolean } = {}) {
+  const r = await db.task.updateMany({
+    where: { id: task.id, status: { in: ["SCREENING", "FUNDING", "CHARGING"] } },
+    data: opts.takedown ? { status: "CANCELLED", finishedAt: new Date(), takenDownAt: new Date(), isPublic: false } : { status: "UNFUNDED", finishedAt: new Date() },
+  });
   if (r.count !== 1) return;
   // charged cards: full refund (one refund per transaction, so the whole amount at once)
   const paid = await db.payment.findMany({ where: { taskId: task.id, purpose: "CROWD_PLEDGE", status: "CONFIRMED", refundedTwd: 0 } });
@@ -263,7 +273,11 @@ async function failCampaign(task: Task, reason: string) {
   }
   const open = await db.pledge.findMany({ where: { taskId: task.id, status: { in: ["ACTIVE", "FAILED"] } } });
   for (const p of open) await releasePledge(p.id, "RELEASED");
-  await event(task.id, "funding.unfunded", reason);
+  await event(task.id, opts.takedown ? "takedown" : "funding.unfunded", reason);
+  if (opts.takedown) {
+    await postStatus(task.id, `此眾籌已被平台下架，未向任何人扣款（已扣款者全額退刷，點數與額度已退回）。This campaign was taken down by the platform: nothing is charged; charged cards are refunded and points or quota returned.`, { notifyTitle: "眾籌已下架 Taken down", type: "crowd.takedown" });
+    return;
+  }
   await postStatus(task.id, `眾籌未達標，未向任何人扣款（已扣款者全額退刷，點數與額度已退回）。The campaign did not reach its goal: nothing is charged; charged cards are refunded and points or quota returned.`, { notifyTitle: "眾籌未達標 Not funded", type: "crowd.unfunded" });
 }
 
@@ -424,4 +438,19 @@ async function topupTick(now: Date) {
     await postStatus(t.id, `追加眾籌未達標，未扣款；任務以目前成果結案。The top-up round missed its goal; nothing was charged and the task closes with the results so far.`, { notifyTitle: "追加眾籌未達標 Top-up missed", type: "crowd.topup_failed" });
     await settleTask(t.id);
   }
+}
+
+// ───────────── takedown ─────────────
+
+/**
+ * An admin takes a crowdfunded task down after a report. Before funding: the campaign is cancelled like an
+ * unfunded one (nothing charged, everything returned). After funding the work is already paid for, so the task is
+ * only hidden from the public listings.
+ */
+export async function takedownCrowd(taskId: string, reason: string) {
+  const task = await db.task.findUnique({ where: { id: taskId } });
+  if (!task?.crowdfund) throw new HttpError(404, "task not found");
+  if (["SCREENING", "FUNDING", "CHARGING"].includes(task.status)) return failCampaign(task, `Taken down: ${reason}`, { takedown: true });
+  await db.task.update({ where: { id: taskId }, data: { isPublic: false, takenDownAt: new Date() } });
+  await event(taskId, "takedown", `Hidden from public listings: ${reason}`);
 }

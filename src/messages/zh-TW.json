@@ -19,7 +19,8 @@
     "tools": "工具",
     "shares": "分享",
     "tryAgent": "線上試用",
-    "menu": "選單"
+    "menu": "選單",
+    "crowd": "眾籌"
   },
   "footer": {
     "tagline": "SinoBee 是一個在你電腦上工作的開源群體智慧 AI 助理：查資料、讀寫檔案、操作瀏覽器與桌面，做完把結果整理成表格、圖表與檔案。",
@@ -277,7 +278,8 @@
     "CHARGING": "請款中",
     "UNFUNDED": "未達標",
     "IN_REVIEW": "驗收中",
-    "DISPUTED": "仲裁中"
+    "DISPUTED": "仲裁中",
+    "SCREENING": "審核中"
   },
   "comments": {
     "title": "留言討論",
@@ -467,7 +469,8 @@
       "payments": "付款與退款",
       "settings": "系統設定",
       "overview": "總覽",
-      "disputes": "眾籌爭議"
+      "disputes": "眾籌爭議",
+      "screening": "提案審核"
     },
     "st": {
       "enabled": "啟用",
@@ -1229,7 +1232,8 @@
       "model": "執行模型",
       "useSkill": "使用技能 {skill}",
       "create": "建立提案",
-      "creating": "建立中…"
+      "creating": "建立中…",
+      "category": "分類"
     },
     "edit": {
       "title": "眾籌提案",
@@ -1430,6 +1434,63 @@
       "open": "開啟追加眾籌",
       "round": "追加眾籌：已承諾 NT${pledged} / NT${goal}",
       "ends": "截止"
+    },
+    "categories": {
+      "research": "研究調查",
+      "data": "資料整理",
+      "writing": "寫作報告",
+      "code": "程式工具",
+      "translation": "翻譯",
+      "media": "影音圖像",
+      "other": "其他"
+    },
+    "explore": {
+      "title": "眾籌任務",
+      "lead": "大家一起出資、讓 SinoBee 完成的任務。每份 NT${price}，未達標不扣款，結案剩餘轉為點數。",
+      "open": "眾籌中",
+      "funded": "已達標",
+      "sort": {
+        "ending": "即將截止",
+        "almost": "即將達標",
+        "popular": "熱門",
+        "newest": "最新"
+      },
+      "all": "全部分類",
+      "search": "搜尋任務名稱",
+      "go": "搜尋",
+      "empty": "沒有符合的眾籌。",
+      "daysLeft": "剩 {n} 天",
+      "hoursLeft": "剩 {n} 小時",
+      "backers": "{n} 位出資者"
+    },
+    "rep": {
+      "badge": {
+        "new": "新發起人",
+        "rising": "有完成紀錄",
+        "trusted": "可信賴發起人"
+      },
+      "line": "成功募資 {funded}/{decided} · 驗收通過 {accepted}（首次通過 {firstPass}）· 出資過 {backed} 個任務",
+      "kyc": "實名 L{n}",
+      "refunded": "平台判退 {n} 次"
+    },
+    "share": {
+      "share": "分享",
+      "copied": "已複製連結"
+    },
+    "report": {
+      "report": "檢舉",
+      "reason": "說明這個眾籌違反了哪些規範",
+      "submit": "送出檢舉",
+      "done": "已收到檢舉，平台會盡快處理。"
+    },
+    "screening": {
+      "pending": "提案審核中：通過後立即開始眾籌，期限從開始時起算。",
+      "rejected": "提案被退回：{reason}。修改後可再次送出。",
+      "reasons": "審核意見",
+      "approve": "核准並開始眾籌",
+      "sendBack": "退回修改",
+      "note": "給發起人的說明",
+      "confirm": "確定送出審核結果？"
     }
   }
 }

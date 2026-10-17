@@ -32,6 +32,7 @@ We may change the Service for operational or legal reasons or because third-part
 - A platform service fee depending on the campaign period (none for 7 days) is deducted from the amount collected when the goal is reached.
 - Once funded, the SinoBee agent runs the task and reports progress in its comments. Backers may add reference information there; the agent treats it as background only and it never changes the spec.
 - After the run, backers whose pledges were collected vote on the result, weighted by shares. A rejected result is reworked within the budget; remaining disputes are decided by us against the spec and the result.
+- Before a campaign opens, its proposal is screened (AI first, a person when in doubt); the period starts when it opens. Crowdfunds that break section 4 can be reported and taken down: during the campaign nothing is charged and charges, points and quota are returned; a task already running is only removed from public listings.
 - Backers can download the results during the retention period. Use of and rights in the results follow sections 5 and 6; the proposer must have the right to provide any reference files uploaded.
 
 ## 4. Fair use and prohibited conduct

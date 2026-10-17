@@ -9,8 +9,9 @@ import { modelLabels } from "@/lib/models";
 import { chargeParts } from "@/lib/pricing";
 import { canDownload, canView } from "@/lib/tasks/service";
 import { redirect } from "@/i18n/navigation";
-import { CloseCrowdTask, DisputeActions, InputFiles, PledgePanel, ReviewVote, SpecEditor, TopupForm, type SpecView } from "@/components/crowd";
+import { CloseCrowdTask, DisputeActions, ReportButton, ScreeningActions, ShareButton, InputFiles, PledgePanel, ReviewVote, SpecEditor, TopupForm, type SpecView } from "@/components/crowd";
 import { tally } from "@/lib/crowd/review";
+import { reputation } from "@/lib/crowd/reputation";
 import { normalizeAcceptance, normalizeSpec } from "@/lib/crowd/rules";
 import { pledgeTotals } from "@/lib/crowd/pledges";
 import { activeCards } from "@/lib/crowd/cards";
@@ -30,8 +31,13 @@ type P = { params: Promise<{ locale: string; id: string }> };
 
 export async function generateMetadata({ params }: P) {
   const { id } = await params;
-  const t = await db.task.findUnique({ where: { id }, select: { title: true, isPublic: true } });
-  return t?.isPublic ? { title: t.title } : { title: "Task", robots: { index: false } };
+  const t = await db.task.findUnique({ where: { id }, select: { title: true, isPublic: true, status: true, crowdfund: true, spec: true, goalTwd: true } });
+  if (!t?.isPublic || t.status === "DRAFT") return { title: "Task", robots: { index: false } };
+  if (!t.crowdfund) return { title: t.title };
+  // crowdfunds are shared: give link previews the summary and the goal
+  const summary = (t.spec as { summary?: string } | null)?.summary ?? "";
+  const description = `${summary.slice(0, 150)}${summary.length > 150 ? "…" : ""} · NT$${t.goalTwd ?? 0}`;
+  return { title: t.title, description, openGraph: { title: t.title, description, type: "website" }, twitter: { card: "summary", title: t.title, description } };
 }
 
 export default async function TaskPage({ params }: P) {
@@ -77,6 +83,7 @@ export default async function TaskPage({ params }: P) {
           paid: mine.some((p) => p.status === "CHARGED"),
           topupPledged: task.topupGoalTwd ? (await db.pledge.aggregate({ where: { taskId: task.id, topup: true, status: { in: ["ACTIVE", "CHARGED"] } }, _sum: { amountTwd: true } }))._sum.amountTwd ?? 0 : 0,
           acceptance: normalizeAcceptance(task.acceptance),
+          rep: await reputation(task.userId),
         };
       })()
     : null;
@@ -110,7 +117,17 @@ export default async function TaskPage({ params }: P) {
               <h1 className="text-2xl font-bold sm:text-3xl">{task.title}</h1>
               <StatusBadge status={task.status} />
               {!task.isPublic && <span className="chip">🔒 {t("private")}</span>}
+              {crowd && task.category && <span className="chip">{tc(`categories.${task.category}` as "categories.other")}</span>}
+              {crowd && task.isPublic && <ShareButton title={task.title} />}
             </div>
+            {crowd && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span className={`badge ${crowd.rep.badge === "trusted" ? "bg-accent-soft text-ok" : crowd.rep.badge === "rising" ? "bg-accent-soft text-accent" : "bg-panel-2 text-muted"}`}>{tc(`rep.badge.${crowd.rep.badge}`)}</span>
+                <span>{tc("rep.line", { funded: crowd.rep.funded, decided: crowd.rep.decided, accepted: crowd.rep.accepted, firstPass: crowd.rep.firstPass, backed: crowd.rep.backed })}</span>
+                {crowd.rep.kycLevel != null && <span className="chip">{tc("rep.kyc", { n: crowd.rep.kycLevel })}</span>}
+                {crowd.rep.refunded > 0 && <span className="text-err">{tc("rep.refunded", { n: crowd.rep.refunded })}</span>}
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
               <span>{t("by")} {who}</span>
               <span>{labels[task.model] ?? task.model}</span>
@@ -123,7 +140,21 @@ export default async function TaskPage({ params }: P) {
             </div>
           </header>
 
-          {crowd && (
+          {crowd && task.status === "SCREENING" && (
+            <section className="card space-y-2 p-6">
+              <p className="text-sm text-warn">{tc("screening.pending")}</p>
+              {me?.isAdmin && (
+                <>
+                  {((task.screening as { reasons?: string[] } | null)?.reasons ?? []).length > 0 && (
+                    <p className="text-xs text-muted">{tc("screening.reasons")}: {((task.screening as { reasons?: string[] }).reasons ?? []).join("；")}</p>
+                  )}
+                  <ScreeningActions taskId={task.id} />
+                </>
+              )}
+            </section>
+          )}
+
+          {crowd && task.status !== "SCREENING" && (
             <section className="card space-y-3 p-6">
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
@@ -420,6 +451,11 @@ export default async function TaskPage({ params }: P) {
             </div>
           )}
           {!mayDownload && task.isPublic && !crowd && <p className="card p-5 text-sm text-muted">{t("publicNote")}</p>}
+          {crowd && me && !owner && task.isPublic && (
+            <div className="px-1">
+              <ReportButton taskId={task.id} />
+            </div>
+          )}
         </aside>
       </div>
     </div>

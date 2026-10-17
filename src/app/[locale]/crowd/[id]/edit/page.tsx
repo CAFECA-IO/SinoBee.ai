@@ -5,9 +5,9 @@ import { config } from "@/lib/config";
 import { currentUser } from "@/lib/auth";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Buyer } from "@/components/checkout";
-import { DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecEditor, type SpecView } from "@/components/crowd";
+import { CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecEditor, type SpecView } from "@/components/crowd";
 import { creditLeft } from "@/lib/crowd/proposal";
-import { durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
+import { CATEGORIES, durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +32,15 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
         <Link href="/tasks?mine=1" className="hover:text-accent">{t("title")}</Link>
       </nav>
       <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{task.title}</h1>
-      <p className="mt-1 text-sm text-muted">{t("edit.draft")}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted">
+        <span>{t("edit.draft")}</span>
+        <span className="flex items-center gap-2">
+          {t("form.category")} <CategorySelect taskId={task.id} value={task.category} categories={CATEGORIES} />
+        </span>
+      </div>
+      {(task.screening as { decision?: string } | null)?.decision === "rejected" && (
+        <p className="mt-4 rounded-xl bg-err-soft p-3 text-sm text-err">{t("screening.rejected", { reason: ((task.screening as { reasons?: string[] }).reasons ?? []).join("；") })}</p>
+      )}
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-8">
           <section className="card space-y-3 p-6">

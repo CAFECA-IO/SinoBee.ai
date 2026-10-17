@@ -54,6 +54,10 @@ export async function castVote(userId: string, taskId: string, approve: boolean,
   if (!task?.crowdfund || task.status !== "IN_REVIEW") throw new HttpError(400, "this task is not in review");
   const shares = await paidShares(taskId, userId);
   if (!shares) throw new HttpError(403, "only backers whose pledge was collected can vote");
+  if (config.crowd.voteMinKyc > 0) {
+    const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { kycLevel: true } });
+    if ((u.kycLevel ?? 0) < config.crowd.voteMinKyc) throw new HttpError(403, `voting needs CAFECA KYC level ${config.crowd.voteMinKyc} or higher`);
+  }
   const text = reason?.trim().slice(0, 2000) || null;
   if (!approve && !text) throw new HttpError(400, "tell the agent what is missing (a reason is required to reject)");
   const key = { taskId_userId_round: { taskId, userId, round: task.reworks } };

@@ -166,3 +166,7 @@ export function normalizeAcceptance(v: unknown): Acceptance | null {
     .map((c) => ({ criterion: String(c.criterion).slice(0, 500), passed: c.passed === true, evidence: typeof c.evidence === "string" ? c.evidence.slice(0, 1000) : undefined }));
   return { criteria, summary: typeof o.summary === "string" ? o.summary.slice(0, 4000) : undefined };
 }
+
+export const CATEGORIES = ["research", "data", "writing", "code", "translation", "media", "other"] as const;
+export type Category = (typeof CATEGORIES)[number];
+export const isCategory = (v: unknown): v is Category => typeof v === "string" && (CATEGORIES as readonly string[]).includes(v);

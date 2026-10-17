@@ -5,6 +5,7 @@ import { redirect } from "@/i18n/navigation";
 import { CrowdNewForm } from "@/components/crowd";
 import { modelsForClient } from "@/lib/public-config";
 import { skillOption } from "@/lib/skill-option";
+import { CATEGORIES } from "@/lib/crowd/rules";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const t = await getTranslations({ locale: (await params).locale, namespace: "crowd" });
@@ -32,7 +33,7 @@ export default async function NewCrowdPage({ params, searchParams }: { params: P
         ))}
       </ol>
       <div className="mt-10">
-        <CrowdNewForm models={models} skill={skill} />
+        <CrowdNewForm models={models} skill={skill} categories={CATEGORIES} />
       </div>
     </div>
   );

@@ -326,6 +326,8 @@ enum TaskKind {
 enum TaskStatus {
   /// crowdfunding proposal being written (spec dialogue, reference files)
   DRAFT
+  /// submitted for funding: waiting for the content screening (AI, then an admin when needed)
+  SCREENING
   /// crowdfunding open: pledges are collected (cards are bound, not charged)
   FUNDING
   /// goal reached: card pledges are being charged (retries during the grace period)
@@ -434,6 +436,12 @@ model Task {
   settledAt         DateTime?
   /// a spec revision while funding: backers may withdraw until then, charging waits for it
   exitUntil         DateTime?
+  /// research | data | writing | code | translation | media | other
+  category          String?
+  /// screening of the proposal before it opens: {decision, reasons, by: "ai" | "admin", at}
+  screening         Json?
+  /// set when an admin takes the campaign down after a report
+  takenDownAt       DateTime?
   /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
   stretchUnlocked   Int       @default(0)
   /// top-up round after the budget ran out: goal (whole TWD) and deadline; pledges wait until it is met
@@ -451,6 +459,7 @@ model Task {
   @@index([status, createdAt])
   @@index([userId, createdAt])
   @@index([isPublic, createdAt])
+  @@index([crowdfund, status, deadlineAt])
 }
 
 model TaskEvent {

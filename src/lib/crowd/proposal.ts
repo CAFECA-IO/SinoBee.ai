@@ -8,7 +8,7 @@ import { createPayment, type Buyer } from "../payments";
 import { deleteObject, putObject } from "../storage";
 import { addDays } from "../retention";
 import { postStatus } from "./agent";
-import { feeRate, fileCost, minimumGoal, normalizeSpec, sharePrice, specGaps, specMarkdown, type Spec } from "./rules";
+import { CATEGORIES, feeRate, fileCost, minimumGoal, normalizeSpec, sharePrice, specGaps, specMarkdown, type Spec } from "./rules";
 import type { Prisma, Task } from "@/generated/prisma/client";
 
 /**
@@ -22,6 +22,7 @@ export const DraftInput = z.object({
   description: z.string().trim().min(10).max(20_000),
   model: z.string().min(3).max(200),
   skillVersionId: z.string().optional().nullable(),
+  category: z.enum(CATEGORIES).optional(),
 });
 
 export async function createDraft(userId: string, input: z.infer<typeof DraftInput>) {
@@ -41,6 +42,7 @@ export async function createDraft(userId: string, input: z.infer<typeof DraftInp
       // crowdfunded tasks are always public: anyone can back them
       isPublic: true,
       title: input.title,
+      category: input.category ?? null,
       prompt: input.description,
       model: input.model,
       skillVersionId: input.skillVersionId || null,
@@ -161,25 +163,29 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
   if (goal % sharePrice() !== 0) throw new HttpError(400, `the goal must be a multiple of ${sharePrice()} TWD`);
   if (goal < min) throw new HttpError(400, `the goal must be at least ${min} TWD (P90 estimate plus the service fee)`);
   const now = new Date();
+  // a proposal sent back by the screening keeps its description (the prompt is rebuilt from it)
+  const description = t.prompt.startsWith(`# ${t.title}\n\n`) && t.prompt.includes("\n## Summary") ? t.prompt.split("\n## Summary")[0].replace(/^# .*\n\n/, "") : t.prompt;
   const r = await db.task.updateMany({
     where: { id: taskId, status: "DRAFT" },
     data: {
-      status: "FUNDING",
+      status: "SCREENING",
       goalTwd: goal,
       durationDays: input.durationDays,
-      deadlineAt: addDays(now, input.durationDays),
+      deadlineAt: null,
       startEarly: input.startEarly,
       serviceFeeRate: rate,
-      fundingStartedAt: now,
       isPublic: true,
-      prompt: specMarkdown(t.title, t.prompt, spec as Spec),
+      prompt: specMarkdown(t.title, description, spec as Spec),
     },
   });
   if (r.count !== 1) throw new HttpError(409, "the proposal changed, reload the page");
+  await db.specRevision.deleteMany({ where: { taskId } });
   await db.specRevision.create({ data: { taskId, version: 1, spec: spec as unknown as Prisma.InputJsonValue, note: "opened" } });
   await db.task.update({ where: { id: taskId }, data: { specVersion: 1 } });
-  await db.taskEvent.create({ data: { taskId, type: "funding.opened", message: `Crowdfunding opened: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate } } });
-  await postStatus(taskId, `眾籌開始：目標 NT$${goal}，期限 ${input.durationDays} 天。Crowdfunding is open: goal NT$${goal}, ${input.durationDays} days.`);
+  await db.taskEvent.create({ data: { taskId, type: "funding.submitted", message: `Submitted for crowdfunding: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate } } });
+  // the period starts when the campaign opens (now, or after an admin review)
+  const { screenProposal } = await import("./screening");
+  await screenProposal(taskId);
   return db.task.findUniqueOrThrow({ where: { id: taskId } });
 }
 
@@ -223,4 +229,12 @@ export async function reviseSpec(userId: string, taskId: string, raw: unknown, n
     { notifyTitle: "規格已修訂 Spec revised", type: "crowd.revised" },
   );
   return db.task.findUniqueOrThrow({ where: { id: taskId } });
+}
+
+export const DraftUpdate = z.object({ title: z.string().trim().min(3).max(120).optional(), category: z.enum(CATEGORIES).nullable().optional() });
+
+/** Rename or recategorise a draft */
+export async function updateDraft(userId: string, taskId: string, input: z.infer<typeof DraftUpdate>) {
+  await ownDraft(userId, taskId);
+  return db.task.update({ where: { id: taskId }, data: { ...(input.title ? { title: input.title } : {}), ...(input.category !== undefined ? { category: input.category } : {}) } });
 }

@@ -19,7 +19,8 @@
     "tools": "Tools",
     "shares": "Shares",
     "tryAgent": "Try online",
-    "menu": "Menu"
+    "menu": "Menu",
+    "crowd": "Crowdfund"
   },
   "footer": {
     "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",
@@ -277,7 +278,8 @@
     "CHARGING": "Charging",
     "UNFUNDED": "Not funded",
     "IN_REVIEW": "In review",
-    "DISPUTED": "Disputed"
+    "DISPUTED": "Disputed",
+    "SCREENING": "Screening"
   },
   "comments": {
     "title": "Discussion",
@@ -467,7 +469,8 @@
       "payments": "Payments & refunds",
       "settings": "Settings",
       "overview": "Overview",
-      "disputes": "Crowdfunding disputes"
+      "disputes": "Crowdfunding disputes",
+      "screening": "Proposal review"
     },
     "st": {
       "enabled": "Enabled",
@@ -1229,7 +1232,8 @@
       "model": "Model",
       "useSkill": "Use the skill {skill}",
       "create": "Create proposal",
-      "creating": "Creating…"
+      "creating": "Creating…",
+      "category": "Category"
     },
     "edit": {
       "title": "Crowdfunding proposal",
@@ -1430,6 +1434,63 @@
       "open": "Open top-up round",
       "round": "Top-up round: NT${pledged} of NT${goal} pledged",
       "ends": "Ends"
+    },
+    "categories": {
+      "research": "Research",
+      "data": "Data",
+      "writing": "Writing",
+      "code": "Code & tools",
+      "translation": "Translation",
+      "media": "Media",
+      "other": "Other"
+    },
+    "explore": {
+      "title": "Crowdfunded tasks",
+      "lead": "Tasks people fund together for SinoBee to do. NT${price} a share, nothing charged unless the goal is reached, leftover budget returned as points.",
+      "open": "Open",
+      "funded": "Funded",
+      "sort": {
+        "ending": "Ending soon",
+        "almost": "Almost funded",
+        "popular": "Popular",
+        "newest": "Newest"
+      },
+      "all": "All categories",
+      "search": "Search task names",
+      "go": "Search",
+      "empty": "No matching crowdfunds.",
+      "daysLeft": "{n} days left",
+      "hoursLeft": "{n} hours left",
+      "backers": "{n} backers"
+    },
+    "rep": {
+      "badge": {
+        "new": "New proposer",
+        "rising": "Has delivered",
+        "trusted": "Trusted proposer"
+      },
+      "line": "Funded {funded}/{decided} ended · accepted {accepted} ({firstPass} first time) · backed {backed} tasks",
+      "kyc": "KYC L{n}",
+      "refunded": "{n} platform refunds"
+    },
+    "share": {
+      "share": "Share",
+      "copied": "Link copied"
+    },
+    "report": {
+      "report": "Report",
+      "reason": "Which rules does this crowdfund break?",
+      "submit": "Send report",
+      "done": "Thanks, the platform will look at it."
+    },
+    "screening": {
+      "pending": "Under review: the campaign opens as soon as it is approved, and its period starts then.",
+      "rejected": "Sent back: {reason}. Fix it and submit again.",
+      "reasons": "Review notes",
+      "approve": "Approve and open",
+      "sendBack": "Send back",
+      "note": "Note for the proposer",
+      "confirm": "Submit this decision?"
     }
   }
 }

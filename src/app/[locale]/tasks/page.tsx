@@ -44,7 +44,10 @@ export default async function TasksPage({ params, searchParams }: { params: Prom
       </div>
       {!mine && (
         <section className="mt-8 space-y-3">
-          <h2 className="h3">{tc("list.funding")}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="h3">{tc("list.funding")}</h2>
+            <Link href="/crowd" className="text-sm text-accent">{tc("explore.title")} →</Link>
+          </div>
           <p className="text-sm text-muted">{tc("lead", { price: sharePrice() })}</p>
           {funding.length === 0 && <p className="card p-6 text-center text-sm text-muted">{tc("list.emptyFunding")}</p>}
           <div className="grid gap-3 sm:grid-cols-2">

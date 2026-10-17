@@ -1,3 +1,4 @@
+import { ScreeningActions } from "@/components/crowd";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { group: "start", items: [{ id: "overview", icon: "grid" }] },
-  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }] },
+  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }, { id: "screening", icon: "eye", count: "screening" }] },
   { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
   { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
@@ -51,6 +52,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else if (tab === "storage") body = <StorageStatus />;
   else if (tab === "reports") body = <Reports />;
   else if (tab === "disputes") body = <Disputes />;
+  else if (tab === "screening") body = <Screening />;
   else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
   else if (tab === "payments") body = <Payments status={sp.status} />;
   else if (tab === "prices") body = <Prices />;
@@ -229,11 +231,40 @@ async function Reports() {
         <div key={r.id} className="card space-y-2 p-5 text-sm">
           <div className="flex flex-wrap items-center gap-3">
             <span className="chip">{r.targetType}</span>
-            {r.targetType === "share" ? <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link> : <ToolLink id={r.targetId} />}
+            {r.targetType === "share" ? (
+              <Link href={`/s/${r.targetId}`} className="font-mono text-accent">/s/{r.targetId}</Link>
+            ) : r.targetType === "task" ? (
+              <Link href={`/tasks/${r.targetId}`} className="font-mono text-accent">/tasks/{r.targetId}</Link>
+            ) : (
+              <ToolLink id={r.targetId} />
+            )}
             <span className="text-xs text-muted">@{r.reporter.handle ?? r.reporter.account} · <LocalDate value={r.createdAt} /></span>
           </div>
           <p>{r.reason}</p>
           <ReportActions reportId={r.id} targetType={r.targetType} targetId={r.targetId} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Crowdfunding proposals the AI screening (or manual mode) left for an admin */
+async function Screening() {
+  const t = await getTranslations("admin");
+  const tc = await getTranslations("crowd.screening");
+  const rows = await db.task.findMany({ where: { status: "SCREENING" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
+  if (!rows.length) return <p className="text-muted">{t("empty")}</p>;
+  return (
+    <div className="space-y-3">
+      {rows.map((r) => (
+        <div key={r.id} className="card space-y-2 p-5 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+            <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+          </div>
+          <p className="line-clamp-4 whitespace-pre-wrap text-muted">{r.prompt.slice(0, 800)}</p>
+          {((r.screening as { reasons?: string[] } | null)?.reasons ?? []).length > 0 && <p className="text-xs text-warn">{tc("reasons")}: {((r.screening as { reasons?: string[] }).reasons ?? []).join("；")}</p>}
+          <ScreeningActions taskId={r.id} />
         </div>
       ))}
     </div>

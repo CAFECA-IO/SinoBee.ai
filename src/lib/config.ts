@@ -285,6 +285,16 @@ export const config = {
     get topupDays() {
       return svNum("crowd.topupDays");
     },
+    get screening() {
+      const v = sv("crowd.screening");
+      return (v === "manual" || v === "off" ? v : "ai") as "ai" | "manual" | "off";
+    },
+    get pledgeMinKyc() {
+      return svNum("crowd.pledgeMinKyc");
+    },
+    get voteMinKyc() {
+      return svNum("crowd.voteMinKyc");
+    },
   },
 
   /** Model relay for subscribers (/api/v1/llm/*); platform keys are settings (apiKeys.*) */

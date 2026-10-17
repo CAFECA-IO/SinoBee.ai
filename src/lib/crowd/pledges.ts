@@ -74,6 +74,10 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
   if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, "this task is not taking pledges");
   if (task.status === "FUNDING" && task.deadlineAt && task.deadlineAt <= new Date()) throw new HttpError(400, "crowdfunding has ended");
   if (!(SHARE_OPTIONS as readonly number[]).includes(input.shares)) throw new HttpError(400, "shares must be 1, 5 or 20");
+  if (config.crowd.pledgeMinKyc > 0) {
+    const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { kycLevel: true } });
+    if ((u.kycLevel ?? 0) < config.crowd.pledgeMinKyc) throw new HttpError(403, `pledging needs CAFECA KYC level ${config.crowd.pledgeMinKyc} or higher`);
+  }
   const amount = input.shares * sharePrice();
   let cardId: string | null = null;
   let usageLedgerId: string | null = null;

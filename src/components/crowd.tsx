@@ -17,8 +17,10 @@ async function send(url: string, method: string, body?: unknown) {
 
 // ───────────── new proposal ─────────────
 
-export function CrowdNewForm({ models, skill }: { models: ModelOpt[]; skill: { id: string; label: string } | null }) {
+export function CrowdNewForm({ models, skill, categories }: { models: ModelOpt[]; skill: { id: string; label: string } | null; categories: readonly string[] }) {
   const t = useTranslations("crowd.form");
+  const tc = useTranslations("crowd.categories");
+  const [category, setCategory] = useState(categories[0] ?? "other");
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -34,7 +36,7 @@ export function CrowdNewForm({ models, skill }: { models: ModelOpt[]; skill: { i
         setBusy(true);
         setErr("");
         try {
-          const r = await postJson<{ task: { id: string } }>("/api/crowd", { title, description, model, skillVersionId: useSkill && skill ? skill.id : null });
+          const r = await postJson<{ task: { id: string } }>("/api/crowd", { title, description, model, category, skillVersionId: useSkill && skill ? skill.id : null });
           router.push(`/crowd/${r.task.id}/edit`);
         } catch (e) {
           setErr((e as Error).message);
@@ -50,6 +52,14 @@ export function CrowdNewForm({ models, skill }: { models: ModelOpt[]; skill: { i
         <label className="label">{t("description")}</label>
         <textarea className="input min-h-40" value={description} onChange={(e) => setDescription(e.target.value)} minLength={10} maxLength={20000} required />
         <p className="mt-1 text-xs text-muted">{t("descriptionHint")}</p>
+      </div>
+      <div>
+        <label className="label">{t("category")}</label>
+        <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
+          {categories.map((c) => (
+            <option key={c} value={c}>{tc(c as "other")}</option>
+          ))}
+        </select>
       </div>
       <div>
         <label className="label">{t("model")}</label>
@@ -705,5 +715,105 @@ export function TopupForm({ taskId, price }: { taskId: string; price: number }) 
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
       <button className="btn-primary w-full">{t("open")}</button>
     </form>
+  );
+}
+
+// ───────────── P2: sharing, reports, screening, categories ─────────────
+
+export function ShareButton({ title }: { title: string }) {
+  const t = useTranslations("crowd.share");
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="btn-ghost !py-1.5 text-sm"
+      onClick={async () => {
+        const url = window.location.href.split("?")[0];
+        if (navigator.share) {
+          await navigator.share({ title, url }).catch(() => undefined);
+          return;
+        }
+        await navigator.clipboard.writeText(url).catch(() => undefined);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+    >
+      {copied ? t("copied") : t("share")}
+    </button>
+  );
+}
+
+export function ReportButton({ taskId }: { taskId: string }) {
+  const t = useTranslations("crowd.report");
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [state, setState] = useState<"" | "busy" | "done">("");
+  const [err, setErr] = useState("");
+  if (state === "done") return <p className="text-xs text-muted">{t("done")}</p>;
+  if (!open) return <button className="text-xs text-muted hover:text-err" onClick={() => setOpen(true)}>{t("report")}</button>;
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setState("busy");
+        setErr("");
+        try {
+          await send("/api/reports", "POST", { targetType: "task", targetId: taskId, reason });
+          setState("done");
+        } catch (e) {
+          setErr((e as Error).message);
+          setState("");
+        }
+      }}
+    >
+      <textarea className="input min-h-16" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("reason")} minLength={3} maxLength={2000} required />
+      {err && <p className="text-sm text-err">{err}</p>}
+      <button className="btn-ghost w-full !py-1.5 text-sm text-err" disabled={state === "busy"}>{t("submit")}</button>
+    </form>
+  );
+}
+
+export function ScreeningActions({ taskId }: { taskId: string }) {
+  const t = useTranslations("crowd.screening");
+  const router = useRouter();
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const decide = async (approve: boolean) => {
+    if (!confirm(t("confirm"))) return;
+    setErr("");
+    try {
+      await send(`/api/admin/crowd/${taskId}/screening`, "POST", { approve, note: note || undefined });
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input className="input min-w-48 flex-1" placeholder={t("note")} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
+      <button className="btn-primary !py-2" onClick={() => decide(true)}>{t("approve")}</button>
+      <button className="btn-ghost !py-2 text-err" onClick={() => decide(false)}>{t("sendBack")}</button>
+      {err && <p className="w-full text-sm text-err">{err}</p>}
+    </div>
+  );
+}
+
+export function CategorySelect({ taskId, value, categories }: { taskId: string; value: string | null; categories: readonly string[] }) {
+  const t = useTranslations("crowd");
+  const router = useRouter();
+  return (
+    <select
+      className="input w-auto"
+      value={value ?? ""}
+      onChange={async (e) => {
+        await send(`/api/crowd/${taskId}/draft`, "PATCH", { category: e.target.value || null });
+        router.refresh();
+      }}
+    >
+      <option value="">—</option>
+      {categories.map((c) => (
+        <option key={c} value={c}>{t(`categories.${c}` as "categories.other")}</option>
+      ))}
+    </select>
   );
 }
