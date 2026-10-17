@@ -3,7 +3,7 @@ import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { createCardBinding } from "../oen";
-import { mockAllowed } from "../payment-mode";
+import { mockAllowed, simulatedCard, simulatedPayments } from "../payment-mode";
 import { open, seal } from "../settings/box";
 
 /**
@@ -23,7 +23,8 @@ import { open, seal } from "../settings/box";
 export async function startBinding(userId: string, opts: { returnTo: string; email?: string }) {
   const back = `${config.origin}${opts.returnTo.startsWith("/") ? opts.returnTo : "/account"}`;
   const sandbox = config.testMode;
-  if (mockAllowed()) {
+  // development mock, or test mode without Oen test credentials: SinoBee's own test binding page
+  if (simulatedPayments()) {
     const bindingId = `mock_${randomBytes(12).toString("hex")}`;
     const card = await db.savedCard.create({ data: { userId, bindingId, sandbox } });
     return { id: card.id, url: `${config.origin}/pay/mock-card/${card.id}?back=${encodeURIComponent(opts.returnTo)}` };
@@ -100,11 +101,12 @@ export async function removeCard(userId: string, cardId: string) {
   await db.savedCard.update({ where: { id: cardId }, data: { status: "removed", tokenSealed: null, removedAt: new Date() } });
 }
 
-/** Mock binding page (development): pretend the buyer finished 3-D Secure */
+/** Simulated binding (development mock or the built-in test gateway): pretend the buyer finished 3-D Secure */
 export async function completeMockBinding(userId: string, cardId: string, ok: boolean, behaviour: "ok" | "decline" = "ok") {
-  if (!mockAllowed()) throw new HttpError(404, "not found");
   const card = await db.savedCard.findUnique({ where: { id: cardId } });
-  if (!card || card.userId !== userId) throw new HttpError(404, "card not found");
+  if (!card || card.userId !== userId || !simulatedCard(card)) throw new HttpError(404, "card not found");
+  // production builds: only test-mode cards may be simulated
+  if (!mockAllowed() && !card.sandbox) throw new HttpError(404, "not found");
   return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "4242" : undefined, customId: userId });
 }
 

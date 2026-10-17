@@ -3,7 +3,7 @@ import { config } from "./config";
 import { HttpError } from "./errors";
 import { notify } from "./notify";
 import { audit } from "./roles";
-import { mockAllowed } from "./payment-mode";
+import { mockAllowed, simulatedCard } from "./payment-mode";
 export { mockAllowed };
 import { CARD_ERRORS, DEAD, OenError, PAID, REFUNDED, chargeToken, getTransaction, orderTransactions, refundTransaction, type OenInvoice, type OenProduct, type OenTransaction } from "./oen";
 import { addPeriod, assertPlanBuyable, cancelPeriod } from "./subscriptions";
@@ -74,7 +74,7 @@ export async function createPayment(p: { userId: string; purpose: PaymentPurpose
   if (p.purpose === "SUBSCRIPTION") assertPlanBuyable(plan && { active: plan.active, feeTwd: Number(plan.feeTwd) });
   const { usableCard, cardToken } = await import("./crowd/cards");
   const card = await usableCard(p.userId, p.cardId);
-  const mock = mockAllowed() || card.bindingId.startsWith("mock_");
+  const mock = simulatedCard(card);
   const pay = await db.payment.create({
     data: {
       userId: p.userId,

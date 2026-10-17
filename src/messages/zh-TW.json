@@ -1112,7 +1112,7 @@
     "addAnother": "綁定其他信用卡",
     "bindNote": "綁卡在 Oen 的安全頁面完成（3-D 驗證），不會扣款；SinoBee.ai 不會取得你的卡號。",
     "bindingPending": "等待 Oen 確認綁卡…",
-    "testCards": "測試模式：請綁定 Oen 測試卡，不會產生真實扣款。",
+    "testCards": "測試模式：使用測試金流，不會產生真實扣款。",
     "charging": "扣款中…"
   },
   "subscribe": {
@@ -1363,9 +1363,10 @@
       "confirmRemove": "確定移除這張卡？"
     },
     "mock": {
-      "title": "模擬綁卡（開發用）",
+      "title": "測試綁卡",
+      "note": "測試金流：這是 SinoBee 的模擬綁卡頁，不會儲存真實卡片，也不會產生任何扣款。",
       "ok": "完成綁卡",
-      "decline": "綁定會被拒絕扣款的卡",
+      "decline": "綁定會被拒絕扣款的測試卡",
       "fail": "綁卡失敗"
     },
     "list": {

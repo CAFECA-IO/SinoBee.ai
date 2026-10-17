@@ -1,5 +1,4 @@
 import { ScreeningActions, ScreeningResult } from "@/components/crowd";
-import { TestRibbon } from "@/components/test-ribbon";
 import { TestModeSwitch } from "@/components/test-mode-switch";
 import { ChecklistEditor } from "@/components/checklist-editor";
 import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
@@ -66,7 +65,6 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else body = <Audit />;
   return (
     <div className="container-x grid grid-cols-1 gap-8 py-10 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <TestRibbon />
       <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
         <div className="mb-4 flex items-center gap-2">
           <Icon name="shield" />

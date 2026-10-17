@@ -1112,7 +1112,7 @@
     "addAnother": "Bind another card",
     "bindNote": "Binding happens on Oen's secure page (3-D Secure) and charges nothing; SinoBee.ai never sees your card number.",
     "bindingPending": "Waiting for Oen to confirm the card…",
-    "testCards": "Test mode: bind an Oen test card; nothing is really charged.",
+    "testCards": "Test mode: test payments only; nothing is really charged.",
     "charging": "Charging…"
   },
   "subscribe": {
@@ -1363,10 +1363,11 @@
       "confirmRemove": "Remove this card?"
     },
     "mock": {
-      "title": "Mock card binding (development)",
-      "ok": "Save the card",
-      "decline": "Save a card that will be declined",
-      "fail": "Fail the binding"
+      "title": "Test card binding",
+      "note": "Test payments: this is SinoBee's simulated binding page; no real card is saved and nothing is ever charged.",
+      "ok": "Bind the card",
+      "decline": "Bind a test card that gets declined",
+      "fail": "Binding fails"
     },
     "list": {
       "funding": "Crowdfunding now",

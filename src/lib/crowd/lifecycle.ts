@@ -2,7 +2,7 @@ import { db } from "../db";
 import { config } from "../config";
 import { notify } from "../notify";
 import { addDays } from "../retention";
-import { mockAllowed } from "../payment-mode";
+import { simulatedCard } from "../payment-mode";
 import { CARD_ERRORS, OenError, chargeToken, orderTransactions, PAID, refundTransaction, type OenInvoice, type OenProduct } from "../oen";
 import type { Payment, Task } from "@/generated/prisma/client";
 import { postStatus } from "./agent";
@@ -143,7 +143,7 @@ export async function chargeBacker(taskId: string, userId: string) {
   const shares = pledges.reduce((a, p) => a + p.shares, 0);
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const buyer = (user.billing ?? null) as { name?: string; email?: string; invoice?: OenInvoice } | null;
-  const mock = mockAllowed() || card.bindingId.startsWith("mock_");
+  const mock = simulatedCard(card);
   const pay = await db.payment.create({
     data: {
       userId, taskId, purpose: "CROWD_PLEDGE", provider: mock ? "MOCK" : "OEN", sandbox: card.sandbox, cardId: card.id,

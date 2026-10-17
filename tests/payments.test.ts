@@ -137,6 +137,35 @@ test("test mode: cards and payments go to the testing environment, stay apart fr
   }
 });
 
+test("test mode without Oen test credentials: the built-in test gateway binds and charges, no error, nothing reaches Oen", async () => {
+  const saved = { m: process.env.OEN_MERCHANT_ID, t: process.env.OEN_API_TOKEN };
+  process.env.SITE_TEST_MODE = "1";
+  delete process.env.OEN_MERCHANT_ID;
+  delete process.env.OEN_API_TOKEN;
+  const calls = oen.calls.length;
+  try {
+    const b = await cards.startBinding(admin.id, { returnTo: "/crowd/new" });
+    assert.match(b.url, /\/pay\/mock-card\//, "SinoBee's own test binding page");
+    const r = await cards.completeMockBinding(admin.id, b.id, true);
+    assert.equal(r.status, "active");
+    const c = await pay.createPayment({ userId: admin.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, cardId: b.id, buyer });
+    assert.equal(c.status, "CONFIRMED");
+    assert.equal(c.provider, "MOCK");
+    assert.equal(c.sandbox, true);
+    const bad = await cards.startBinding(admin.id, { returnTo: "/crowd/new" });
+    await cards.completeMockBinding(admin.id, bad.id, true, "decline");
+    await assert.rejects(pay.createPayment({ userId: admin.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, cardId: bad.id, buyer }), /declined/);
+    assert.equal(oen.calls.length, calls, "no Oen call at all");
+    // test cards stay test cards
+    process.env.SITE_TEST_MODE = "0";
+    await assert.rejects(pay.createPayment({ userId: admin.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, cardId: b.id, buyer }), /test card cannot be used/);
+  } finally {
+    process.env.OEN_MERCHANT_ID = saved.m;
+    process.env.OEN_API_TOKEN = saved.t;
+    delete process.env.SITE_TEST_MODE;
+  }
+});
+
 test("refund: once per transaction; subscription refund cancels the period and later ones move up", async () => {
   const st0 = await subs.subscriptionState(alice.id);
   const current = await db.subscription.findUniqueOrThrow({ where: { id: st0.current!.id } });
