@@ -770,6 +770,9 @@
       "note": "Note",
       "notFound": "Price not found; added at 0, fill it in by hand",
       "checkPrices": "Added to Model prices (withdrawn). Check them in Model prices, then offer them."
+    },
+    "screening": {
+      "self": "self-paid"
     }
   },
   "hubApi": {
@@ -918,7 +921,9 @@
       "periods": "Periods and service fees",
       "days": "{days} days",
       "noFee": "No fee",
-      "periodNote": "Results are kept {days} days for the backers."
+      "periodNote": "Results are kept {days} days for the backers.",
+      "self": "Pay in full yourself",
+      "selfNote": "no crowdfunding, no fee; charged when the screening passes"
     }
   },
   "account": {
@@ -1334,8 +1339,8 @@
       }
     },
     "open": {
-      "title": "Submit the crowdfund",
-      "duration": "Period",
+      "title": "Submit the proposal",
+      "duration": "Crowdfunding period or pay yourself",
       "days": "{days} days",
       "fee": "{rate}% service fee",
       "free": "No service fee",
@@ -1349,7 +1354,16 @@
       "confirm": "The spec cannot be changed after submitting. Submit for screening?",
       "goalAuto": "Goal NT${goal} (AI estimate + service fee)",
       "more": "More options",
-      "afterSubmit": "AI checks it against the public screening checklist; it opens for pledges when every item passes, and the period starts then."
+      "afterSubmit": "AI checks it against the public screening checklist; it opens for pledges when every item passes, and the period starts then.",
+      "self": "Pay in full yourself",
+      "selfHint": "No crowdfunding · no service fee",
+      "selfAuto": "You pay NT${goal} once (the AI's conservative estimate, no service fee); your card is charged as soon as the screening passes and the task starts.",
+      "selfPublic": "Make the task and results public",
+      "selfPublicOn": "The task, its progress and results are shown on the crowdfunding pages; nobody else can pledge.",
+      "selfPublicOff": "Only you can see the task, its progress and results.",
+      "submitSelf": "Submit and pay",
+      "confirmSelf": "The spec cannot be changed after submitting. When the screening passes, NT${amount} is charged to the chosen card at once. Submit?",
+      "afterSubmitSelf": "The AI screens it against the public checklist; if it passes your card is charged and the task starts, otherwise nothing is charged."
     },
     "panel": {
       "goal": "Goal",
@@ -1396,7 +1410,12 @@
       "back": "Back this task",
       "retention": "Crowdfunded results are kept {days} days; every backer whose pledge was collected can download them.",
       "usePoints": "Pay part with points ({n} available)",
-      "reviewNote": "Finished; backers are reviewing it."
+      "reviewNote": "Finished; backers are reviewing it.",
+      "self": "Paid in full by the proposer",
+      "selfNote": "Paid in full by the proposer; not open for pledges.",
+      "selfCharging": "Screening passed; charging the proposer's card.",
+      "selfPaid": "Paid by the proposer; not open for pledges.",
+      "selfFailed": "The card charge did not go through; the task did not run."
     },
     "account": {
       "points": "Platform points",

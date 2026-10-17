@@ -72,7 +72,9 @@ export type PledgeArgs = Omit<z.infer<typeof PledgeInput>, "usePoints"> & { useP
 
 export async function pledge(userId: string, taskId: string, input: PledgeArgs) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task || !task.crowdfund || !task.isPublic) throw new HttpError(404, "task not found");
+  if (!task || !task.crowdfund || (!task.isPublic && task.userId !== userId)) throw new HttpError(404, "task not found");
+  // a self-funded task is paid by its proposer alone (they may still add a top-up)
+  if (task.selfFunded && task.userId !== userId) throw new HttpError(400, "this task is paid in full by its proposer");
   if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, "this task is not taking pledges");
   if (task.status === "FUNDING" && task.deadlineAt && task.deadlineAt <= new Date()) throw new HttpError(400, "crowdfunding has ended");
   if (!(SHARE_OPTIONS as readonly number[]).includes(input.shares)) throw new HttpError(400, "shares must be 1, 5 or 20");

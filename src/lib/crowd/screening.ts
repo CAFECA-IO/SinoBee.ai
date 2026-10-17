@@ -91,11 +91,17 @@ export async function startFunding(taskId: string, screening: Screening) {
   const now = new Date();
   const r = await db.task.updateMany({
     where: { id: taskId, status: { in: ["SCREENING"] } },
-    data: { status: "FUNDING", deadlineAt: addDays(now, t.durationDays ?? 7), fundingStartedAt: now, screenAt: null, screening: screening as unknown as Prisma.InputJsonValue },
+    // self-funded: no period, the proposer's card is charged right away
+    data: { status: "FUNDING", deadlineAt: t.selfFunded ? now : addDays(now, t.durationDays ?? 7), fundingStartedAt: now, screenAt: null, screening: screening as unknown as Prisma.InputJsonValue },
   });
   if (r.count !== 1) return;
   if (screening.by === "ai")
     await db.taskEvent.create({ data: { taskId, type: "screening.passed", message: `Screening passed: ${screening.passed}/${screening.total} checklist items met, 0 not met (v${screening.checklistVersion})`, data: { passed: screening.passed, failed: 0, total: screening.total, v: screening.checklistVersion } } });
+  if (t.selfFunded) {
+    const { startSelfFunded } = await import("./lifecycle");
+    await startSelfFunded(taskId, now);
+    return;
+  }
   await db.taskEvent.create({ data: { taskId, type: "funding.opened", message: `Crowdfunding opened: goal ${t.goalTwd} TWD, ${t.durationDays} days`, data: { goal: t.goalTwd, by: screening.by } } });
   await postStatus(taskId, `眾籌開始：目標 NT$${t.goalTwd}，期限 ${t.durationDays} 天。Crowdfunding is open: goal NT$${t.goalTwd}, ${t.durationDays} days.`, { notifyTitle: "眾籌開始 Crowdfunding open", type: "crowd.open" });
 }
@@ -128,7 +134,9 @@ export async function screenProposal(taskId: string) {
     await notify(task.userId, {
       type: "crowd.screening_passed",
       title: `提案通過審核 Approved: ${task.title}`,
-      body: `${base.passed} 項審核項目全部符合，眾籌已開始。All ${base.passed} checklist items met; the campaign is open.`,
+      body: task.selfFunded
+        ? `${base.passed} 項審核項目全部符合，已向你的信用卡請款，任務即將執行。All ${base.passed} checklist items met; your card is being charged and the task will run.`
+        : `${base.passed} 項審核項目全部符合，眾籌已開始。All ${base.passed} checklist items met; the campaign is open.`,
       link: `/tasks/${taskId}`,
     }).catch(() => undefined);
     return;

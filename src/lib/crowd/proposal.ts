@@ -4,7 +4,8 @@ import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { offeredModel, pricingSettings } from "../models";
-import { createPayment, type Buyer } from "../payments";
+import { cleanBuyer, createPayment, type Buyer } from "../payments";
+import { BuyerInput } from "../buyer-schema";
 import { deleteObject, putObject } from "../storage";
 import { addDays } from "../retention";
 import { postStatus } from "./agent";
@@ -169,22 +170,41 @@ export async function saveSpec(userId: string, taskId: string, spec: unknown) {
 }
 
 export const OpenInput = z.object({
-  durationDays: z.coerce.number().int(),
+  /** "crowd": a crowdfunding period; "self": the proposer pays the whole goal (charged when the screening passes) */
+  mode: z.enum(["crowd", "self"]).default("crowd"),
+  durationDays: z.coerce.number().int().optional(),
   goalTwd: z.coerce.number().int().positive().optional(),
   startEarly: z.boolean().default(false),
+  /** self: the saved card to charge, the e-invoice buyer, and whether the task and its results are public */
+  cardId: z.string().optional(),
+  buyer: BuyerInput.optional(),
+  isPublic: z.boolean().default(true),
 });
 
-/** Open the campaign: spec complete, proposal fee paid, goal ≥ the minimum for the chosen period */
-export async function openFunding(userId: string, taskId: string, input: z.infer<typeof OpenInput>) {
+/**
+ * Submit the proposal for screening: spec complete, proposal fee paid. Crowdfunding: goal ≥ the minimum for the chosen
+ * period, the period starts when the screening passes. Self-funded: the goal is the P90 estimate (no service fee) and
+ * the proposer's card is charged in full when the screening passes; nobody else can pledge.
+ */
+export async function openFunding(userId: string, taskId: string, raw: z.input<typeof OpenInput>) {
+  const input = OpenInput.parse(raw);
+  const self = input.mode === "self";
   const t = await ownDraft(userId, taskId);
   if (Number(t.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee first");
   const spec = t.spec ? normalizeSpec(t.spec) : null;
   const gaps = specGaps(spec);
   if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);
   if (t.kind === "EVALUATION" && !t.evalMethod) throw new HttpError(400, "the spec is missing: evaluation method");
-  const rate = feeRate(input.durationDays);
+  if (!self && input.durationDays === undefined) throw new HttpError(400, "pick a crowdfunding period");
+  const rate = self ? 0 : feeRate(input.durationDays!);
   const min = minimumGoal(spec!.estimate.p90Twd, rate);
-  const goal = input.goalTwd ?? min;
+  const goal = self ? min : (input.goalTwd ?? min);
+  if (self) {
+    const { usableCard } = await import("./cards");
+    if (!input.cardId || !(await usableCard(userId, input.cardId))) throw new HttpError(400, "pick a saved card to pay with");
+    if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
+    await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
+  }
   if (goal % sharePrice() !== 0) throw new HttpError(400, `the goal must be a multiple of ${sharePrice()} TWD`);
   if (goal < min) throw new HttpError(400, `the goal must be at least ${min} TWD (P90 estimate plus the service fee)`);
   const now = new Date();
@@ -196,11 +216,13 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
       status: "SCREENING",
       termsVersion: (await (await import("./checklist")).currentChecklist()).version,
       goalTwd: goal,
-      durationDays: input.durationDays,
+      durationDays: self ? null : input.durationDays,
       deadlineAt: null,
-      startEarly: input.startEarly,
+      startEarly: self ? false : input.startEarly,
       serviceFeeRate: rate,
-      isPublic: true,
+      selfFunded: self,
+      selfCardId: self ? input.cardId : null,
+      isPublic: self ? input.isPublic : true,
       prompt: specMarkdown(t.title, description, spec as Spec),
     },
   });
@@ -208,7 +230,7 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
   await db.specRevision.deleteMany({ where: { taskId } });
   await db.specRevision.create({ data: { taskId, version: 1, spec: spec as unknown as Prisma.InputJsonValue, note: "opened" } });
   await db.task.update({ where: { id: taskId }, data: { specVersion: 1 } });
-  await db.taskEvent.create({ data: { taskId, type: "funding.submitted", message: `Submitted for crowdfunding: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate } } });
+  await db.taskEvent.create({ data: { taskId, type: "funding.submitted", message: self ? `Submitted, paid in full by the proposer: ${goal} TWD` : `Submitted for crowdfunding: goal ${goal} TWD, ${input.durationDays} days`, data: { goal, rate, self } } });
   // the worker screens it against the checklist; the period starts when the campaign opens
   const { queueScreening, screenProposal } = await import("./screening");
   if (config.crowd.screening === "off") await screenProposal(taskId);

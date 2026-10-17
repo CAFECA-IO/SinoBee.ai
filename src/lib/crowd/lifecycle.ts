@@ -36,7 +36,10 @@ async function event(taskId: string, type: string, message: string, data?: objec
 // ───────────── card charges ─────────────
 
 /** Invoice line for a card charge: whole shares, or one line when points paid part of it */
-function pledgeProduct(title: string, amount: number, shares: number): OenProduct {
+function pledgeProduct(task: Pick<Task, "title" | "selfFunded">, amount: number, shares: number): OenProduct {
+  const title = task.title;
+  // paid in full by the proposer: one line for the task
+  if (task.selfFunded) return { productionCode: "AI-TASK", description: `AI 任務費用：${title.slice(0, 40)}`, quantity: 1, unit: "式", unitPrice: amount };
   if (amount === shares * sharePrice()) return { productionCode: "CROWD-PLEDGE", description: `眾籌出資：${title.slice(0, 40)}`, quantity: shares, unit: "份", unitPrice: sharePrice() };
   return { productionCode: "CROWD-PLEDGE", description: `眾籌出資 ${shares} 份（點數折抵後）：${title.slice(0, 30)}`, quantity: 1, unit: "式", unitPrice: amount };
 }
@@ -53,7 +56,7 @@ async function sendCharge(pay: Payment, token: string, task: Task, shares: numbe
       token,
       amount: pay.amountTwd!,
       orderId: pay.id,
-      product: pledgeProduct(task.title, pay.amountTwd!, shares),
+      product: pledgeProduct(task, pay.amountTwd!, shares),
       idempotencyKey: `crowd-pledge-${pay.id}`,
       userId: pay.userId,
       userName: buyer?.name,
@@ -211,9 +214,26 @@ async function beginCharging(task: Task, now: Date, why: string) {
   const r = await db.task.updateMany({ where: { id: task.id, status: "FUNDING" }, data: { status: "CHARGING", chargeDeadlineAt: addDays(now, config.crowd.chargeGraceDays) } });
   if (r.count !== 1) return;
   await event(task.id, "funding.goal", why);
-  await postStatus(task.id, `眾籌達標，開始向出資者請款。The goal is reached; charging backers now.`, { notifyTitle: "眾籌達標 Goal reached", type: "crowd.goal" });
+  if (task.selfFunded) await postStatus(task.id, `審核通過，向提案者的信用卡請款 NT$${task.goalTwd}。Screening passed; charging the proposer's card NT$${task.goalTwd}.`, { notifyTitle: "審核通過，請款中 Charging", type: "crowd.goal" });
+  else await postStatus(task.id, `眾籌達標，開始向出資者請款。The goal is reached; charging backers now.`, { notifyTitle: "眾籌達標 Goal reached", type: "crowd.goal" });
   await chargeDue({ ...task, status: "CHARGING" }, now);
   await finishCharging(task.id, now);
+}
+
+/**
+ * A self-funded proposal passed the screening: the proposer pledges the whole goal on the card they chose and it is
+ * charged at once (declined cards are retried within the grace period like any pledge; nobody else can pledge).
+ */
+export async function startSelfFunded(taskId: string, now = new Date()) {
+  const task = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  if (!task.selfFunded || task.status !== "FUNDING" || !task.goalTwd) return;
+  if (!(await db.pledge.count({ where: { taskId, userId: task.userId } }))) {
+    const { currentChecklist } = await import("./checklist");
+    await db.pledge.create({
+      data: { taskId, userId: task.userId, source: "CARD", shares: Math.round(task.goalTwd / sharePrice()), amountTwd: task.goalTwd, cardId: task.selfCardId, termsVersion: (await currentChecklist()).version },
+    });
+  }
+  await beginCharging(task, now, `Paid in full by the proposer: ${task.goalTwd} TWD`);
 }
 
 /** Start-early campaigns go to charging as soon as the pledges reach the goal */
@@ -231,7 +251,7 @@ async function collected(taskId: string) {
 }
 
 async function fund(task: Task, now: Date) {
-  // prices are snapshotted when the money is in, not when the proposal was drafted (campaigns can last 180 days)
+  // prices are snapshotted when the money is in, not when the proposal was drafted (campaigns can last 90 days)
   const model = await offeredModel(task.model);
   if (model) {
     const { fx, buffer } = await pricingSettings();
@@ -249,7 +269,8 @@ async function fund(task: Task, now: Date) {
   await db.pledge.updateMany({ where: { taskId: task.id, source: { in: ["POINTS", "QUOTA"] }, status: "ACTIVE" }, data: { status: "CHARGED", chargedAt: now } });
   await updateStretch(task.id);
   await event(task.id, "funding.funded", `Funded: collected ${got} TWD, service fee ${fee} TWD, unused proposal credit ${proposalLeft.toFixed(2)} TWD added`, { collected: got, fee, proposalLeft });
-  await postStatus(task.id, `募資完成：實收 NT$${got}，任務已排入執行。Funded with NT$${got}; the task is queued.`, { notifyTitle: "募資完成 Funded", type: "crowd.funded" });
+  if (task.selfFunded) await postStatus(task.id, `付款完成：NT$${got}，任務已排入執行。Paid NT$${got}; the task is queued.`, { notifyTitle: "付款完成 Paid", type: "crowd.funded" });
+  else await postStatus(task.id, `募資完成：實收 NT$${got}，任務已排入執行。Funded with NT$${got}; the task is queued.`, { notifyTitle: "募資完成 Funded", type: "crowd.funded" });
 }
 
 async function failCampaign(task: Task, reason: string, opts: { takedown?: boolean } = {}) {
@@ -264,7 +285,7 @@ async function failCampaign(task: Task, reason: string, opts: { takedown?: boole
     try {
       if (pay.provider === "OEN" && pay.transactionHid) {
         const shares = (await db.pledge.aggregate({ where: { paymentId: pay.id }, _sum: { shares: true } }))._sum.shares ?? 0;
-        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task.title, pay.amountTwd!, shares) }, pay.sandbox);
+        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task, pay.amountTwd!, shares) }, pay.sandbox);
       }
       await db.payment.update({ where: { id: pay.id }, data: { status: "REFUNDED", refundedTwd: pay.amountTwd ?? 0, refundedAt: new Date(), refundReason: "crowdfunding not funded" } });
       await db.pledge.updateMany({ where: { paymentId: pay.id }, data: { status: "REFUNDED" } });
@@ -280,6 +301,10 @@ async function failCampaign(task: Task, reason: string, opts: { takedown?: boole
   await event(task.id, opts.takedown ? "takedown" : "funding.unfunded", reason);
   if (opts.takedown) {
     await postStatus(task.id, `此眾籌已被平台下架，未向任何人扣款（已扣款者全額退刷，點數與額度已退回）。This campaign was taken down by the platform: nothing is charged; charged cards are refunded and points or quota returned.`, { notifyTitle: "眾籌已下架 Taken down", type: "crowd.takedown" });
+    return;
+  }
+  if (task.selfFunded) {
+    await postStatus(task.id, `信用卡請款未成功，任務未開始執行；如需執行請重新提案。The card charge did not go through, so the task did not start; submit a new proposal to try again.`, { notifyTitle: "請款未成功 Payment failed", type: "crowd.unfunded" });
     return;
   }
   await postStatus(task.id, `眾籌未達標，未向任何人扣款（已扣款者全額退刷，點數與額度已退回）。The campaign did not reach its goal: nothing is charged; charged cards are refunded and points or quota returned.`, { notifyTitle: "眾籌未達標 Not funded", type: "crowd.unfunded" });

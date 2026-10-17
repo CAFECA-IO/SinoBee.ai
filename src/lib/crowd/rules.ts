@@ -8,7 +8,8 @@ import { s3CostUsd } from "../pricing";
  *  share         NT$30 by default; backers pledge 1, 5 or 20 shares at a time
  *  proposal fee  NT$30, non-refundable, becomes credit for the spec dialogue (tokens) and storage; when the credit
  *                runs out the dialogue stops until another fee is bought; unused credit joins the budget when funded
- *  durations     7 / 30 / 90 / 180 days, service fee 0 / 3 / 6 / 10 % of what is collected
+ *  durations     7 / 30 / 90 days, service fee 0 / 3 / 6 % of what is collected; or the proposer pays the full
+ *                goal alone (no period, no service fee), charged when the screening passes
  *  goal          P90 cost estimate grossed up for the fee, rounded up to whole shares
  *  files         50 MB of reference files at storage cost; every further started 50 MB block uses one share of credit
  */

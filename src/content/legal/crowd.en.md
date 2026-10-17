@@ -5,6 +5,7 @@ These Crowdfunding Terms set out how crowdfunded tasks on {{site}} are proposed 
 - The proposer pays a proposal fee of NT${{proposalFee}} (non-refundable; it becomes credit for the spec dialogue tokens and reference file storage) and drafts the spec, method and acceptance criteria with AI.
 - Once the proposal passes the screening in section 3 it opens for pledges. Pledges are made in shares of NT${{sharePrice}}, 1, 5 or 20 at a time, with a card, platform points or subscription quota.
 - A platform service fee depending on the period ({{feeRates}}) is deducted from the amount collected when the goal is reached.
+- The proposer may instead pay in full: no pledges and no service fee, at the AI's conservative estimate. The proposer's chosen card is charged as soon as the proposal passes the screening and the task then starts; nothing is charged if it does not pass. The proposer chooses whether the task and its results are public.
 - During the campaign cards are only saved, never charged; they are charged once when the goal is reached. If the goal is missed nothing is charged and points or quota are returned in full.
 - Once funded, the SinoBee agent runs the task and reports progress in its comments; comments marked as reference information are background only and never change the spec.
 - After the run, backers whose pledges were collected vote on the result within {{reviewDays}} days, weighted by shares; a rejected result is reworked within the budget, and remaining disputes are decided by us.

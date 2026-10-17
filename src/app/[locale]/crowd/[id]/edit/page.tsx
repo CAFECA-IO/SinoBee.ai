@@ -121,7 +121,7 @@ export default async function CrowdEditPage({ params, searchParams }: { params: 
             </section>
             <section className="card space-y-3 p-5">
               <h2 className="font-semibold">{t("open.title")}</h2>
-              <OpenFunding taskId={task.id} durations={durations()} p90={spec.estimate.p90Twd} price={sharePrice()} gaps={specGaps(spec)} paid={paid} />
+              <OpenFunding taskId={task.id} durations={durations()} p90={spec.estimate.p90Twd} price={sharePrice()} gaps={specGaps(spec)} paid={paid} cards={pay.cards} pendingCard={pay.pendingCard} test={pay.test} buyer={(me!.billing ?? null) as Buyer | null} />
             </section>
             <DiscardProposal taskId={task.id} />
           </aside>

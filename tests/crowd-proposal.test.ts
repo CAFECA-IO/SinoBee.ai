@@ -165,3 +165,47 @@ test("drafting runs in the background (no long request for a proxy to cut off); 
   assert.ok(failed.error && failed.error.length > 0, failed.error);
   assert.equal(failed.hasSpec, false);
 });
+
+test("no 180-day period; the proposer can pay the whole goal instead: no fee, charged when the screening passes, nobody else pledges", async () => {
+  const rules = await import("../src/lib/crowd/rules");
+  assert.deepEqual(rules.durations().map((d) => d.days), [7, 30, 90]);
+  assert.throws(() => rules.feeRate(180), /7, 30, 90/);
+
+  const t = await paidDraft({ description: "整理全臺上市櫃公司碳盤查數據", model: MODEL });
+  await spec.generateSpec(ann.id, t.id);
+  await assert.rejects(proposal.openFunding(ann.id, t.id, { mode: "self", buyer }), /pick a saved card/);
+  const card = await anyCard(ann.id);
+  await assert.rejects(proposal.openFunding(ann.id, t.id, { mode: "self", cardId: card }), /buyer name and email/);
+  const opened = await proposal.openFunding(ann.id, t.id, { mode: "self", cardId: card, buyer, isPublic: false, goalTwd: 99999, durationDays: 90 });
+  assert.equal(opened.status, "SCREENING");
+  assert.equal(opened.selfFunded, true);
+  assert.equal(opened.goalTwd, 540, "the P90 estimate, no service fee (a typed goal or period is ignored)");
+  assert.equal(opened.durationDays, null);
+  assert.equal(Number(opened.serviceFeeRate), 0);
+  assert.equal(opened.isPublic, false, "the proposer chose to keep it private");
+  assert.equal(await db.payment.count({ where: { taskId: t.id, purpose: "CROWD_PLEDGE" } }), 0, "nothing is charged before the screening");
+
+  const screening = await import("../src/lib/crowd/screening");
+  await screening.screenProposal(t.id);
+  const row = await db.task.findUniqueOrThrow({ where: { id: t.id } });
+  assert.equal(row.status, "QUEUED", "charged and queued right after the screening");
+  assert.ok(row.fundedAt);
+  assert.equal(row.serviceFeeTwd, 0);
+  assert.ok(Number(row.budget) >= 540, "the whole payment is the budget (plus unused proposal credit)");
+  const pay = await db.payment.findFirstOrThrow({ where: { taskId: t.id, purpose: "CROWD_PLEDGE" } });
+  assert.equal(pay.status, "CONFIRMED");
+  assert.equal(pay.amountTwd, 540);
+  assert.equal(pay.cardId, card, "the card the proposer chose");
+  const pledges = await db.pledge.findMany({ where: { taskId: t.id } });
+  assert.equal(pledges.length, 1);
+  assert.equal(pledges[0].userId, ann.id);
+  assert.equal(pledges[0].status, "CHARGED");
+  assert.equal(pledges[0].shares, 18);
+
+  // nobody else can pledge (and a private task is not even visible to them)
+  const bob = await db.user.create({ data: { account: "0x" + "b".repeat(40), handle: "bob2" } });
+  const pledges2 = await import("../src/lib/crowd/pledges");
+  await assert.rejects(pledges2.pledge(bob.id, t.id, { source: "POINTS", shares: 1 }), /not found/);
+  await db.task.update({ where: { id: t.id }, data: { isPublic: true } });
+  await assert.rejects(pledges2.pledge(bob.id, t.id, { source: "POINTS", shares: 1 }), /paid in full by its proposer/);
+});

@@ -407,11 +407,15 @@ model Task {
   crowdfund         Boolean   @default(true)
   /// goal in whole TWD (a multiple of the share price)
   goalTwd           Int?
-  /// 7, 30, 90 or 180
+  /// 7, 30 or 90 (null when paid in full by the proposer)
   durationDays      Int?
   deadlineAt        DateTime?
   /// start charging as soon as the goal is reached instead of at the deadline
   startEarly        Boolean   @default(false)
+  /// paid in full by the proposer (no crowdfunding period; charged when the screening passes)
+  selfFunded        Boolean   @default(false)
+  /// the saved card the proposer chose to pay with (self-funded)
+  selfCardId        String?
   /// platform service fee rate snapshotted when funding opens (0 for 7 days)
   serviceFeeRate    Decimal?  @db.Decimal(6, 4)
   serviceFeeTwd     Int       @default(0)

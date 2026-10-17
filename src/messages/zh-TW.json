@@ -770,6 +770,9 @@
       "note": "說明",
       "notFound": "AI 查不到價格，已以 0 加入，請手動填寫",
       "checkPrices": "已加入模型定價（下架）。請到「模型定價」核對後上架。"
+    },
+    "screening": {
+      "self": "個人支付"
     }
   },
   "hubApi": {
@@ -918,7 +921,9 @@
       "periods": "眾籌期間與服務費",
       "days": "{days} 天",
       "noFee": "免服務費",
-      "periodNote": "成果保留 {days} 天供出資者下載。"
+      "periodNote": "成果保留 {days} 天供出資者下載。",
+      "self": "個人全額支付",
+      "selfNote": "不眾籌、免服務費，審核通過即扣款執行"
     }
   },
   "account": {
@@ -1334,8 +1339,8 @@
       }
     },
     "open": {
-      "title": "送出眾籌",
-      "duration": "眾籌期間",
+      "title": "送出提案",
+      "duration": "眾籌期間或個人支付",
       "days": "{days} 天",
       "fee": "服務費 {rate}%",
       "free": "免服務費",
@@ -1349,7 +1354,16 @@
       "confirm": "送出後規格就不能再修改。確定送出審核？",
       "goalAuto": "目標金額 NT${goal}（AI 估算 + 服務費）",
       "more": "更多選項",
-      "afterSubmit": "送出後由 AI 依公開的審核清單審核，通過即開放出資，期限從那時起算。"
+      "afterSubmit": "送出後由 AI 依公開的審核清單審核，通過即開放出資，期限從那時起算。",
+      "self": "個人全額支付",
+      "selfHint": "不眾籌・免服務費",
+      "selfAuto": "由你一次支付 NT${goal}（AI 保守估計，免服務費），審核通過後立即從所選信用卡扣款並開始執行。",
+      "selfPublic": "公開任務與成果",
+      "selfPublicOn": "任務、進度與成果公開在眾籌頁，但不開放他人出資。",
+      "selfPublicOff": "只有你看得到任務、進度與成果。",
+      "submitSelf": "送出審核並付款",
+      "confirmSelf": "送出後規格就不能再修改。審核通過後會立即從所選信用卡扣款 NT${amount}，確定送出？",
+      "afterSubmitSelf": "送出後由 AI 依公開的審核清單審核；通過即扣款並開始執行，未通過不會扣款。"
     },
     "panel": {
       "goal": "目標",
@@ -1396,7 +1410,12 @@
       "back": "參與眾籌",
       "retention": "眾籌成果保留 {days} 天，所有已收款的出資者都可以下載。",
       "usePoints": "部分以點數折抵（點數 {n}）",
-      "reviewNote": "執行完成，出資者驗收中。"
+      "reviewNote": "執行完成，出資者驗收中。",
+      "self": "個人全額支付",
+      "selfNote": "由發起人全額支付，不開放出資。",
+      "selfCharging": "審核已通過，正在向發起人的信用卡請款。",
+      "selfPaid": "發起人已付款，不開放他人出資。",
+      "selfFailed": "信用卡請款未成功，任務未執行。"
     },
     "account": {
       "points": "平台點數",

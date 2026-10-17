@@ -79,10 +79,10 @@ async function openCampaign(goal: number, opts: { days?: number; startEarly?: bo
 
 test("rules: goals in whole shares, fee by period, file blocks", () => {
   assert.equal(rules.sharePrice(), 30);
-  assert.deepEqual(rules.durations().map((d) => d.days), [7, 30, 90, 180]);
+  assert.deepEqual(rules.durations().map((d) => d.days), [7, 30, 90]);
   assert.equal(rules.feeRate(7), 0);
   assert.equal(rules.feeRate(30), 0.03);
-  assert.throws(() => rules.feeRate(14), /7, 30, 90, 180/);
+  assert.throws(() => rules.feeRate(14), /7, 30, 90 days/);
   assert.equal(rules.minimumGoal(540, 0), 540);
   assert.equal(rules.minimumGoal(540, 0.03), 570, "540 ÷ 0.97 = 556.7 → 19 shares");
   assert.equal(rules.minimumGoal(1, 0), 30);

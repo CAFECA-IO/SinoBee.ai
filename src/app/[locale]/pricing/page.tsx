@@ -131,6 +131,10 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                   <td className="py-2 text-right font-mono">{d.rate === 0 ? t("crowd.noFee") : `${+(d.rate * 100).toFixed(2)}%`}</td>
                 </tr>
               ))}
+              <tr>
+                <td className="py-2">{t("crowd.self")}<div className="text-xs text-muted">{t("crowd.selfNote")}</div></td>
+                <td className="py-2 text-right font-mono">{t("crowd.noFee")}</td>
+              </tr>
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted">{t("crowd.periodNote", { days: config.crowd.resultsDays })}</p>

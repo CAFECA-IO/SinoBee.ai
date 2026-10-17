@@ -145,7 +145,16 @@ export default async function TaskPage({ params }: P) {
             </section>
           )}
 
-          {crowd && task.status !== "SCREENING" && (
+          {crowd && task.selfFunded && task.status !== "SCREENING" && (
+            <section className="card space-y-2 p-6">
+              <div className="text-xs text-muted">{tc("panel.self")}</div>
+              <div className="text-2xl font-extrabold">NT${(task.goalTwd ?? 0).toLocaleString("en-US")}</div>
+              <p className="text-xs text-muted">
+                {task.status === "CHARGING" ? tc("panel.selfCharging") : task.status === "UNFUNDED" ? tc("panel.selfFailed") : task.fundedAt ? tc("panel.selfPaid") : tc("panel.selfNote")}
+              </p>
+            </section>
+          )}
+          {crowd && !task.selfFunded && task.status !== "SCREENING" && (
             <section className="card space-y-3 p-6">
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
@@ -318,7 +327,7 @@ export default async function TaskPage({ params }: P) {
         </div>
 
         <aside className="space-y-4">
-          {crowd && (
+          {crowd && (!task.selfFunded || (owner && task.status === "NEEDS_FUNDING")) && (
             <div className="card space-y-3 p-5">
               <div className="font-semibold">{tc("panel.back")}</div>
               {me ? (

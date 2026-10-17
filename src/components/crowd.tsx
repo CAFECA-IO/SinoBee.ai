@@ -721,29 +721,66 @@ function VisibilityPicker({ value, onChange }: { value: string; onChange: (v: st
 
 // ───────────── open the campaign ─────────────
 
-export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { taskId: string; durations: { days: number; rate: number }[]; p90: number; price: number; gaps: string[]; paid: boolean }) {
+export function OpenFunding({
+  taskId,
+  durations,
+  p90,
+  price,
+  gaps,
+  paid,
+  cards = [],
+  pendingCard = false,
+  test = false,
+  buyer: savedBuyer = null,
+}: {
+  taskId: string;
+  durations: { days: number; rate: number }[];
+  p90: number;
+  price: number;
+  gaps: string[];
+  paid: boolean;
+  cards?: CardOpt[];
+  pendingCard?: boolean;
+  test?: boolean;
+  buyer?: Partial<Buyer> | null;
+}) {
   const t = useTranslations("crowd.open");
   const ts = useTranslations("crowd.spec");
   const router = useRouter();
   const goalFor = (rate: number) => Math.max(price, Math.ceil(p90 / (1 - rate) / price - 1e-9) * price);
-  const [days, setDays] = useState(durations[0]?.days ?? 7);
-  const rate = durations.find((d) => d.days === days)?.rate ?? 0;
+  // a period in days, or "self": the proposer pays the whole goal (no period, no service fee)
+  const [choice, setChoice] = useState<number | "self">(durations[0]?.days ?? 7);
+  const self = choice === "self";
+  const rate = self ? 0 : (durations.find((d) => d.days === choice)?.rate ?? 0);
   const min = useMemo(() => goalFor(rate), [p90, rate, price]); // eslint-disable-line react-hooks/exhaustive-deps
   const [goal, setGoal] = useState("");
   const [early, setEarly] = useState(false);
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+  const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
+  const [isPublic, setIsPublic] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const ready = paid && gaps.length === 0;
+  const ready = paid && gaps.length === 0 && (!self || !!cardId);
+  const tile = (on: boolean) => `rounded-xl border p-3 text-left text-sm transition ${on ? "border-accent bg-accent-soft" : "border-line hover:border-accent/60"}`;
   return (
     <form
       className="space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!(await confirmDialog(t("confirm"), { confirmLabel: t("submit") }))) return;
+        const ok = self
+          ? await confirmDialog(t("confirmSelf", { amount: min.toLocaleString("en-US") }), { confirmLabel: t("submitSelf") })
+          : await confirmDialog(t("confirm"), { confirmLabel: t("submit") });
+        if (!ok) return;
         setBusy(true);
         setErr("");
         try {
-          await send(`/api/crowd/${taskId}/open`, "POST", { durationDays: days, goalTwd: goal ? Number(goal) : undefined, startEarly: early, agreeTerms: true });
+          await send(
+            `/api/crowd/${taskId}/open`,
+            "POST",
+            self
+              ? { mode: "self", cardId, buyer, isPublic, agreeTerms: true }
+              : { mode: "crowd", durationDays: choice, goalTwd: goal ? Number(goal) : undefined, startEarly: early, agreeTerms: true },
+          );
           router.push(`/tasks/${taskId}`);
         } catch (e) {
           setErr((e as Error).message);
@@ -755,32 +792,45 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
         <legend className="label">{t("duration")}</legend>
         <div className="grid grid-cols-2 gap-2">
           {durations.map((d) => (
-            <button type="button" key={d.days} onClick={() => setDays(d.days)} className={`rounded-xl border p-3 text-left text-sm ${d.days === days ? "border-accent bg-accent-soft" : "border-line"}`} aria-pressed={d.days === days}>
+            <button type="button" key={d.days} onClick={() => setChoice(d.days)} className={tile(d.days === choice)} aria-pressed={d.days === choice}>
               <div className="font-semibold">{t("days", { days: d.days })}</div>
               <div className="font-mono text-xs">{p90 > 0 ? `NT$${goalFor(d.rate).toLocaleString("en-US")}` : "—"}</div>
               <div className="text-xs text-muted">{d.rate === 0 ? t("free") : t("fee", { rate: +(d.rate * 100).toFixed(2) })}</div>
             </button>
           ))}
+          <button type="button" onClick={() => setChoice("self")} className={tile(self)} aria-pressed={self}>
+            <div className="font-semibold">{t("self")}</div>
+            <div className="font-mono text-xs">{p90 > 0 ? `NT$${goalFor(0).toLocaleString("en-US")}` : "—"}</div>
+            <div className="text-xs text-muted">{t("selfHint")}</div>
+          </button>
         </div>
-        <p className="text-xs text-muted">{t("goalAuto", { goal: (Number(goal) || min).toLocaleString("en-US") })}</p>
+        <p className="text-xs text-muted">{self ? t("selfAuto", { goal: min.toLocaleString("en-US") }) : t("goalAuto", { goal: (Number(goal) || min).toLocaleString("en-US") })}</p>
       </fieldset>
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted">{t("more")}</summary>
-        <div className="mt-3 space-y-3">
-          <div>
-            <label className="label">{t("goal")}</label>
-            <input className="input font-mono" inputMode="numeric" placeholder={String(min)} value={goal} onChange={(e) => setGoal(e.target.value.replace(/\D/g, ""))} />
-            <p className="mt-1 text-xs text-muted">{t("minGoal", { min, price })}</p>
-          </div>
-          <Toggle checked={early} onChange={setEarly} label={t("startEarly")} description={t("startEarlyHint")} />
+      {self ? (
+        <div className="space-y-3">
+          <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo={`/crowd/${taskId}/edit`} email={buyer.email} test={test} />
+          {cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
+          <Toggle checked={isPublic} onChange={setIsPublic} label={t("selfPublic")} description={isPublic ? t("selfPublicOn") : t("selfPublicOff")} />
         </div>
-      </details>
+      ) : (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted">{t("more")}</summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="label">{t("goal")}</label>
+              <input className="input font-mono" inputMode="numeric" placeholder={String(min)} value={goal} onChange={(e) => setGoal(e.target.value.replace(/\D/g, ""))} />
+              <p className="mt-1 text-xs text-muted">{t("minGoal", { min, price })}</p>
+            </div>
+            <Toggle checked={early} onChange={setEarly} label={t("startEarly")} description={t("startEarlyHint")} />
+          </div>
+        </details>
+      )}
       <AgreeCrowdTerms />
       {!paid && <p className="text-sm text-warn">{t("needFee")}</p>}
       {gaps.length > 0 && <p className="text-sm text-warn">{t("missing", { list: gaps.map((g) => (g === "spec" ? ts("title") : g === "estimate" ? ts("estimate") : ts(g as "summary"))).join("、") })}</p>}
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary w-full !py-3" disabled={!ready || busy}>{t("submit")}</button>
-      <p className="text-xs text-muted">{t("afterSubmit")}</p>
+      <button className="btn-primary w-full !py-3" disabled={!ready || busy}>{self ? t("submitSelf") : t("submit")}</button>
+      <p className="text-xs text-muted">{self ? t("afterSubmitSelf") : t("afterSubmit")}</p>
     </form>
   );
 }

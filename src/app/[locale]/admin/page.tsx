@@ -310,7 +310,7 @@ async function Screening() {
               <div key={r.id} className="card space-y-3 p-5 text-sm">
                 <div className="flex flex-wrap items-center gap-3">
                   <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
-                  <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+                  <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.selfFunded ? t("screening.self") : `${r.durationDays}d`} · <LocalDate value={r.updatedAt} /></span>
                 </div>
                 <p className="text-xs text-muted">{sc?.decision === "pending" ? tc("waiting") : tc("queued")}</p>
                 {sc && <ScreeningResult screening={sc} />}

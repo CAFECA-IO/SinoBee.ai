@@ -141,7 +141,7 @@ export const SETTINGS: SettingDef[] = [
   // ───── crowdfunding ─────
   { key: "crowd.sharePrice", env: "CROWD_SHARE_PRICE_TWD", type: "number", group: "crowd", default: "30", label: L("每份金額（TWD）", "Share price (TWD)") },
   { key: "crowd.proposalFee", env: "CROWD_PROPOSAL_FEE_TWD", type: "number", group: "crowd", default: "30", label: L("眾籌提案費（TWD）", "Proposal fee (TWD)"), help: L("不可退還；換算為規格對話 token 與儲存空間額度", "Non-refundable; becomes credit for the spec dialogue and storage") },
-  { key: "crowd.feeRates", env: "CROWD_FEE_RATES", type: "text", group: "crowd", default: "7:0,30:0.03,90:0.06,180:0.10", label: L("眾籌期與服務費率", "Durations and service fee rates"), help: L("天數:費率，以逗號分隔", "days:rate, comma separated") },
+  { key: "crowd.feeRates", env: "CROWD_FEE_RATES", type: "text", group: "crowd", default: "7:0,30:0.03,90:0.06", label: L("眾籌期與服務費率", "Durations and service fee rates"), help: L("天數:費率，以逗號分隔", "days:rate, comma separated") },
   { key: "crowd.freeFileMb", env: "CROWD_FREE_FILE_MB", type: "number", group: "crowd", default: "50", label: L("免費參考檔案（MB）", "Free reference files (MB)") },
   { key: "crowd.blockMb", env: "CROWD_FILE_BLOCK_MB", type: "number", group: "crowd", default: "50", label: L("超額計費單位（MB）", "Extra space block (MB)"), help: L("每個單位扣 1 份提案額度", "Each block uses one share of proposal credit") },
   { key: "crowd.maxFileMb", env: "CROWD_MAX_FILE_MB", type: "number", group: "crowd", default: "500", label: L("參考檔案上限（MB）", "Reference files limit (MB)") },
