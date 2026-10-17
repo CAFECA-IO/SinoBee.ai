@@ -35,8 +35,6 @@ export type RunResult = {
 
 export interface Executor {
   run(task: TaskWithRefs, ctx: RunContext): Promise<RunResult>;
-  /** remove the user's container + volume (retention cleanup) */
-  removeUserContainer(userId: string): Promise<void>;
   /** remove a crowdfunded task's own container + volume (after it is settled) */
   removeTaskContainer(taskId: string): Promise<void>;
 }
@@ -57,15 +55,15 @@ export function buildPrompt(task: TaskWithRefs, workdir: string, continuation: b
     );
   } else if (continuation) {
     lines.push(
-      "The previous run of this commissioned task was paused because its budget ran out. The requester added funds.",
+      "The previous run of this task was paused because its budget ran out. A top-up round funded more.",
       "Continue from where you left off (check the files already in the working directory first). Do not redo finished work.",
       "",
     );
   }
   lines.push(
-    `You are running a commissioned task on SinoBee.ai inside an isolated container. Working directory: ${workdir}`,
+    `You are running a crowdfunded task on SinoBee.ai inside an isolated container. Working directory: ${workdir}`,
     "Rules:",
-    `- Put every deliverable in ${workdir}/outputs/ (create it). Only that folder is delivered to the requester.`,
+    `- Put every deliverable in ${workdir}/outputs/ (create it). Only that folder is delivered to the backers.`,
     `- When finished, write ${workdir}/outputs/SUMMARY.md: what you did, what is in outputs/, and any limitations.`,
     "- Work autonomously; nobody can answer questions during the run. Make reasonable assumptions and state them in SUMMARY.md.",
   );
@@ -86,7 +84,7 @@ export function buildPrompt(task: TaskWithRefs, workdir: string, continuation: b
   if (task.kind === "EVALUATION") {
     lines.push(
       "",
-      "This is an EVALUATION commission. Evaluate the subject described below with the given method and criteria.",
+      "This is an EVALUATION: evaluate the subject described below with the given method and criteria. The report is published on SinoBee.ai once the backers accept it.",
       `Method: ${task.evalMethod}`,
       task.evalCriteria ? `Criteria / test cases:\n${task.evalCriteria}` : "",
       skill ? `Subject: the skill "${skill}" (version ${task.skillVersion!.version}) running on model ${task.model}.` : `Subject: the model ${task.model}.`,
@@ -96,6 +94,6 @@ export function buildPrompt(task: TaskWithRefs, workdir: string, continuation: b
       "Be strict and reproducible: record inputs, steps and observations so others can audit the result.",
     );
   }
-  lines.push("", "=== Task from the requester ===", task.prompt);
+  lines.push("", "=== The agreed proposal ===", task.prompt);
   return lines.join("\n");
 }

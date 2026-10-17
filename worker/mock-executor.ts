@@ -88,7 +88,6 @@ export class MockExecutor implements Executor {
     }
   }
 
-  async removeUserContainer() {}
 
   async removeTaskContainer() {}
 }

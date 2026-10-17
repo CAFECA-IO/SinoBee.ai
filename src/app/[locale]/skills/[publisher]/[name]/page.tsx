@@ -66,7 +66,7 @@ export default async function SkillPage({ params, searchParams }: P) {
   const [myRating, reports] = await Promise.all([
     me ? db.skillRating.findUnique({ where: { skillId_userId: { skillId: skill.id, userId: me.id } } }) : null,
     db.evaluationReport.findMany({
-      where: { skillVersion: { skillId: skill.id } },
+      where: { skillVersion: { skillId: skill.id }, task: { status: "COMPLETED" } },
       include: { requester: true, skillVersion: { include: { skill: { include: { publisher: true } } } } },
       orderBy: { evaluatedAt: "desc" },
       take: 20,
@@ -174,7 +174,7 @@ export default async function SkillPage({ params, searchParams }: P) {
           <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="h3">{t("evaluations")}</h2>
-              <Link href={`/benchmarks/new?skill=${ver.id}`} className="btn-ghost !py-2">{t("commissionEval")}</Link>
+              <Link href={`/crowd/new?kind=evaluation&skill=${ver.id}`} className="btn-ghost !py-2">{t("commissionEval")}</Link>
             </div>
             {reports.length === 0 ? <p className="text-sm text-muted">{t("noEvaluations")}</p> : <div className="card divide-y divide-line">{reports.map((r) => <ReportRow key={r.id} r={r} models={labels} />)}</div>}
           </section>
@@ -189,7 +189,7 @@ export default async function SkillPage({ params, searchParams }: P) {
             <a href={bundleUrl(publisher, name, ver.version).replace(/^https?:\/\/[^/]+/, "")} className="btn-primary w-full">
               {t("download")} ({(ver.bundleSize / 1024).toFixed(1)} KB)
             </a>
-            <Link href={`/tasks/new?skill=${ver.id}`} className="btn-ghost w-full">{t("useInTask")}</Link>
+            <Link href={`/crowd/new?skill=${ver.id}`} className="btn-ghost w-full">{t("useInTask")}</Link>
           </div>
           <div className="card p-5">
             <div className="text-sm font-semibold">{t("rate")}</div>

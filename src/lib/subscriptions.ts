@@ -83,14 +83,13 @@ export async function reflow(userId: string, now = new Date()) {
 }
 
 /**
- * Subscribers keep everything until the grace period ends: extend the container and every result that still
+ * Subscribers keep everything until the grace period ends: extend every result that still
  * exists (including ones already marked expired but not deleted, so renewing brings them back).
  */
 export async function applyRetention(userId: string) {
   const st = await subscriptionState(userId);
   if (!st.graceEndsAt) return;
   const until = st.graceEndsAt;
-  await db.userContainer.updateMany({ where: { userId }, data: { expiresAt: until } });
   await db.artifact.updateMany({ where: { task: { userId }, deletedAt: null, OR: [{ expiresAt: null }, { expiresAt: { lt: until } }] }, data: { expiresAt: until } });
   await db.task.updateMany({ where: { userId, resultsExpireAt: { not: null, lt: until } }, data: { resultsExpireAt: until } });
 }

@@ -1,12 +1,13 @@
 /**
  * SinoBee.ai task worker
- *  - claims QUEUED commissioned tasks (FOR UPDATE SKIP LOCKED, safe with several workers)
- *  - runs each in the requester's own docker container (DockerExecutor) or simulated (MockExecutor)
+ *  - claims QUEUED crowdfunded tasks (conditional updates, safe with several workers)
+ *  - runs each in its own docker container (DockerExecutor) or simulated (MockExecutor)
  *  - meters cost while running: 1.5 × (tokens + VM time + S3), stops when the budget is used up
- *  - uploads results, applies retention, notifies the requester through CAFECA
+ *  - uploads results, hands them to the backers' acceptance review, settles
  *  - storage keeper: moves every stored object (results included) to Boltchain right away, notarizes
  *    tool/share hashes, renews and cancels deals (STORAGE_KEEPER=0 turns it off on extra workers)
- *  - cleanup: expired results, idle containers (7 days for non-subscribers), stale runs, unanswered funding requests
+ *  - screens submitted proposals against the checklist (screeningTick)
+ *  - cleanup: expired results, finished task containers, stale runs, unanswered funding requests
  *
  * Run: npm run worker
  */
@@ -17,12 +18,12 @@ import { config } from "../src/lib/config";
 import { chargeTwd, s3CostUsd, tokenCostUsd, vmCostUsd, type UsdPrices } from "../src/lib/pricing";
 import { deleteObject, putObject } from "../src/lib/storage";
 import { notify } from "../src/lib/notify";
-import { addDays, containerExpiry, resultsRetentionDays } from "../src/lib/retention";
+import { addDays, resultsRetentionDays } from "../src/lib/retention";
 import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
 import { sweepHolds } from "../src/lib/llm/quota";
 import { purgeNonces } from "../src/lib/device-sign";
-import { DockerExecutor, containerName, crowdContainerName, volumeName } from "./docker-executor";
+import { DockerExecutor, crowdContainerName } from "./docker-executor";
 import { enterReview } from "../src/lib/crowd/review";
 import { screeningTick } from "../src/lib/crowd/screening";
 import { snapshotAllLegal } from "../src/lib/legal-versions";
@@ -47,9 +48,9 @@ async function event(taskId: string, type: string, message: string, data?: objec
   await mirrorEvent(taskId, type, message);
 }
 
-/** Results of crowdfunded tasks are kept for every backer (crowd.resultsDays); others by the requester's plan */
-async function retentionFor(task: { userId: string; crowdfund: boolean }) {
-  return task.crowdfund ? Math.max(config.crowd.resultsDays, await resultsRetentionDays(task.userId)) : resultsRetentionDays(task.userId);
+/** Results are kept for every backer (crowd.resultsDays, longer if the proposer's plan keeps them longer) */
+async function retentionFor(task: { userId: string }) {
+  return Math.max(config.crowd.resultsDays, await resultsRetentionDays(task.userId));
 }
 
 /**
@@ -91,14 +92,8 @@ async function runTask(id: string) {
   const prevVmSeconds = task.vmSeconds;
   const prevS3 = Number(task.s3CostUsd.toString());
   const continuation = prevVmSeconds > 0;
-  // crowdfunded tasks get their own container (removed after settlement); others run in the requester's
-  if (!task.crowdfund)
-    await db.userContainer.upsert({
-      where: { userId: task.userId },
-      create: { userId: task.userId, containerName: containerName(task.userId), volumeName: volumeName(task.userId), status: "running", expiresAt: null },
-      update: { status: "running", lastActiveAt: new Date(), expiresAt: null },
-    });
-  await db.task.update({ where: { id }, data: { containerName: task.crowdfund ? crowdContainerName(task.id) : containerName(task.userId) } });
+  // every task runs in its own container (removed after settlement)
+  await db.task.update({ where: { id }, data: { containerName: crowdContainerName(task.id) } });
   await event(id, "run.started", task.reworkNotes ? `Rework ${task.reworks} started with the backers' feedback` : continuation ? "Run resumed after top-up" : "Run started", { worker: WORKER_ID, mode: config.runner.mode });
 
   const persistUsage = async (u: Usage, vmSeconds: number, s3Usd: number, extra: object = {}) => {
@@ -123,10 +118,10 @@ async function runTask(id: string) {
     return charge;
   };
 
-  // crowdfunded tasks: report when half and 80 % of the budget are used (once each)
+  // report when half and 80 % of the budget are used (once each)
   const reported = new Set((await db.taskEvent.findMany({ where: { taskId: id, type: { in: ["budget.50", "budget.80"] } }, select: { type: true } })).map((e) => e.type));
   const budgetMarks = async (charge: number) => {
-    if (!task.crowdfund || budget <= 0) return;
+    if (budget <= 0) return;
     for (const mark of [50, 80]) {
       const type = `budget.${mark}`;
       if (charge / budget >= mark / 100 && !reported.has(type)) {
@@ -178,83 +173,67 @@ async function runTask(id: string) {
   const charge = await persistUsage(result.usage, vmSeconds, s3Usd, { summary: result.summary.slice(0, 20000) || null });
   const chargedStr = fmtTwd(Math.min(charge, budget));
 
-  if (result.outcome === "stopped") {
+  // an evaluation must leave a valid outputs/evaluation.json; without it the run counts as failed
+  let outcome = result.outcome;
+  let error = result.error ?? "";
+  if (outcome === "completed" && task.kind === "EVALUATION" && !(await saveEvaluation(task, result.evaluation, result.summary))) {
+    outcome = "failed";
+    error = "the agent did not produce a valid outputs/evaluation.json";
+  }
+
+  if (outcome === "stopped") {
     await db.task.update({ where: { id }, data: { status: "NEEDS_FUNDING", fundingRequestedAt: now, resultsExpireAt: expires, workerId: null } });
     await event(id, "funding.requested", `Budget used up (${chargedStr} / ${fmtTwd(budget)} TWD). Partial results saved.`);
     await notify(task.userId, {
       type: "task.needs_funding",
       title: `預算已用完 Budget used up: ${task.title}`,
-      body: `任務尚未完成，已整理目前成果。請補充經費繼續執行，或結案並下載目前成果（${retentionDays} 天內）。\nThe task is not finished yet. Partial results are ready. Add funds to continue, or close the task and download the results within ${retentionDays} days.`,
+      body: `任務尚未完成，已整理目前成果。你可以發起追加眾籌繼續執行，或以目前成果結案。\nThe task is not finished yet. Partial results are ready. Open a top-up round to continue, or close the task with the results so far.`,
       link: `/tasks/${id}`,
-      data: { taskId: id, charged: chargedStr, budget: fmtTwd(budget), actions: ["top_up", "close"] },
+      data: { taskId: id, charged: chargedStr, budget: fmtTwd(budget), actions: ["topup_round", "close"] },
     });
-  } else if (result.outcome === "completed" && task.crowdfund) {
-    // crowdfunded: the backers review the result against the acceptance criteria before it counts as completed
+  } else if (outcome === "completed") {
+    // the backers review the result against the acceptance criteria before it counts as completed
     await event(id, "completed", `Run finished. Charged ${chargedStr} TWD.`);
     await enterReview(id, result.acceptance);
-  } else if (result.outcome === "completed") {
-    let reportOk = true;
-    if (task.kind === "EVALUATION") reportOk = await saveEvaluation(task, result.evaluation, result.summary);
-    await db.task.update({
-      where: { id },
-      data: {
-        status: reportOk ? "COMPLETED" : "FAILED",
-        error: reportOk ? null : "the agent did not produce a valid outputs/evaluation.json",
-        finishedAt: now,
-        resultsExpireAt: expires,
-        workerId: null,
-      },
-    });
-    await event(id, reportOk ? "completed" : "failed", reportOk ? `Completed. Charged ${chargedStr} TWD.` : "Evaluation report missing or invalid");
-    await notify(task.userId, {
-      type: reportOk ? "task.completed" : "task.failed",
-      title: `${reportOk ? "任務完成 Task completed" : "任務失敗 Task failed"}: ${task.title}`,
-      body: `請於 ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC 前下載成果，逾期將無法下載。\nDownload the results before ${expires.toISOString().slice(0, 16).replace("T", " ")} UTC; they cannot be downloaded afterwards. Charged ${chargedStr} TWD.`,
-      link: `/tasks/${id}`,
-    });
   } else {
-    await db.task.update({ where: { id }, data: { status: "FAILED", error: (result.error ?? "").slice(0, 4000), finishedAt: now, resultsExpireAt: expires, workerId: null } });
-    await event(id, "failed", "Run failed", { error: (result.error ?? "").slice(0, 2000) });
+    await db.task.update({ where: { id }, data: { status: "FAILED", error: error.slice(0, 4000), finishedAt: now, resultsExpireAt: expires, workerId: null } });
+    await event(id, "failed", "Run failed", { error: error.slice(0, 2000) });
     await notify(task.userId, {
       type: "task.failed",
       title: `任務失敗 Task failed: ${task.title}`,
-      body: `執行失敗，已收取 ${chargedStr} TWD。可下載的部分成果保留至 ${expires.toISOString().slice(0, 10)}。\nThe run failed. Charged ${chargedStr} TWD.`,
+      body: `執行失敗，已使用 ${chargedStr} TWD；未用完的經費依出資比例轉為平台點數。可下載的部分成果保留至 ${expires.toISOString().slice(0, 10)}。\nThe run failed after using ${chargedStr} TWD; the unused budget goes back to the backers as points.`,
       link: `/tasks/${id}`,
     });
   }
 
-  if (!task.crowdfund)
-    await db.userContainer.update({
-      where: { userId: task.userId },
-      data: { status: "idle", lastActiveAt: new Date(), expiresAt: await containerExpiry(task.userId) },
-    });
-  if (task.crowdfund) await settleTask(id).catch((e) => log("settle error", id, e));
+  await settleTask(id).catch((e) => log("settle error", id, e));
 }
 
 function progressText(p: { done: number; total: number; note?: string; current?: string }) {
   return `進度 Progress ${p.done}/${p.total}${p.current ? ` · ${p.current}` : ""}${p.note ? `\n${p.note}` : ""}`;
 }
 
+/**
+ * Store the evaluation result of a finished run (a rework replaces it). It is published on /benchmarks only once the
+ * backers accept the run (task COMPLETED).
+ */
 async function saveEvaluation(task: TaskWithRefs, ev: unknown, summary: string): Promise<boolean> {
   const e = ev as { score?: unknown; verdict?: unknown; summary?: unknown; metrics?: unknown; cases?: unknown; process?: unknown } | undefined;
   if (!e || typeof e.score !== "number" || e.score < 0 || e.score > 100) return false;
   const events = await db.taskEvent.findMany({ where: { taskId: task.id }, orderBy: { createdAt: "asc" } });
   const transcript = events.map((x) => `- ${x.createdAt.toISOString()} ${x.message}`).join("\n");
-  await db.evaluationReport.upsert({
-    where: { taskId: task.id },
-    create: {
-      taskId: task.id,
-      requesterId: task.userId,
-      skillVersionId: task.skillVersionId,
-      model: task.model,
-      method: task.evalMethod ?? "rubric",
-      methodDetail: task.evalCriteria ?? "",
-      process: `${typeof e.process === "string" ? e.process : ""}\n\n#### Execution log\n${transcript}`.trim(),
-      result: { score: e.score, verdict: e.verdict ?? null, summary: e.summary ?? summary, metrics: e.metrics ?? {}, cases: e.cases ?? [] },
-      score: e.score,
-    },
-    update: {},
-  });
+  const data = {
+    requesterId: task.userId,
+    skillVersionId: task.skillVersionId,
+    model: task.model,
+    method: task.evalMethod ?? "rubric",
+    methodDetail: task.evalCriteria ?? "",
+    process: `${typeof e.process === "string" ? e.process : ""}\n\n#### Execution log\n${transcript}`.trim(),
+    result: { score: e.score, verdict: e.verdict ?? null, summary: e.summary ?? summary, metrics: e.metrics ?? {}, cases: e.cases ?? [] },
+    score: e.score,
+    evaluatedAt: new Date(),
+  };
+  await db.evaluationReport.upsert({ where: { taskId: task.id }, create: { taskId: task.id, ...data }, update: data });
   return true;
 }
 
@@ -268,30 +247,14 @@ async function cleanup() {
     await deleteObject(a.key).catch((e) => log("delete failed", a.key, e));
     await db.artifact.update({ where: { id: a.id }, data: { deletedAt: now } });
   }
-  // 2. funding requests nobody answered → close with partial results
-  // (a crowdfunded task with an open top-up round waits for the round instead)
+  // 2. funding requests nobody answered → close with partial results (an open top-up round is waited for instead)
   const stale = await db.task.findMany({ where: { status: "NEEDS_FUNDING", topupGoalTwd: null, fundingRequestedAt: { lt: addDays(now, -config.retention.freeDays) } } });
   for (const t of stale) {
     await db.task.update({ where: { id: t.id }, data: { status: "COMPLETED", finishedAt: now, fundingRequestedAt: null } });
     await event(t.id, "closed", "Closed automatically: no top-up within the retention window");
-    if (t.crowdfund) await settleTask(t.id).catch((e) => log("settle error", t.id, e));
+    await settleTask(t.id).catch((e) => log("settle error", t.id, e));
   }
-  // 3. idle containers past retention (re-check subscriptions first)
-  const idle = await db.userContainer.findMany({ where: { expiresAt: { lt: now }, status: { not: "running" } } });
-  for (const c of idle) {
-    const active = await db.task.count({ where: { userId: c.userId, status: { in: ["QUEUED", "RUNNING", "NEEDS_FUNDING"] } } });
-    if (active) continue;
-    const exp = await containerExpiry(c.userId, c.lastActiveAt);
-    if (exp > now) {
-      await db.userContainer.update({ where: { userId: c.userId }, data: { expiresAt: exp } });
-      continue;
-    }
-    if (!config.retention.deleteExpired) continue; // paused: keep the container
-    await executor.removeUserContainer(c.userId);
-    await db.userContainer.delete({ where: { userId: c.userId } });
-    log("removed container", c.containerName);
-  }
-  // 3b. crowdfunded tasks that are over (settled, or never funded): remove their own container
+  // 3. tasks that are over (settled, or never funded): remove their container
   const overCrowd = await db.task.findMany({
     where: { crowdfund: true, containerName: { startsWith: "sb-c-" }, status: { in: ["COMPLETED", "FAILED", "CANCELLED", "UNFUNDED"] }, OR: [{ settledAt: { not: null } }, { fundedAt: null }] },
     select: { id: true },

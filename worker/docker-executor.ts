@@ -15,13 +15,11 @@ import { buildPrompt, taskSession, type Executor, type RunContext, type RunResul
 const HOME = "/home/bee";
 const docker = new Docker(); // DOCKER_HOST or /var/run/docker.sock
 
-export const containerName = (userId: string) => `sb-u-${userId}`;
-export const volumeName = (userId: string) => `sb-home-${userId}`;
-/** crowdfunded tasks run in their own container, never inside the proposer's */
+/** every task runs in its own container, never inside the proposer's */
 export const crowdContainerName = (taskId: string) => `sb-c-${taskId}`;
 export const crowdVolumeName = (taskId: string) => `sb-chome-${taskId}`;
-const containerOf = (task: TaskWithRefs) => (task.crowdfund ? crowdContainerName(task.id) : containerName(task.userId));
-const volumeOf = (task: TaskWithRefs) => (task.crowdfund ? crowdVolumeName(task.id) : volumeName(task.userId));
+const containerOf = (task: TaskWithRefs) => crowdContainerName(task.id);
+const volumeOf = (task: TaskWithRefs) => crowdVolumeName(task.id);
 
 async function streamToBuffer(s: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -255,11 +253,5 @@ export class DockerExecutor implements Executor {
   async removeTaskContainer(taskId: string) {
     await docker.getContainer(crowdContainerName(taskId)).remove({ force: true }).catch(() => {});
     await docker.getVolume(crowdVolumeName(taskId)).remove().catch(() => {});
-  }
-
-  async removeUserContainer(userId: string) {
-    const c = docker.getContainer(containerName(userId));
-    await c.remove({ force: true }).catch(() => {});
-    await docker.getVolume(volumeName(userId)).remove().catch(() => {});
   }
 }

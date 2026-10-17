@@ -1,20 +1,20 @@
 {
   "meta": {
     "title": "SinoBee.ai — the open-source AI swarm that works on your computer",
-    "description": "SinoBee official website: try the agent online, download & install, Skill Hub, commissioned AI tasks, public model and skill evaluations."
+    "description": "SinoBee official site: try the agent online, download and install, the Skill Hub, crowdfunded AI tasks, and public model and skill evaluations."
   },
   "nav": {
     "download": "Download",
     "skills": "Skill Hub",
-    "tasks": "Commissions",
+    "tasks": "Crowdfunding",
     "benchmarks": "Benchmarks",
     "pricing": "Pricing",
     "login": "Sign in with CAFECA",
     "logout": "Sign out",
     "account": "Account",
-    "myTasks": "My commissions",
+    "myTasks": "My crowdfunds",
     "notifications": "Notifications",
-    "admin": "Hub review",
+    "admin": "Admin",
     "loginShort": "Sign in",
     "tools": "Tools",
     "shares": "Shares",
@@ -38,10 +38,10 @@
     "title2": "SinoBee gets it done.",
     "lead": "SinoBee searches the web, reads files, writes code, runs commands and operates the browser, mouse and keyboard; it also runs scheduled background work and produces complete videos. It delivers tables, charts, files and films. Risky actions ask you first, you can add instructions or stop it mid-task, and it remembers your preferences and gets better over time.",
     "ctaInstall": "Download for free",
-    "ctaCommission": "Commission a cloud run",
+    "ctaCommission": "Start a crowdfund",
     "shotAlt": "SinoBee explaining a GitHub project with a table and a flow chart",
     "statSkills": "Hub skills",
-    "statTasks": "Completed commissions",
+    "statTasks": "Tasks completed",
     "statReports": "Public evaluation reports",
     "featuresTitle": "One assistant that finishes the job",
     "featuresLead": "More than chat: SinoBee has tools, layered memory, skills and fixed workflows — and brakes.",
@@ -118,13 +118,13 @@
         "cta": "Browse skills"
       },
       "commission": {
-        "title": "Commission AI tasks",
-        "body": "No machine or no time to set it up? Fund a task and the platform runs SinoBee in your own Docker container, then notifies you through CAFECA.",
-        "cta": "Commission a task"
+        "title": "Crowdfunded AI tasks",
+        "body": "Describe what you want AI to do; AI writes the spec and estimates the cost. People back it at NT$30 a share, and once funded the platform runs it in an isolated container and reports to the backers.",
+        "cta": "Browse crowdfunds"
       },
       "bench": {
         "title": "Model & skill evaluations",
-        "body": "Anyone can commission an AI evaluation. Every report discloses time, requester, skill, model, method, process and result.",
+        "body": "Anyone can crowdfund an evaluation of a model or a skill. Once the backers accept it, the report is public: time, proposer, skill, model, method, process and result.",
         "cta": "See the leaderboard"
       }
     },
@@ -251,7 +251,7 @@
   "auth": {
     "title": "Sign in with CAFECA",
     "lead": "Use the Passkey in your CAFECA wallet — no password.",
-    "statement": "Sign in to SinoBee.ai to manage skills, commissions and evaluations",
+    "statement": "Sign in to SinoBee.ai: manage skills, crowdfunded tasks and evaluations",
     "popup": "Sign in with CAFECA (popup)",
     "redirect": "Sign in with a full-page redirect",
     "qr": "Scan a QR code with your phone",
@@ -404,11 +404,11 @@
     "contentHash": "Content hash",
     "signature": "Signature",
     "evaluations": "Evaluation reports",
-    "commissionEval": "Commission an evaluation",
+    "commissionEval": "Crowdfund an evaluation of this skill",
     "noEvaluations": "No evaluation reports for this skill yet.",
     "install": "Install",
     "download": "Download bundle",
-    "useInTask": "Commission a task with this skill",
+    "useInTask": "Crowdfund a task with this skill",
     "rate": "Rate",
     "loginToRate": "Sign in to rate.",
     "details": "Details",
@@ -520,7 +520,7 @@
     },
     "prices": {
       "formulaTitle": "Published price formula",
-      "formula": "Published price (TWD per 1M tokens) = vendor USD × base FX rate {fx} × {buffer}. The pricing page, the task form and subscription quotas all read this table.",
+      "formula": "Published price (TWD per 1M tokens) = vendor USD × base FX rate {fx} × {buffer}. The pricing page, crowdfund estimates and subscription quotas all read this table.",
       "fx": "Base FX rate (USD→TWD)",
       "buffer": "Buffer",
       "effective": "Effective (empty = now)",
@@ -545,7 +545,7 @@
         "cacheWrite": "Cache write",
         "output": "Output"
       },
-      "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for commissioned tasks."
+      "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for crowdfunded tasks."
     },
     "plans": {
       "help": "Enter the fee and the usage multiplier (30-day usage ÷ fee, at published prices); the allowance and the 6-hour (L6) and 7-day (L168) limits are calculated. Published prices include the buffer, so a plan's margin = buffer ÷ usage multiplier — keep it profitable with the buffer under Prices.",
@@ -596,7 +596,7 @@
       "refundGo": "Refund",
       "cancel": "Cancel",
       "confirm": "Refund {amount} TWD through Oen? Each transaction can be refunded once.",
-      "help": "Oen notifications are unsigned, so every result is read back with GET /transactions; missed notifications are reconciled by the worker every 3 minutes. One refund per transaction; task refunds are limited to the unspent budget, and refunding a subscription cancels that period and moves later ones up."
+      "help": "Oen notifications are unsigned, so every result is read back with GET /transactions; missed notifications are reconciled by the worker every 3 minutes. One refund per transaction; pledge refunds for funded tasks are limited to the unspent budget, and refunding a subscription cancels that period and moves later ones up."
     },
     "settings": {
       "help": "Settings live in the database; secrets are encrypted with AES-256-GCM. Values set by environment variables are locked and must be changed there. Empty keys and passwords are generated automatically.",
@@ -653,7 +653,7 @@
       "show": "Show",
       "copy": "Copy",
       "groupHelp": {
-        "payments": "Payment provider and task amount limits.",
+        "payments": "Payment provider settings.",
         "apiKeys": "Platform model and search keys, used by the relay and task containers.",
         "llm": "Relay limits for subscribers and upstream URLs.",
         "legal": "Shown in the Terms, Privacy and Refund policies.",
@@ -736,78 +736,31 @@
     "exampleTitle": "Examples"
   },
   "tasks": {
-    "title": "Commissions",
-    "lead": "Fund a task and SinoBee completes it in the cloud. Public commissions appear here; anyone can rate and discuss the results.",
-    "new": "Commission a task",
-    "public": "Public",
-    "mine": "Mine",
+    "title": "My crowdfunds",
+    "lead": "Proposals you started and crowdfunds you backed.",
     "private": "Private",
     "evaluation": "Evaluation",
-    "emptyPublic": "No public commissions yet.",
-    "emptyMine": "You have not commissioned anything yet.",
-    "newTitle": "Commission a task",
-    "newLead": "The platform runs SinoBee in a Docker container dedicated to you. You pay for actual usage — model tokens, virtual machine rental and storage — priced in TWD. If the budget runs out before the task is done, the current results are packaged and CAFECA asks you to add funds or close the task.",
-    "steps": {
-      "0": "Describe the task, pick a model and a budget",
-      "1": "Pay the budget through Oen (card, in TWD)",
-      "2": "Runs in your own Docker container",
-      "3": "Notified via CAFECA — download within 7 days"
-    }
+    "started": "Started by me",
+    "backed": "Backed by me",
+    "emptyStarted": "You have not started a crowdfund yet.",
+    "emptyBacked": "You have not backed a crowdfund yet."
   },
   "taskForm": {
-    "title": "Title",
-    "titlePh": "e.g. Taiwan EV market report for Q3 2026",
-    "evalTitlePh": "e.g. web-research skill accuracy on Chinese news fact-checking",
-    "prompt": "Task description",
-    "promptPh": "Describe the result and the deliverable in plain words, e.g. “summarize as a table and save as report.xlsx”.",
-    "promptHint": "Be specific: sources, deliverable format, success criteria. Nobody can answer questions during the run; SinoBee states its assumptions in SUMMARY.md.",
-    "evalPrompt": "What to evaluate, in which scenario",
-    "evalPromptPh": "Which capability, in what situation? e.g. verify 10 Chinese news stories and cite the original sources.",
-    "method": "Evaluation method",
     "methods": {
       "benchmark-suite": "Benchmark suite (fixed, reproducible test set)",
       "rubric": "Rubric (score each criterion)",
       "a-b-comparison": "A/B comparison (against a baseline)"
-    },
-    "criteria": "Criteria & test cases",
-    "criteriaPh": "One case or criterion per line, e.g.\n1. Finds the original source (30 pts)\n2. Correct verdict (50 pts)\n3. Complete citations (20 pts)",
-    "model": "Model",
-    "useSkill": "Use skill",
-    "public": "Make this commission public",
-    "publicHint": "Anyone can see the description, summary, ratings and comments (only you can download the result files).",
-    "evalPublic": "Evaluation reports are always public: time, requester, skill, model, method, process and result.",
-    "estimate": "Cost estimate",
-    "estMinutes": "Expected run time (minutes)",
-    "estTokens": "Expected input tokens",
-    "est": {
-      "tokens": "Model tokens",
-      "vm": "Virtual machine rental",
-      "s3": "Storage"
-    },
-    "estTotal": "Estimated total",
-    "estNote": "Estimated in TWD. You pay actual usage, never more than your budget; unused budget can be refunded (see the refund policy).",
-    "budget": "Budget",
-    "budgetHint": "Minimum {min} TWD. When the budget runs out the task pauses and asks you to add funds; results are kept {days} days after completion (longer for subscribers).",
-    "submit": "Pay {amount} TWD and submit",
-    "paying": "Going to Oen…",
-    "payTitle": "SinoBee.ai commission budget {amount} TWD",
-    "modelPrice": "{input} / {output} TWD per 1M input / output tokens",
-    "oenNote": "You will be sent to Oen's payment page (valid 5 minutes) and brought back here afterwards. Oen emails the e-invoice."
+    }
   },
   "task": {
-    "back": "← Back to commissions",
-    "by": "Requested by",
+    "back": "← My crowdfunds",
+    "by": "Proposer",
     "private": "Private",
-    "needsFundingTitle": "Budget used up — the task is not finished",
-    "needsFundingBody": "The current results are packaged (download on the right). Add funds to continue where it stopped, or close the task and keep the results. Without an answer it closes automatically after {days} days.",
     "viewReport": "View the evaluation report",
-    "prompt": "Task description",
     "criteria": "Criteria",
     "summary": "Result summary",
     "log": "Activity",
     "noEvents": "Nothing yet.",
-    "rateResult": "Is this result good?",
-    "loginToRate": "Sign in to rate.",
     "billing": "Cost",
     "cost": {
       "tokens": "Model tokens",
@@ -823,22 +776,13 @@
     "download": "Download results",
     "expired": "The download window has ended and the file was deleted.",
     "expiresIn": "Time left to download",
-    "retentionNote": "For non-subscribers, containers and results are kept only {days} days after a task finishes — download early.",
-    "publicNote": "This commission is public. Only the requester can download the result files.",
-    "payBudget": "Pay the budget",
-    "topUp": "Add funds",
-    "payNow": "Pay {amount} TWD",
-    "addFunds": "Add {amount} TWD",
     "close": "Close and keep current results",
-    "cancel": "Cancel commission",
-    "confirmClose": "The task will not continue; current results stay downloadable. Close it?",
-    "confirmCancel": "Cancel this unpaid commission?",
-    "amount": "Amount"
+    "confirmClose": "The task will not continue; current results stay downloadable. Close it?"
   },
   "bench": {
     "title": "Model & skill benchmarks",
-    "lead": "Every evaluation is run by SinoBee and published in full: time, requester, skill, model, method, process and result. Anyone can commission an AI evaluation.",
-    "commission": "Commission an evaluation",
+    "lead": "Every evaluation is run by SinoBee and published in full: time, proposer, skill, model, method, process and result. Anyone can crowdfund an evaluation; the report is published once the backers accept it.",
+    "commission": "Crowdfund an evaluation",
     "models": "Model leaderboard",
     "model": "Model",
     "overall": "Overall",
@@ -848,26 +792,24 @@
       "rubric": "Rubric",
       "a-b-comparison": "A/B"
     },
-    "modelsNote": "Scores average the reports evaluating models without a skill (0–100). {n} models are available for commissions.",
+    "modelsNote": "Scores are the average of reports without a skill (0–100). {n} models are offered.",
     "skills": "Skill evaluations",
     "recent": "Latest reports",
-    "empty": "No evaluation reports yet — be the first to commission one.",
+    "empty": "No evaluation reports yet. Be the first to propose one.",
     "how": {
       "0": {
-        "title": "Commission",
-        "body": "Choose the model (and skill), the method and criteria, and fund it."
+        "title": "Propose",
+        "body": "Describe the model or skill to evaluate; AI writes the method, criteria and cost estimate, and people back it."
       },
       "1": {
         "title": "Run",
-        "body": "SinoBee runs the evaluation in an isolated container and records every step."
+        "body": "Once funded, SinoBee runs the evaluation in an isolated container, recording every step, and the backers review it."
       },
       "2": {
         "title": "Publish",
         "body": "The report is public here and on the skill page for anyone to read and discuss."
       }
-    },
-    "newTitle": "Commission an evaluation",
-    "newLead": "An evaluation is a commission too, billed on actual usage of model tokens, virtual machine rental and storage. The report is published on the benchmarks and skill pages."
+    }
   },
   "report": {
     "back": "← Back to benchmarks",
@@ -880,44 +822,29 @@
     "score": "Score",
     "notes": "Notes",
     "time": "Evaluated at",
-    "requester": "Requested by",
+    "requester": "Proposer",
     "skill": "Skill",
     "noSkill": "None (model only)",
     "model": "Model",
     "method": "Method",
-    "viewTask": "View the commission"
+    "viewTask": "View the crowdfund"
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Subscriptions run in 30-day periods without auto-renewal and draw down at the model prices published here; commissioned tasks are billed on actual usage.",
+    "lead": "Plans run 30 days and never renew automatically; usage is charged at SinoBee.ai's published model prices. Crowdfunded tasks are estimated by AI from their expected usage.",
     "formula": "How we charge",
     "charge": "Charge",
     "tokens": "Model tokens",
     "vm": "Virtual machine rental",
     "s3": "Storage",
-    "formulaNote": "All prices are in TWD, paid through Oen with an e-invoice; model prices and the FX rate are locked when a commission is created.",
+    "formulaNote": "All prices are in TWD, paid through Oen with an e-invoice. Model prices and the exchange rate are locked when a crowdfund is funded; the run is charged by actual usage against the task budget.",
     "tokensBody": "Billed at the published model prices above: uncached input, cache reads, cache writes and output each at their own price — the same table subscriptions use.",
     "vmBody": "Per second while running: {price} TWD per hour ({cpus} vCPU / {mem} GB RAM per task).",
     "s3Body": "Result storage: {gb} TWD per GB-month, prorated by retention; {put} TWD per 1,000 writes and {get} TWD per 1,000 reads.",
     "modelTable": "Published model prices (TWD per 1M tokens)",
     "model": "Model",
     "modelNote": "Published price = vendor USD price × base FX rate {fx} × {buffer}. Subscription quota is drawn down at these prices; changes are announced here with their effective date.",
-    "free": "Without subscription",
-    "freeA": "Your own Docker container, kept {days} days after a task finishes.",
-    "freeB": "Results downloadable for {days} days after completion, then deleted for good.",
-    "freeC": "Pay for actual usage; the run pauses and asks you before exceeding the budget.",
-    "sub": "Subscription",
     "days": "days",
-    "subA": "Your container is kept while subscribed (memory, skills and browser logins persist).",
-    "subB": "Results kept {days} days.",
-    "subC": "Commission pricing stays the same.",
-    "budgetTitle": "Budgets and top-ups",
-    "budget": {
-      "0": "You set a budget and pay through Oen when you submit; cost is metered every 15 seconds and the charge never exceeds the budget.",
-      "1": "If the budget runs out first, the platform packages the current results and CAFECA asks you to add funds or close the task.",
-      "2": "After a top-up the run continues where it stopped, in the same container and session.",
-      "3": "Without a top-up or close within the download window, the task closes automatically."
-    },
     "plans": "Subscription plans",
     "planL6": "Every 6 hours: about {tokens} tokens",
     "planL168": "Every 7 days: about {tokens} tokens",
@@ -928,10 +855,22 @@
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",
     "pOut": "Output",
-    "tasksTitle": "Commissioned tasks",
+    "tasksTitle": "How crowdfunded runs are metered",
     "seePlans": "See plans",
     "planBuy": "Subscribe",
-    "planUsage": "Use up to {mult}× the fee (up to NT${value} in 30 days at published prices)"
+    "planUsage": "Use up to {mult}× the fee (up to NT${value} in 30 days at published prices)",
+    "crowdTitle": "How crowdfunding is charged",
+    "crowd": {
+      "share": "NT${price} a share; back 1, 5 or 20 shares. Cards are only saved while funding and charged when the goal is reached.",
+      "fee": "Proposal fee NT${fee}: credit for AI drafting and editing the spec; not refundable.",
+      "goal": "The goal is set from AI's estimate of the run (the conservative estimate plus the service fee, rounded up to whole shares).",
+      "leftover": "After the task, unused budget goes back to the backers as platform points for other crowdfunds.",
+      "cta": "Start a crowdfund",
+      "periods": "Periods and service fees",
+      "days": "{days} days",
+      "noFee": "No fee",
+      "periodNote": "Results are kept {days} days for the backers."
+    }
   },
   "account": {
     "title": "Account",
@@ -957,8 +896,6 @@
     "payments": "Payments",
     "noPayments": "No payments yet.",
     "purpose": {
-      "TASK_BUDGET": "Commission budget",
-      "TASK_TOPUP": "Top-up",
       "SUBSCRIPTION": "Subscription",
       "CROWD_PROPOSAL": "Proposal fee",
       "CROWD_PLEDGE": "Crowdfunding pledge"
@@ -1006,7 +943,7 @@
   },
   "notifications": {
     "title": "Notifications",
-    "lead": "Task completions, budget requests, skill reviews and comments — also pushed through CAFECA.",
+    "lead": "Screening results, funding progress, budget used up, acceptance votes and comments; also pushed through CAFECA.",
     "empty": "No notifications.",
     "markAll": "Mark all read"
   },
@@ -1191,9 +1128,7 @@
     },
     "ok": {
       "SUBSCRIPTION": "Your subscription is active. Oen emails the e-invoice.",
-      "TASK_BUDGET": "{amount} TWD budget received; the task is queued.",
-      "TASK_TOPUP": "{amount} TWD added; the task continues where it stopped.",
-      "CROWD_PROPOSAL": "Proposal fee of {amount} TWD received; you can start the spec dialogue.",
+      "CROWD_PROPOSAL": "Received the {amount} TWD proposal fee; AI is drafting the spec.",
       "CROWD_PLEDGE": "Pledge of {amount} TWD received."
     },
     "pending": "Checking the result with Oen; this page updates by itself.",
@@ -1243,23 +1178,39 @@
     "title": "Crowdfunded tasks",
     "lead": "Back the tasks you need with others. One share is NT${price}; pledge 1, 5 or 20 shares at a time. Nothing is charged unless the goal is reached.",
     "new": "Start a crowdfund",
-    "newTitle": "Start a crowdfunded task",
-    "newLead": "Turn your idea into a spec with an AI dialogue, then open it for pledges. Cards are only saved during the campaign and charged once the goal is reached; unused budget becomes platform points for the backers.",
+    "newTitle": "Start a crowdfund",
+    "newLead": "Just describe what you want AI to do: AI writes the whole spec, picks the category and estimates the cost. You check it line by line or ask AI for changes, pick a period and submit.",
     "steps": {
-      "0": "Describe the idea and pay the NT${fee} proposal fee",
-      "1": "Draft the spec, method and acceptance criteria with AI",
-      "2": "Pick a period (7 days has no service fee) and open pledges",
-      "3": "Once funded the agent runs and reports progress in the comments"
+      "0": "Describe it and pay the NT${fee} proposal fee",
+      "1": "AI writes the spec and the estimate; edit lines or ask AI",
+      "2": "Pick a period and submit; it opens once screening passes"
     },
     "form": {
-      "title": "Task name",
-      "description": "What should be done",
-      "descriptionHint": "Describe the need, context and expected results in your own words; the dialogue turns it into a spec.",
-      "model": "Model",
+      "kind": "Type",
+      "kinds": {
+        "TASK": "AI task",
+        "EVALUATION": "Model / skill evaluation"
+      },
+      "description": "What do you want AI to do?",
+      "descriptionEval": "What do you want evaluated?",
+      "placeholder": "For example: survey the accessibility features of every bus stop in Taipei and write a report by district with suggestions.",
+      "placeholderEval": "For example: compare this skill's accuracy and consistency across question types.",
+      "descriptionHint": "Write the background, the result you want and any limits in your own words. AI writes the title, category, spec and estimate.",
+      "method": "Evaluation method",
+      "methodAuto": "Let AI choose",
+      "subjectSkill": "Subject: the skill {skill}",
+      "subjectModel": "Subject: the model chosen below",
       "useSkill": "Use the skill {skill}",
-      "create": "Create proposal",
-      "creating": "Creating…",
-      "category": "Category"
+      "advanced": "Advanced (optional)",
+      "title": "Title",
+      "titleAuto": "Leave empty for AI to name it",
+      "model": "Model",
+      "modelEval": "Model under evaluation",
+      "feeLine": "Proposal fee NT${fee}: credit for AI drafting and editing the spec, not refundable; what is left joins the task budget when funded.",
+      "create": "Pay NT${fee} and draft the spec",
+      "after": "After paying you come back to the proposal; AI drafts the spec in about a minute.",
+      "category": "Category",
+      "creating": "Creating…"
     },
     "edit": {
       "title": "Crowdfunding proposal",
@@ -1274,9 +1225,9 @@
       "confirmDiscard": "Discard this proposal? The proposal fee is not refunded."
     },
     "chat": {
-      "title": "Spec dialogue",
-      "empty": "Tell us the result you want; the AI asks questions and drafts the spec.",
-      "placeholder": "Answer or add details…",
+      "title": "Ask AI to edit",
+      "empty": "Tell AI what to change, e.g. \"add an English version to the deliverables\".",
+      "placeholder": "What should change?",
       "send": "Send",
       "sending": "Thinking…",
       "needFee": "Pay the proposal fee to start the dialogue.",
@@ -1320,7 +1271,7 @@
       }
     },
     "open": {
-      "title": "Open crowdfunding",
+      "title": "Submit the crowdfund",
       "duration": "Period",
       "days": "{days} days",
       "fee": "{rate}% service fee",
@@ -1329,10 +1280,13 @@
       "minGoal": "At least {min} TWD (P90 estimate plus the fee, in whole shares of {price})",
       "startEarly": "Start as soon as the goal is reached",
       "startEarlyHint": "Charge and start once the pledges reach the goal; later pledges are charged at once and added to the budget.",
-      "submit": "Open crowdfunding",
+      "submit": "Submit for screening",
       "missing": "The spec is missing: {list}",
       "needFee": "Pay the proposal fee first.",
-      "confirm": "The spec cannot change after opening. Open crowdfunding now?"
+      "confirm": "The spec cannot be changed after submitting. Submit for screening?",
+      "goalAuto": "Goal NT${goal} (AI estimate + service fee)",
+      "more": "More options",
+      "afterSubmit": "AI checks it against the public screening checklist; it opens for pledges when every item passes, and the period starts then."
     },
     "panel": {
       "goal": "Goal",
@@ -1533,7 +1487,36 @@
       "requested": "Re-review requested",
       "inProgress": "In screening"
     },
-    "agreeTerms": "I have read and agree to the <terms>Crowdfunding Terms</terms>, including every proposal screening item."
+    "agreeTerms": "I have read and agree to the <terms>Crowdfunding Terms</terms>, including every proposal screening item.",
+    "myList": "← My crowdfunds",
+    "draft": {
+      "steps": "Proposal steps",
+      "step1": "Describe and pay",
+      "step2": "AI drafts the spec",
+      "step3": "Check and submit",
+      "payTitle": "Pay the proposal fee and AI drafts the spec",
+      "working": "AI is drafting the spec and the estimate…",
+      "workingHint": "Deliverables, method, acceptance criteria and cost from your description; usually under a minute.",
+      "retry": "Try again",
+      "aiCategory": "(chosen by AI, you can change it)",
+      "optional": "optional"
+    },
+    "doc": {
+      "hint": "Click any line to edit it; Enter saves, Esc cancels. Or ask AI on the right.",
+      "clickToEdit": "Click to edit",
+      "remove": "Remove this line",
+      "add": "Add a line",
+      "newLine": "Type here…",
+      "empty": "(empty, click to fill in)",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveError": "Could not save, try again",
+      "evaluation": "Evaluation method and criteria",
+      "methodPending": "Not chosen yet (ask AI)",
+      "askAi": "AI decides this part; tell AI on the right to change it.",
+      "estimate": "AI cost estimate",
+      "estimateLine": "Typically NT${p50}, conservatively NT${p90} (the goal uses the conservative estimate)"
+    }
   },
   "checklist": {
     "ai": "Change with AI",

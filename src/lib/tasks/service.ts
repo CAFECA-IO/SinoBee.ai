@@ -1,64 +1,21 @@
 import { db } from "@/lib/db";
 import { config } from "@/lib/config";
 import { HttpError } from "@/lib/errors";
-import { offeredModel, pricingSettings } from "@/lib/models";
 import { notify } from "@/lib/notify";
 import { addDays, resultsRetentionDays } from "@/lib/retention";
-import { z } from "zod";
 
-export const EVAL_METHODS = ["benchmark-suite", "rubric", "a-b-comparison"] as const;
+export { EVAL_METHODS } from "@/lib/crowd/rules";
 
-export const TaskInput = z.object({
-  kind: z.enum(["TASK", "EVALUATION"]).default("TASK"),
-  title: z.string().trim().min(3).max(120),
-  prompt: z.string().trim().min(10).max(20_000),
-  model: z.string().min(3).max(200),
-  skillVersionId: z.string().optional().nullable(),
-  isPublic: z.boolean().default(false),
-  /** whole TWD (Oen charges integer amounts) */
-  budget: z.coerce.number().int().positive(),
-  evalMethod: z.enum(EVAL_METHODS).optional(),
-  evalCriteria: z.string().trim().max(10_000).optional(),
-});
-
-export async function createTask(userId: string, input: z.infer<typeof TaskInput>) {
-  const model = await offeredModel(input.model);
-  if (!model) throw new HttpError(400, "unsupported model");
-  // snapshot the published price so later price changes never alter this task's bill
-  const { fx, buffer } = await pricingSettings();
-  if (input.budget < config.payments.minTaskBudget) throw new HttpError(400, `minimum budget is ${config.payments.minTaskBudget} TWD`);
-  if (input.skillVersionId) {
-    const sv = await db.skillVersion.findUnique({ where: { id: input.skillVersionId } });
-    if (!sv || sv.status === "REVOKED" || sv.status === "REJECTED") throw new HttpError(400, "skill version not available");
-  }
-  if (input.kind === "EVALUATION" && !input.evalMethod) throw new HttpError(400, "evaluation method required");
-  return db.task.create({
-    data: {
-      userId,
-      kind: input.kind,
-      title: input.title,
-      prompt: input.prompt,
-      model: input.model,
-      skillVersionId: input.skillVersionId || null,
-      // evaluation reports are always public
-      isPublic: input.kind === "EVALUATION" ? true : input.isPublic,
-      usdTwdRate: fx,
-      priceBuffer: buffer,
-      modelPriceUsd: model.usd,
-      evalMethod: input.evalMethod ?? null,
-      evalCriteria: input.evalCriteria ?? null,
-    },
-  });
-}
-
-/** User decision after the budget ran out: close the task with the partial results */
+/**
+ * The proposer drops a draft proposal (CANCELLED) or, when the budget ran out (NEEDS_FUNDING), closes the task with
+ * the results so far (COMPLETED, settled for the backers).
+ */
 export async function closeTask(userId: string, taskId: string) {
   const t = await db.task.findUnique({ where: { id: taskId } });
   if (!t || t.userId !== userId) throw new HttpError(404, "task not found");
-  // crowdfunded: backers paid for it, so only a drafted proposal can be dropped or an unfunded run closed
-  const closable = t.crowdfund ? ["DRAFT", "NEEDS_FUNDING"] : ["NEEDS_FUNDING", "AWAITING_PAYMENT", "QUEUED"];
-  if (!closable.includes(t.status)) throw new HttpError(400, "task cannot be closed in its current state");
-  const days = t.crowdfund ? Math.max(config.crowd.resultsDays, await resultsRetentionDays(userId)) : await resultsRetentionDays(userId);
+  // backers paid for it, so only a drafted proposal can be dropped or an unfunded run closed
+  if (!t.crowdfund || !["DRAFT", "NEEDS_FUNDING"].includes(t.status)) throw new HttpError(400, "task cannot be closed in its current state");
+  const days = Math.max(config.crowd.resultsDays, await resultsRetentionDays(userId));
   const expires = addDays(new Date(), days);
   const status = t.status === "NEEDS_FUNDING" ? "COMPLETED" : "CANCELLED";
   await db.$transaction([
@@ -66,7 +23,7 @@ export async function closeTask(userId: string, taskId: string) {
     db.artifact.updateMany({ where: { taskId: t.id, deletedAt: null }, data: { expiresAt: expires } }),
     db.taskEvent.create({ data: { taskId: t.id, type: "closed", message: "Closed by the requester" } }),
   ]);
-  if (t.crowdfund && status === "COMPLETED") {
+  if (status === "COMPLETED") {
     // a top-up round still open: its pledges are given back first
     const { releasePledge } = await import("@/lib/crowd/pledges");
     for (const p of await db.pledge.findMany({ where: { taskId: t.id, topup: true, status: { in: ["ACTIVE", "FAILED"] } } })) await releasePledge(p.id, "RELEASED");

@@ -4,14 +4,16 @@ import { HttpError } from "../errors";
 import { currentModels, type ModelPriceView } from "../models";
 import { costTwd } from "../llm/quota";
 import type { Prisma } from "@/generated/prisma/client";
-import { creditLeft, ownDraft, useCredit } from "./proposal";
-import { normalizeSpec, type Spec } from "./rules";
+import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
+import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
+import type { Task } from "@/generated/prisma/client";
 
 /**
- * The spec dialogue: the proposer talks with a model that asks what it needs and drafts the crowdfunding proposal
- * (requirements, deliverables, method and milestones, acceptance criteria, cost estimate, stretch goals, risks).
- * Every turn is charged at published prices to the proposal credit; when the credit runs out the dialogue stops
- * until another proposal fee is bought.
+ * The spec model. Right after the proposal fee is paid it drafts the whole proposal from the description
+ * (generateSpec): title, category, requirements, deliverables, method and milestones, acceptance criteria, the cost
+ * estimate that sets the goal, stretch goals and risks (for evaluations also the method and criteria). The proposer
+ * then edits lines by hand or asks it for changes (specTurn). Every call is charged at published prices to the
+ * proposal credit; when the credit runs out the dialogue stops until another proposal fee is bought.
  */
 
 export type ChatTurn = { role: "user" | "assistant"; content: string; at: string };
@@ -19,7 +21,9 @@ export type ChatTurn = { role: "user" | "assistant"; content: string; at: string
 const MAX_TURNS = 40;
 const MAX_OUTPUT = 2500;
 
-function systemPrompt(task: { title: string; prompt: string; model: string }, model: ModelPriceView | undefined, spec: Spec | null) {
+type DraftTask = Pick<Task, "title" | "prompt" | "model" | "kind" | "evalMethod" | "evalCriteria" | "category"> & { skill?: string | null };
+
+function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: Spec | null) {
   const fx = model?.fx ?? 32.5;
   const vmTwd = config.pricing.vmHourlyUsd * fx * config.pricing.markup;
   return [
@@ -28,18 +32,30 @@ function systemPrompt(task: { title: string; prompt: string; model: string }, mo
     "Reply in the proposer's language (Traditional Chinese if they write Chinese). Be concise. Ask at most 3 questions per turn, only what changes the plan.",
     "",
     `Task title: ${task.title}`,
+    `Category: ${task.category ?? "(not set)"}`,
     `Proposer's description: ${task.prompt}`,
+    ...(task.kind === "EVALUATION"
+      ? [
+          "This proposal is an EVALUATION: the agent evaluates a subject (a skill on a model, or a model) and publishes a scored report. Backers fund it to get an independent result.",
+          `Subject: ${task.skill ? `the skill "${task.skill}" running on ${task.model}` : `the model ${task.model}`}.`,
+          `Evaluation method: ${task.evalMethod ?? "(choose one)"}; criteria / test cases: ${task.evalCriteria ? task.evalCriteria.slice(0, 4000) : "(write them)"}.`,
+          "The deliverables must include outputs/evaluation.json (score 0-100, verdict, metrics, cases, process).",
+        ]
+      : []),
     `Agent model: ${task.model}${model ? ` (published price per 1M tokens: input NT$${model.twd.input.toFixed(1)}, output NT$${model.twd.output.toFixed(1)})` : ""}`,
     `Container time costs about NT$${vmTwd.toFixed(1)} per hour. A typical research or analysis task uses 0.5–5 million input tokens.`,
     spec ? `Current draft spec (JSON): ${JSON.stringify(spec)}` : "No spec drafted yet.",
     "",
     "Always answer with ONE JSON object and nothing else:",
-    '{"reply": "<your message to the proposer, markdown>", "spec": <the full updated spec, or null if nothing to draft yet>}',
+    '{"reply": "<your message to the proposer, markdown>", "title": "<short title, max 40 characters, in the proposer\'s language>", "category": "<one of: ' + CATEGORIES.join(", ") + '>",',
+    task.kind === "EVALUATION" ? ' "evalMethod": "<one of: ' + EVAL_METHODS.join(", ") + '>", "evalCriteria": "<criteria and test cases, one per line>",' : "",
+    ' "spec": <the full updated spec>}',
     "spec shape:",
     '{"summary": "...", "scope": "...", "outOfScope": "...", "deliverables": ["file or result, format"], "method": ["step / milestone"],',
     ' "acceptance": ["3-7 checkable criteria, prefer ones the agent can verify itself"], "estimate": {"p50Twd": <int>, "p90Twd": <int>, "basis": "tokens, hours, why"},',
     ' "stretch": [{"title": "extra scope", "twd": <int extra cost>}], "risks": ["data availability, external APIs, partial delivery if it fails"]}',
     "Estimates are total TWD for the agent run (tokens + container time + storage) at the prices above; p90 is the amount that covers 9 of 10 runs.",
+    "Always return the full spec, filled in as well as you can from what you know; list open assumptions in risks instead of leaving parts empty.",
     "Keep everything the proposer already agreed to; never invent facts about their data.",
   ].join("\n");
 }
@@ -98,18 +114,35 @@ function mockReply(messages: { role: string; content: string }[]): { text: strin
     stretch: [{ title: "英文版報告", twd: 150 }],
     risks: ["資料來源可能需要登入"],
   };
-  const text = JSON.stringify({ reply: n === 1 ? "（開發模式模擬回覆）我先依你的描述起草了規格，請確認交付物與驗收條件是否正確。" : "（開發模式模擬回覆）已更新規格。", spec });
+  const text = JSON.stringify({
+    reply: n === 1 ? "（開發模式模擬回覆）我先依你的描述起草了規格，請確認交付物與驗收條件是否正確。" : "（開發模式模擬回覆）已更新規格。",
+    title: "（模擬）公開資料整理報告",
+    category: "data",
+    evalMethod: "rubric",
+    evalCriteria: "正確性\n完整性\n可重現性",
+    spec,
+  });
   return { text, usage: { prompt: 1500 * n, output: 600, cacheRead: 0, cacheWrite: 0 } };
 }
 
 /** The first {...} block in the model's answer, parsed; falls back to plain text as the reply */
-export function parseAnswer(text: string): { reply: string; spec: Spec | null } {
+export type Answer = { reply: string; spec: Spec | null; title?: string; category?: string; evalMethod?: string; evalCriteria?: string };
+
+export function parseAnswer(text: string): Answer {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start >= 0 && end > start) {
     try {
-      const j = JSON.parse(text.slice(start, end + 1)) as { reply?: unknown; spec?: unknown };
-      return { reply: typeof j.reply === "string" ? j.reply : "", spec: j.spec && typeof j.spec === "object" ? normalizeSpec(j.spec) : null };
+      const j = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+      const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+      return {
+        reply: typeof j.reply === "string" ? j.reply : "",
+        spec: j.spec && typeof j.spec === "object" ? normalizeSpec(j.spec) : null,
+        title: str(j.title, 120),
+        category: isCategory(j.category) ? j.category : undefined,
+        evalMethod: (EVAL_METHODS as readonly string[]).includes(String(j.evalMethod)) ? String(j.evalMethod) : undefined,
+        evalCriteria: str(j.evalCriteria, 10_000),
+      };
     } catch {
       /* not JSON */
     }
@@ -117,32 +150,75 @@ export function parseAnswer(text: string): { reply: string; spec: Spec | null } 
   return { reply: text.trim(), spec: null };
 }
 
+/** What the model's answer changes on the draft: the spec, the category, and the title while it is still the placeholder */
+function applied(task: Task, a: Answer): Prisma.TaskUpdateInput {
+  return {
+    ...(a.spec ? { spec: a.spec as unknown as Prisma.InputJsonValue, specVersion: { increment: 1 } } : {}),
+    ...(a.category ? { category: a.category } : {}),
+    ...(a.title && a.title.length >= 3 && task.title === placeholderTitle(task.prompt) ? { title: a.title } : {}),
+    ...(task.kind === "EVALUATION" && a.evalMethod ? { evalMethod: a.evalMethod } : {}),
+    ...(task.kind === "EVALUATION" && a.evalCriteria ? { evalCriteria: a.evalCriteria } : {}),
+  };
+}
+
+const busy = new Set<string>();
+
+async function ask(task: Task, chat: ChatTurn[], message: string) {
+  const models = await currentModels();
+  const model = models.find((m) => m.modelId === config.crowd.specModel) ?? models.find((m) => m.enabled);
+  if (!model) throw new HttpError(503, "no model available for the spec dialogue");
+  const current = task.spec ? normalizeSpec(task.spec) : null;
+  const skill = task.skillVersionId ? (await db.skillVersion.findUnique({ where: { id: task.skillVersionId }, include: { skill: true } }))?.skill.name : null;
+  const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: message }];
+  const { text: answer, usage } = await callModel(model, systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
+  const cost = costTwd(model.twd, usage);
+  // the call already happened: charge it even if it takes the credit slightly below zero
+  await useCredit(task.id, cost, { allowOverdraw: true });
+  return { parsed: parseAnswer(answer), cost, current };
+}
+
+function checkCredit(task: Task) {
+  if (Number(task.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee first");
+  if (creditLeft(task) <= 0.01) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
+}
+
+/**
+ * Draft the whole proposal from the description (once, right after the proposal fee is paid). Returns the draft as it
+ * is when a spec already exists.
+ */
+export async function generateSpec(userId: string, taskId: string) {
+  const task = await ownDraft(userId, taskId);
+  if (task.spec) return { generated: false, spec: normalizeSpec(task.spec), creditLeft: creditLeft(task) };
+  checkCredit(task);
+  if (busy.has(taskId)) throw new HttpError(409, "the spec is being drafted");
+  busy.add(taskId);
+  try {
+    const instruction =
+      "Draft the complete crowdfunding proposal from my description now: a short title, the category, every part of the spec and the cost estimate" +
+      (task.kind === "EVALUATION" ? ", plus the evaluation method and criteria" : "") +
+      ". In the reply, say in two or three sentences what you assumed and what I should check.";
+    const { parsed, cost } = await ask(task, [], instruction);
+    const now = new Date().toISOString();
+    const chat: ChatTurn[] = [{ role: "assistant", content: parsed.reply || "…", at: now }];
+    const updated = await db.task.update({ where: { id: taskId }, data: { specChat: chat as unknown as Prisma.InputJsonValue, ...applied(task, parsed) } });
+    return { generated: true, spec: updated.spec ? normalizeSpec(updated.spec) : null, costTwd: cost, creditLeft: creditLeft(updated) };
+  } finally {
+    busy.delete(taskId);
+  }
+}
+
 /** One dialogue turn. Returns the assistant's reply, the updated spec and the credit left. */
 export async function specTurn(userId: string, taskId: string, message: string) {
   const task = await ownDraft(userId, taskId);
   const text = message.trim().slice(0, 8000);
   if (!text) throw new HttpError(400, "message is required");
-  if (Number(task.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee to start the spec dialogue");
-  if (creditLeft(task) <= 0.01) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
+  checkCredit(task);
   const chat = ((task.specChat ?? []) as ChatTurn[]).slice(-MAX_TURNS);
-  const models = await currentModels();
-  const model = models.find((m) => m.modelId === config.crowd.specModel) ?? models.find((m) => m.enabled);
-  if (!model) throw new HttpError(503, "no model available for the spec dialogue");
-  const current = task.spec ? normalizeSpec(task.spec) : null;
-  const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: text }];
-  const { text: answer, usage } = await callModel(model, systemPrompt(task, models.find((m) => m.modelId === task.model), current), messages);
-  const cost = costTwd(model.twd, usage);
-  // the turn already happened: charge it even if it takes the credit slightly below zero
-  await useCredit(taskId, cost, { allowOverdraw: true });
-  const parsed = parseAnswer(answer);
+  // the dialogue starts with the model's own draft; the API wants a user turn first
+  const history = chat[0]?.role === "assistant" ? [{ role: "user" as const, content: "Draft the proposal from my description.", at: chat[0].at }, ...chat] : chat;
+  const { parsed, cost, current } = await ask(task, history, text);
   const now = new Date().toISOString();
   const nextChat: ChatTurn[] = [...chat, { role: "user", content: text, at: now }, { role: "assistant", content: parsed.reply || "…", at: now }];
-  const updated = await db.task.update({
-    where: { id: taskId },
-    data: {
-      specChat: nextChat as unknown as Prisma.InputJsonValue,
-      ...(parsed.spec ? { spec: parsed.spec as unknown as Prisma.InputJsonValue, specVersion: { increment: 1 } } : {}),
-    },
-  });
+  const updated = await db.task.update({ where: { id: taskId }, data: { specChat: nextChat as unknown as Prisma.InputJsonValue, ...applied(task, parsed) } });
   return { reply: parsed.reply, spec: parsed.spec ?? current, costTwd: cost, creditLeft: creditLeft(updated) };
 }

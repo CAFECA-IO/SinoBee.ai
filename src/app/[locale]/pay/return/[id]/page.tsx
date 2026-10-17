@@ -27,6 +27,8 @@ export default async function PayReturn({ params, searchParams }: { params: Prom
   const proposal = pay.purpose === "CROWD_PROPOSAL" && pay.taskId;
   const next = proposal ? `/crowd/${pay.taskId}/edit` : pay.taskId ? `/tasks/${pay.taskId}` : "/account#subscription";
   const state = pay.status === "CONFIRMED" ? "ok" : pay.status === "PENDING" ? (err && err !== "V0003" ? "failed" : "pending") : "failed";
+  // a paid proposal fee goes straight back to the proposal, where the model drafts the spec
+  if (state === "ok" && proposal) redirect({ href: `${next}?paid=1`, locale });
   return (
     <div className="container-x max-w-xl space-y-6 py-16 text-center" data-state={state}>
       {state === "pending" && <PaymentWatch id={pay.id} />}

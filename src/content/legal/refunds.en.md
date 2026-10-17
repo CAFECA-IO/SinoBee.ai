@@ -16,19 +16,7 @@ The Service is a digital service delivered online and starts as soon as you pay 
 - A refunded period is cancelled at once; later prepaid periods move up.
 - Subscriptions never renew automatically, so there are no renewals you did not approve.
 
-## 3. Commissioned tasks and evaluations
-
-| Situation | Refund |
-| --- | --- |
-| Cancelled before the task started running | Full budget |
-| Unused budget after the task completes, is closed or fails | The unused part (budget minus charges, rounded down to whole TWD) |
-| The task failed because of a platform error | The charges for that task |
-
-- Charges for work actually performed (model tokens, VM time, storage) are not refunded unless caused by our error.
-- A task may have several payments (budget and top-ups); refunds are made per payment and never exceed the unused budget in total.
-
-
-### Crowdfunded tasks
+## 3. Crowdfunded tasks and evaluations
 
 | Situation | What happens |
 | --- | --- |

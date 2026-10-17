@@ -15,7 +15,7 @@ We **never** receive or store your full card number; card data is handled by Oen
 
 ## 2. Why
 
-1. To provide, maintain and improve the Service, including running commissioned tasks and metering usage and quotas.
+1. To provide, maintain and improve the Service, including running crowdfunded tasks and metering usage and quotas.
 2. Payments, e-invoices, refunds and reconciliation.
 3. Account security, abuse and fraud prevention, handling reports.
 4. Notifying you through CAFECA or email about task results, expiry and quota reminders.

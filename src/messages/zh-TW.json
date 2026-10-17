@@ -1,20 +1,20 @@
 {
   "meta": {
     "title": "SinoBee.ai — 在你電腦上工作的開源 AI 蜂群",
-    "description": "SinoBee 官方網站：線上試用 Agent、下載與安裝、Skill Hub 技能市集、付費委託 AI 執行任務、模型與技能公開評鑑。"
+    "description": "SinoBee 官方網站：線上試用 Agent、下載與安裝、Skill Hub 技能市集、眾籌 AI 任務、模型與技能公開評鑑。"
   },
   "nav": {
     "download": "下載安裝",
     "skills": "Skill Hub",
-    "tasks": "委託任務",
+    "tasks": "眾籌任務",
     "benchmarks": "模型評鑑",
     "pricing": "價格",
     "login": "以 CAFECA 登入",
     "logout": "登出",
     "account": "帳戶設定",
-    "myTasks": "我的委託",
+    "myTasks": "我的眾籌",
     "notifications": "通知",
-    "admin": "Hub 審核",
+    "admin": "管理後台",
     "loginShort": "登入",
     "tools": "工具",
     "shares": "分享",
@@ -38,10 +38,10 @@
     "title2": "SinoBee 幫你做完。",
     "lead": "SinoBee 會自己上網查資料、讀檔案、寫程式、跑指令、操作瀏覽器與滑鼠鍵盤，也能在背景排程工作、拍出完整的影片；做完把表格、圖表、檔案與影片交給你。危險的操作會先問你，執行中隨時可以補充指示或喊停，它會記住你的偏好並越用越順手。",
     "ctaInstall": "免費下載安裝",
-    "ctaCommission": "委託雲端執行",
+    "ctaCommission": "發起眾籌任務",
     "shotAlt": "SinoBee 查詢 GitHub 專案並整理成表格與流程圖",
     "statSkills": "Hub 技能",
-    "statTasks": "已完成委託",
+    "statTasks": "已完成任務",
     "statReports": "公開評鑑報告",
     "featuresTitle": "一個助理，把整件事做完",
     "featuresLead": "不只是聊天：SinoBee 有工具、有分層記憶、有技能與固定流程，也有煞車。",
@@ -118,13 +118,13 @@
         "cta": "逛逛技能"
       },
       "commission": {
-        "title": "委託 AI 執行任務",
-        "body": "沒有電腦或不想自己架？支付委託金，平台會為你開一個獨立的 Docker 執行 SinoBee，完成後透過 CAFECA 通知你。",
-        "cta": "提交委託"
+        "title": "眾籌 AI 任務",
+        "body": "描述你想讓 AI 完成的事，AI 會產生規格並估算費用；大家每份 NT$30 一起出資，達標後平台在獨立容器中執行，進度與成果公開給出資者。",
+        "cta": "看眾籌"
       },
       "bench": {
         "title": "模型與技能評鑑",
-        "body": "任何人都能委託 AI 評鑑模型或技能，每份報告公開評鑑時間、委託人、技能、模型、方法、過程與結果。",
+        "body": "任何人都能發起模型或技能評鑑的眾籌，驗收通過後公開評鑑時間、發起人、技能、模型、方法、過程與結果。",
         "cta": "看排行榜"
       }
     },
@@ -251,7 +251,7 @@
   "auth": {
     "title": "以 CAFECA 登入",
     "lead": "使用 CAFECA 錢包的 Passkey 登入，不需要密碼。",
-    "statement": "登入 SinoBee.ai：管理技能、委託任務與評鑑",
+    "statement": "登入 SinoBee.ai：管理技能、眾籌任務與評鑑",
     "popup": "以 CAFECA 登入（彈出視窗）",
     "redirect": "整頁導向登入",
     "qr": "用手機掃描 QR code 登入",
@@ -404,11 +404,11 @@
     "contentHash": "內容雜湊",
     "signature": "簽章",
     "evaluations": "評鑑報告",
-    "commissionEval": "委託評鑑此技能",
+    "commissionEval": "為此技能發起評鑑眾籌",
     "noEvaluations": "這個技能還沒有評鑑報告。",
     "install": "安裝",
     "download": "下載 bundle",
-    "useInTask": "用這個技能委託任務",
+    "useInTask": "用這個技能發起眾籌",
     "rate": "評分",
     "loginToRate": "登入後即可評分。",
     "details": "詳細資訊",
@@ -520,7 +520,7 @@
     },
     "prices": {
       "formulaTitle": "公告價公式",
-      "formula": "公告價（TWD / 每 100 萬 tokens）= 原廠 USD × 基準匯率 {fx} × {buffer}。定價頁、委託表單與訂閱額度都讀這張表。",
+      "formula": "公告價（TWD / 每 100 萬 tokens）= 原廠 USD × 基準匯率 {fx} × {buffer}。定價頁、眾籌估算與訂閱額度都讀這張表。",
       "fx": "基準匯率（USD→TWD）",
       "buffer": "緩衝係數",
       "effective": "生效時間（留空 = 立即）",
@@ -545,7 +545,7 @@
         "cacheWrite": "快取寫入",
         "output": "輸出"
       },
-      "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響委託任務的 token 價格。"
+      "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響眾籌任務的 token 價格。"
     },
     "plans": {
       "help": "輸入月費與用量倍數（30 天可用量 ÷ 月費，以公告價計），系統自動計算可用量、6 小時（L6）與 7 天（L168）額度。公告價已含緩衝係數，方案的獲利倍數 = 緩衝係數 ÷ 用量倍數；請到「價格」調整緩衝係數確保獲利。",
@@ -596,7 +596,7 @@
       "refundGo": "確認退款",
       "cancel": "取消",
       "confirm": "透過 Oen 退款 {amount} TWD？每筆交易只能退款一次。",
-      "help": "Oen 付款通知沒有簽章，系統一律以 GET /transactions 回查為準；漏掉的通知由 worker 每 3 分鐘對帳補上。每筆交易只能退款一次；委託的退款上限是尚未使用的預算，訂閱退款會取消該期並讓後續期間往前遞補。"
+      "help": "Oen 付款通知沒有簽章，系統一律以 GET /transactions 回查為準；漏掉的通知由 worker 每 3 分鐘對帳補上。每筆交易只能退款一次；已達標任務的出資退款上限是尚未使用的預算，訂閱退款會取消該期並讓後續期間往前遞補。"
     },
     "settings": {
       "help": "設定存放在資料庫，密鑰類以 AES-256-GCM 加密；由環境變數設定的值會鎖定，需在環境變數修改。金鑰與密碼留空時會自動產生。",
@@ -636,7 +636,7 @@
         "storage": "鏡像儲存",
         "boltchain": "Boltchain",
         "hub": "Skill Hub 簽章",
-        "runner": "委託任務執行",
+        "runner": "任務執行",
         "crowd": "眾籌任務"
       },
       "sections": "設定分類",
@@ -653,17 +653,17 @@
       "show": "顯示",
       "copy": "複製",
       "groupHelp": {
-        "payments": "收款服務與委託金額門檻。",
-        "apiKeys": "平台使用的模型與搜尋金鑰；供模型轉接與委託容器使用。",
+        "payments": "收款服務設定。",
+        "apiKeys": "平台使用的模型與搜尋金鑰；供模型轉接與任務容器使用。",
         "llm": "訂閱用戶的模型轉接限制與上游網址。",
         "legal": "顯示在服務條款、隱私權政策與退款政策。",
         "cafeca": "登入、通知與初始管理者。",
-        "pricing": "委託任務的虛擬機與儲存計價（模型價格在「模型定價」）。",
+        "pricing": "眾籌任務的虛擬機與儲存計價（模型價格在「模型定價」）。",
         "retention": "成果與容器保存期限、訂閱寬限期。",
         "storage": "成果檔案的鏡像儲存位置。",
         "boltchain": "分散式儲存與存證。",
         "hub": "技能審核通過後的簽章金鑰。",
-        "runner": "委託任務容器的資源與映像檔。",
+        "runner": "任務容器的資源與映像檔。",
         "crowd": "每份金額、提案費、眾籌期與服務費、參考檔案、額度出資。"
       }
     },
@@ -736,78 +736,31 @@
     "exampleTitle": "範例"
   },
   "tasks": {
-    "title": "委託任務",
-    "lead": "支付委託金讓 SinoBee 在雲端替你完成任務。公開的委託會顯示在這裡，任何人都能評價與留言。",
-    "new": "提交委託",
-    "public": "公開委託",
-    "mine": "我的委託",
+    "title": "我的眾籌",
+    "lead": "你發起的提案與出資的眾籌任務。",
     "private": "不公開",
     "evaluation": "評鑑",
-    "emptyPublic": "還沒有公開的委託。",
-    "emptyMine": "你還沒有提交任何委託。",
-    "newTitle": "提交委託任務",
-    "newLead": "平台會為你建立獨立的 Docker 容器執行 SinoBee。依實際用量計費：模型 Token、虛擬機租賃與儲存空間，以新台幣（TWD）計價；預算用完而尚未完成時，會整理目前成果並透過 CAFECA 請你補充經費或結案。",
-    "steps": {
-      "0": "描述任務、選模型與預算",
-      "1": "以 Oen 付款（信用卡等，新臺幣計價）支付委託金",
-      "2": "在你的獨立 Docker 中執行",
-      "3": "完成後透過 CAFECA 通知，7 天內下載成果"
-    }
+    "started": "我發起的",
+    "backed": "我出資的",
+    "emptyStarted": "你還沒有發起眾籌。",
+    "emptyBacked": "你還沒有出資任何眾籌。"
   },
   "taskForm": {
-    "title": "標題",
-    "titlePh": "例如：整理 2026 Q3 台灣電動車市場報告",
-    "evalTitlePh": "例如：web-research 技能在繁中新聞查證的準確度",
-    "prompt": "任務描述",
-    "promptPh": "用平常說話的方式描述你要的結果與交付格式，例如「整理成表格並存成 report.xlsx」。",
-    "promptHint": "越具體越好：資料來源、交付格式、判斷標準。執行期間無法回答問題，SinoBee 會自行假設並寫在 SUMMARY.md。",
-    "evalPrompt": "評鑑目標與情境",
-    "evalPromptPh": "要評鑑什麼能力？在什麼情境下？例如：查證 10 則繁中新聞的真偽並附上來源。",
-    "method": "評鑑方法",
     "methods": {
       "benchmark-suite": "基準測試集（固定題組，可重現）",
       "rubric": "評分量表（依準則逐項評分）",
       "a-b-comparison": "A/B 比較（與基準做法對照）"
-    },
-    "criteria": "評分準則與測試案例",
-    "criteriaPh": "每行一個案例或準則，例如：\n1. 能找出原始出處（30 分）\n2. 判斷正確（50 分）\n3. 引用格式完整（20 分）",
-    "model": "模型",
-    "useSkill": "使用技能",
-    "public": "公開這個委託",
-    "publicHint": "公開後任何人都能看到任務描述、摘要、評價與留言（成果檔案只有你能下載）。",
-    "evalPublic": "評鑑報告一律公開，包含評鑑時間、委託人、技能、模型、方法、過程與結果。",
-    "estimate": "費用試算",
-    "estMinutes": "預估執行時間（分鐘）",
-    "estTokens": "預估輸入 tokens",
-    "est": {
-      "tokens": "模型 Token",
-      "vm": "虛擬機租賃",
-      "s3": "儲存空間"
-    },
-    "estTotal": "預估合計",
-    "estNote": "以新臺幣（TWD）試算；實際依用量計費，不會超過預算，未用完的預算可申請退款（見退款政策）。",
-    "budget": "委託預算",
-    "budgetHint": "最低 {min} TWD。預算用完會暫停並請你補充；完成後成果保留 {days} 天（訂閱者更久）。",
-    "submit": "支付 {amount} TWD 並提交",
-    "paying": "前往 Oen 付款…",
-    "payTitle": "SinoBee.ai 委託預算 {amount} TWD",
-    "modelPrice": "每 100 萬 tokens 輸入 {input}／輸出 {output} TWD",
-    "oenNote": "按下後前往 Oen 付款頁（5 分鐘內有效），付款完成會自動回到 SinoBee.ai。電子發票由 Oen 寄到你的 Email。"
+    }
   },
   "task": {
-    "back": "← 返回委託列表",
-    "by": "委託人",
+    "back": "← 我的眾籌",
+    "by": "發起人",
     "private": "不公開",
-    "needsFundingTitle": "預算已用完，任務尚未完成",
-    "needsFundingBody": "已整理目前成果（可在右側下載）。補充經費後會從中斷處繼續；或結案保留目前成果。{days} 天內沒有回覆會自動結案。",
     "viewReport": "查看評鑑報告",
-    "prompt": "任務描述",
     "criteria": "評分準則",
     "summary": "成果摘要",
     "log": "執行紀錄",
     "noEvents": "尚無紀錄。",
-    "rateResult": "這個結果好嗎？",
-    "loginToRate": "登入後即可評價。",
     "billing": "費用",
     "cost": {
       "tokens": "模型 Token",
@@ -823,22 +776,13 @@
     "download": "下載成果",
     "expired": "已超過下載期限，檔案已刪除。",
     "expiresIn": "剩餘下載時間",
-    "retentionNote": "未訂閱用戶的容器與成果在任務完成後只保留 {days} 天，請儘早下載。",
-    "publicNote": "這是公開的委託。成果檔案只有委託人可以下載。",
-    "payBudget": "支付委託預算",
-    "topUp": "補充經費",
-    "payNow": "支付 {amount} TWD",
-    "addFunds": "補充 {amount} TWD",
     "close": "結案並保留目前成果",
-    "cancel": "取消委託",
-    "confirmClose": "結案後不會再繼續執行，目前成果保留供下載。確定？",
-    "confirmCancel": "確定取消這個尚未付款的委託？",
-    "amount": "金額"
+    "confirmClose": "結案後不會再繼續執行，目前成果保留供下載。確定？"
   },
   "bench": {
     "title": "模型與技能評鑑",
-    "lead": "所有評鑑都由 SinoBee 實際執行並公開報告：評鑑時間、委託人、使用技能、使用模型、評鑑方法、評鑑過程與結果。任何人都可以提交委託為 AI 進行評鑑。",
-    "commission": "委託評鑑",
+    "lead": "所有評鑑都由 SinoBee 實際執行並公開報告：評鑑時間、發起人、使用技能、使用模型、評鑑方法、評鑑過程與結果。任何人都能發起評鑑眾籌，驗收通過後報告公開。",
+    "commission": "發起評鑑眾籌",
     "models": "模型排行榜",
     "model": "模型",
     "overall": "總分",
@@ -848,26 +792,24 @@
       "rubric": "評分量表",
       "a-b-comparison": "A/B 比較"
     },
-    "modelsNote": "分數為未使用技能之評鑑報告的平均（0–100）。目前提供 {n} 個模型可供委託。",
+    "modelsNote": "分數為未使用技能之評鑑報告的平均（0–100）。目前提供 {n} 個模型。",
     "skills": "技能評鑑",
     "recent": "最新報告",
-    "empty": "還沒有評鑑報告，成為第一個委託評鑑的人。",
+    "empty": "還沒有評鑑報告，成為第一個發起評鑑的人。",
     "how": {
       "0": {
-        "title": "委託",
-        "body": "選擇要評鑑的模型（與技能）、評鑑方法與準則，支付委託金。"
+        "title": "發起",
+        "body": "描述想評鑑的模型或技能，AI 產生評鑑方法、準則與費用估算，大家一起出資。"
       },
       "1": {
         "title": "執行",
-        "body": "平台在獨立容器中由 SinoBee 執行評鑑，記錄每個步驟。"
+        "body": "達標後平台在獨立容器中由 SinoBee 執行評鑑，記錄每個步驟，出資者驗收。"
       },
       "2": {
         "title": "公開",
         "body": "報告公開於本頁與技能頁，任何人都能查閱與留言討論。"
       }
-    },
-    "newTitle": "委託評鑑",
-    "newLead": "評鑑也是一種委託任務：一樣依模型 Token、虛擬機租賃與儲存空間的實際用量計費；完成後報告會公開在評鑑頁與技能頁。"
+    }
   },
   "report": {
     "back": "← 返回評鑑",
@@ -880,44 +822,29 @@
     "score": "分數",
     "notes": "說明",
     "time": "評鑑時間",
-    "requester": "評鑑委託人",
+    "requester": "發起人",
     "skill": "使用技能",
     "noSkill": "無（評鑑模型本身）",
     "model": "使用模型",
     "method": "評鑑方法",
-    "viewTask": "查看委託紀錄"
+    "viewTask": "查看眾籌任務"
   },
   "pricing": {
     "title": "價格",
-    "lead": "訂閱方案以 30 天為單位、不自動續訂，額度以 SinoBee.ai 公告的模型價格扣除；委託任務則依實際用量計費。",
+    "lead": "訂閱方案以 30 天為單位、不自動續訂，額度以 SinoBee.ai 公告的模型價格扣除；眾籌任務的費用由 AI 依實際用量估算。",
     "formula": "計費公式",
     "charge": "費用",
     "tokens": "模型 Token",
     "vm": "虛擬機租賃",
     "s3": "儲存空間",
-    "formulaNote": "所有價格以新臺幣（TWD）計價，透過 Oen 付款並開立電子發票；建立委託時鎖定模型價格與匯率。",
+    "formulaNote": "所有價格以新臺幣（TWD）計價，透過 Oen 付款並開立電子發票；眾籌達標時鎖定模型價格與匯率，執行時依實際用量從任務預算扣除。",
     "tokensBody": "依上方模型公告價計算：未命中快取的輸入、快取讀取、快取寫入與輸出分別計價，與訂閱額度用的是同一張價目表。",
     "vmBody": "執行期間依秒計算：每小時 {price} TWD（每個任務 {cpus} vCPU / {mem} GB 記憶體）。",
     "s3Body": "成果儲存：每 GB 每月 {gb} TWD，依保存天數按比例計算；每千次寫入 {put} TWD、讀取 {get} TWD。",
     "modelTable": "模型公告價（TWD / 每 100 萬 tokens）",
     "model": "模型",
     "modelNote": "公告價 = 原廠 USD 價格 × 基準匯率 {fx} × {buffer}。訂閱額度依公告價扣除；價格調整會先在此公告並註明生效日期。",
-    "free": "未訂閱",
-    "freeA": "每個用戶有獨立的 Docker 容器，任務完成後保留 {days} 天。",
-    "freeB": "成果在任務完成後 {days} 天內可下載，逾期刪除且無法再下載。",
-    "freeC": "依實際用量計費，預算用完前會暫停並請你決定。",
-    "sub": "訂閱",
     "days": "天",
-    "subA": "訂閱期間保留你的容器（記憶、技能、瀏覽器登入狀態延續）。",
-    "subB": "成果保留 {days} 天。",
-    "subC": "委託任務費用計算方式不變。",
-    "budgetTitle": "預算與補充經費",
-    "budget": {
-      "0": "提交委託時設定預算並透過 Oen 付款；執行期間每 15 秒計算一次費用，實際收取金額不會超過預算。",
-      "1": "預算用完但任務未完成時，平台會整理當下成果並透過 CAFECA 通知你補充經費或結案。",
-      "2": "補充經費後會在同一個容器、同一個工作階段從中斷處繼續執行。",
-      "3": "成果下載期限內未補充也未結案，系統會自動結案。"
-    },
     "plans": "訂閱方案",
     "planL6": "每 6 小時額度：約 {tokens} tokens",
     "planL168": "每 7 天額度：約 {tokens} tokens",
@@ -928,10 +855,22 @@
     "pCacheRead": "快取讀取",
     "pCacheWrite": "快取寫入",
     "pOut": "輸出",
-    "tasksTitle": "委託任務",
+    "tasksTitle": "眾籌任務的用量計價",
     "seePlans": "查看訂閱方案",
     "planBuy": "訂閱",
-    "planUsage": "可使用月費 {mult} 倍的用量（30 天最多 NT${value}，以公告價計）"
+    "planUsage": "可使用月費 {mult} 倍的用量（30 天最多 NT${value}，以公告價計）",
+    "crowdTitle": "眾籌怎麼收費",
+    "crowd": {
+      "share": "每份 NT${price}，一次可出資 1、5 或 20 份；眾籌期間只綁卡、不扣款，達標才請款。",
+      "fee": "發起提案費 NT${fee}，換算為 AI 產生規格與對話的額度，不退還。",
+      "goal": "目標金額由 AI 依規格估算（保守估計的用量費用加上服務費，以每份進位）。",
+      "leftover": "結案後用不完的經費依出資比例轉為平台點數，可用於其他眾籌。",
+      "cta": "發起眾籌",
+      "periods": "眾籌期間與服務費",
+      "days": "{days} 天",
+      "noFee": "免服務費",
+      "periodNote": "成果保留 {days} 天供出資者下載。"
+    }
   },
   "account": {
     "title": "帳戶設定",
@@ -957,8 +896,6 @@
     "payments": "付款紀錄",
     "noPayments": "沒有付款紀錄。",
     "purpose": {
-      "TASK_BUDGET": "委託預算",
-      "TASK_TOPUP": "補充經費",
       "SUBSCRIPTION": "訂閱",
       "CROWD_PROPOSAL": "眾籌提案費",
       "CROWD_PLEDGE": "眾籌出資"
@@ -1006,7 +943,7 @@
   },
   "notifications": {
     "title": "通知",
-    "lead": "任務完成、預算用完、技能審核與留言通知；同時會透過 CAFECA 推送。",
+    "lead": "審核結果、眾籌進度、預算用完、驗收與留言通知；同時會透過 CAFECA 推送。",
     "empty": "沒有通知。",
     "markAll": "全部標為已讀"
   },
@@ -1191,9 +1128,7 @@
     },
     "ok": {
       "SUBSCRIPTION": "訂閱已生效，電子發票會寄到你的 Email。",
-      "TASK_BUDGET": "已收到 {amount} TWD 委託預算，任務已排入執行。",
-      "TASK_TOPUP": "已補充 {amount} TWD，任務會從中斷處繼續。",
-      "CROWD_PROPOSAL": "已收到 {amount} TWD 提案費，可以開始規格對話。",
+      "CROWD_PROPOSAL": "已收到 {amount} TWD 提案費，AI 正在產生規格。",
       "CROWD_PLEDGE": "已收到 {amount} TWD 眾籌出資。"
     },
     "pending": "正在向 Oen 確認付款結果，這個頁面會自動更新。",
@@ -1208,7 +1143,7 @@
       "T0004": "額度不足，請換一張卡。",
       "T0005": "發卡銀行拒絕交易，請聯絡銀行或換卡。"
     },
-    "toTask": "回到委託",
+    "toTask": "回到任務",
     "toAccount": "回到帳戶",
     "retry": "重新付款",
     "toProposal": "回到提案"
@@ -1244,22 +1179,38 @@
     "lead": "多人一起出資，讓 SinoBee 完成大家都需要的任務。每份 NT${price}，可一次出資 1、5 或 20 份；未達標不扣款。",
     "new": "發起眾籌",
     "newTitle": "發起眾籌任務",
-    "newLead": "先用對話把想法整理成需求規格，再開放大家出資。眾籌期間只綁卡、不扣款，達標才請款；結案後用不完的經費會依出資比例轉為平台點數。",
+    "newLead": "描述你想讓 AI 完成的事就好：AI 會產生完整規格、自動分類並估算費用，你只要逐行確認或請 AI 修改，選好期間就能送出。",
     "steps": {
-      "0": "描述想法並支付提案費 NT${fee}",
-      "1": "與 AI 對話產生規格、執行方法與驗收標的",
-      "2": "選擇眾籌期間（7 天免服務費）開放出資",
-      "3": "達標後執行，Agent 在留言區回報進度"
+      "0": "描述需求並支付提案費 NT${fee}",
+      "1": "AI 產生規格與費用估算，逐行修改或請 AI 調整",
+      "2": "選擇眾籌期間並送出，審核通過即開放出資"
     },
     "form": {
-      "title": "任務名稱",
-      "description": "想做什麼",
-      "descriptionHint": "用你自己的話描述需求、背景與期待的成果，下一步的對話會把它整理成規格。",
-      "model": "執行模型",
+      "kind": "類型",
+      "kinds": {
+        "TASK": "AI 任務",
+        "EVALUATION": "模型／技能評鑑"
+      },
+      "description": "你想讓 AI 完成什麼？",
+      "descriptionEval": "你想評鑑什麼？",
+      "placeholder": "例如：整理台北市所有公車站的無障礙設施，做成分區報表與改善建議。",
+      "placeholderEval": "例如：比較這個技能在不同題型上的正確率與穩定度。",
+      "descriptionHint": "用自己的話寫背景、想要的成果與限制即可，標題、分類、規格與費用都由 AI 產生。",
+      "method": "評鑑方法",
+      "methodAuto": "交給 AI 決定",
+      "subjectSkill": "評鑑對象：技能 {skill}",
+      "subjectModel": "評鑑對象：下方選擇的模型",
       "useSkill": "使用技能 {skill}",
-      "create": "建立提案",
-      "creating": "建立中…",
-      "category": "分類"
+      "advanced": "進階設定（選填）",
+      "title": "標題",
+      "titleAuto": "留空由 AI 命名",
+      "model": "執行模型",
+      "modelEval": "受評模型",
+      "feeLine": "提案費 NT${fee}：換算為 AI 產生規格與對話的額度，不退還；達標時沒用完的部分併入任務預算。",
+      "create": "支付 NT${fee} 並產生規格",
+      "after": "付款完成後會回到提案頁，AI 約一分鐘內產生規格。",
+      "category": "分類",
+      "creating": "建立中…"
     },
     "edit": {
       "title": "眾籌提案",
@@ -1274,9 +1225,9 @@
       "confirmDiscard": "放棄後提案會取消，已支付的提案費不退還。確定？"
     },
     "chat": {
-      "title": "規格對話",
-      "empty": "說說你想要的成果，AI 會提問並起草規格。",
-      "placeholder": "回答問題或補充需求…",
+      "title": "請 AI 修改",
+      "empty": "告訴 AI 想怎麼改，例如「交付物加上英文版」。",
+      "placeholder": "想怎麼改規格？",
       "send": "送出",
       "sending": "思考中…",
       "needFee": "支付提案費後即可開始對話。",
@@ -1320,7 +1271,7 @@
       }
     },
     "open": {
-      "title": "開始眾籌",
+      "title": "送出眾籌",
       "duration": "眾籌期間",
       "days": "{days} 天",
       "fee": "服務費 {rate}%",
@@ -1329,10 +1280,13 @@
       "minGoal": "最低 {min} TWD（P90 估算加服務費，以每份 {price} 元進位）",
       "startEarly": "達標即提前開始",
       "startEarlyHint": "勾選後，承諾金額一達標就請款並開始執行；剩餘期間的出資會即時請款並加入預算。",
-      "submit": "開始眾籌",
+      "submit": "送出審核",
       "missing": "規格尚缺：{list}",
       "needFee": "請先支付提案費。",
-      "confirm": "開始後規格就不能再修改。確定開始眾籌？"
+      "confirm": "送出後規格就不能再修改。確定送出審核？",
+      "goalAuto": "目標金額 NT${goal}（AI 估算 + 服務費）",
+      "more": "更多選項",
+      "afterSubmit": "送出後由 AI 依公開的審核清單審核，通過即開放出資，期限從那時起算。"
     },
     "panel": {
       "goal": "目標",
@@ -1533,7 +1487,36 @@
       "requested": "已送出覆核",
       "inProgress": "審核中"
     },
-    "agreeTerms": "我已閱讀並同意<terms>眾籌服務條款</terms>（含全部提案審核項目）。"
+    "agreeTerms": "我已閱讀並同意<terms>眾籌服務條款</terms>（含全部提案審核項目）。",
+    "myList": "← 我的眾籌",
+    "draft": {
+      "steps": "提案步驟",
+      "step1": "描述與付款",
+      "step2": "AI 產生規格",
+      "step3": "確認並送出",
+      "payTitle": "支付提案費後，AI 會產生規格",
+      "working": "AI 正在產生規格與費用估算…",
+      "workingHint": "依描述撰寫交付物、執行方法、驗收標準與費用，通常不到一分鐘。",
+      "retry": "再試一次",
+      "aiCategory": "（AI 自動分類，可修改）",
+      "optional": "選填"
+    },
+    "doc": {
+      "hint": "點任一行即可修改，Enter 儲存、Esc 取消；也可以在右側請 AI 調整。",
+      "clickToEdit": "點一下修改",
+      "remove": "刪除這行",
+      "add": "新增一行",
+      "newLine": "輸入內容…",
+      "empty": "（空白，點此填寫）",
+      "saving": "儲存中…",
+      "saved": "已儲存",
+      "saveError": "儲存失敗，請再試一次",
+      "evaluation": "評鑑方法與準則",
+      "methodPending": "尚未決定（請 AI 補上）",
+      "askAi": "這部分由 AI 決定，要調整請在右側告訴 AI。",
+      "estimate": "AI 費用估算",
+      "estimateLine": "一般約 NT${p50}，保守估計 NT${p90}（目標金額依保守估計計算）"
+    }
   },
   "checklist": {
     "ai": "用 AI 對話調整",

@@ -24,7 +24,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
 import { Comments } from "@/components/comments";
-import { TaskOwnerActions, TaskVote, AutoRefresh, Countdown } from "@/components/task-actions";
+import { AutoRefresh, Countdown } from "@/components/task-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,6 @@ export default async function TaskPage({ params }: P) {
       user: true,
       artifacts: { orderBy: { createdAt: "desc" } },
       events: { orderBy: { createdAt: "asc" }, take: 500 },
-      votes: true,
       report: true,
       skillVersion: { include: { skill: { include: { publisher: true } } } },
     },
@@ -88,9 +87,6 @@ export default async function TaskPage({ params }: P) {
       })()
     : null;
   const mayDownload = await canDownload(task, me?.id);
-  const up = task.votes.filter((v) => v.value > 0).length;
-  const down = task.votes.length - up;
-  const myVote = task.votes.find((v) => v.userId === me?.id)?.value ?? 0;
   const parts = chargeParts(
     { tokenUsd: Number(task.tokenCostUsd), vmUsd: Number(task.vmCostUsd), s3Usd: Number(task.s3CostUsd) },
     Number(task.usdTwdRate),
@@ -101,14 +97,14 @@ export default async function TaskPage({ params }: P) {
     ["vm", parts.vm],
     ["s3", parts.s3],
   ] as const;
-  const live = ["QUEUED", "RUNNING", "AWAITING_PAYMENT", "CHARGING"].includes(task.status);
+  const live = ["SCREENING", "QUEUED", "RUNNING", "CHARGING"].includes(task.status);
   const who = task.user.publisher ?? task.user.handle ?? `${task.user.account.slice(0, 6)}…${task.user.account.slice(-4)}`;
 
   return (
     <div className="container-x py-10">
       {live && <AutoRefresh taskId={task.id} status={task.status} />}
       <nav className="text-sm text-muted">
-        <Link href={owner ? "/tasks?mine=1" : "/tasks"} className="hover:text-accent">{t("back")}</Link>
+        <Link href={owner ? "/tasks?mine=1" : "/crowd"} className="hover:text-accent">{owner ? t("back") : `← ${tc("explore.title")}`}</Link>
       </nav>
       <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
@@ -251,12 +247,6 @@ export default async function TaskPage({ params }: P) {
             </section>
           )}
 
-          {owner && task.status === "NEEDS_FUNDING" && (
-            <div className="rounded-2xl border border-warn/50 bg-warn-soft p-5 text-warn">
-              <b>{t("needsFundingTitle")}</b>
-              <p className="mt-1 text-sm">{t("needsFundingBody", { days: config.retention.freeDays })}</p>
-            </div>
-          )}
           {task.report && (
             <Link href={`/benchmarks/reports/${task.report.id}`} className="card flex items-center justify-between p-5 hover:border-accent">
               <span className="font-semibold">{t("viewReport")}</span>
@@ -265,14 +255,10 @@ export default async function TaskPage({ params }: P) {
           )}
 
           <section className="card p-6">
-            <h2 className="h3">{crowd ? tc("panel.proposal") : t("prompt")}</h2>
-            {crowd ? (
-              <div className="mt-3">
-                <Markdown>{task.prompt}</Markdown>
-              </div>
-            ) : (
-              <p className="mt-3 whitespace-pre-wrap text-sm">{task.prompt}</p>
-            )}
+            <h2 className="h3">{tc("panel.proposal")}</h2>
+            <div className="mt-3">
+              <Markdown>{task.prompt}</Markdown>
+            </div>
             {task.evalCriteria && (
               <>
                 <h3 className="mt-5 font-semibold">{t("criteria")}</h3>
@@ -307,15 +293,6 @@ export default async function TaskPage({ params }: P) {
             </ol>
           </section>
 
-          {["COMPLETED", "FAILED", "NEEDS_FUNDING"].includes(task.status) && (
-            <section className="card flex flex-wrap items-center justify-between gap-4 p-5">
-              <div>
-                <div className="font-semibold">{t("rateResult")}</div>
-                <div className="text-sm text-muted">👍 {up} · 👎 {down}</div>
-              </div>
-              {me ? <TaskVote taskId={task.id} mine={myVote} /> : <span className="text-sm text-muted">{t("loginToRate")}</span>}
-            </section>
-          )}
           {crowd && crowd.revisions.length > 1 && (
             <section className="card space-y-2 p-6">
               <h2 className="h3">{tc("revise.history")}</h2>
@@ -410,7 +387,6 @@ export default async function TaskPage({ params }: P) {
                 </dl>
                 <p className="text-[11px] text-muted">{t("rateNote")}</p>
               </div>
-              {!crowd && <TaskOwnerActions taskId={task.id} status={task.status} minTopUp={config.payments.minTopUp} minBudget={config.payments.minTaskBudget} title={task.title} buyer={(me?.billing ?? null) as Buyer | null} />}
             </>
           )}
           {mayDownload && (
@@ -441,10 +417,9 @@ export default async function TaskPage({ params }: P) {
                   </div>
                 );
               })}
-              <p className="text-xs text-muted">{task.crowdfund ? tc("panel.retention", { days: config.crowd.resultsDays }) : t("retentionNote", { days: config.retention.freeDays })}</p>
+              <p className="text-xs text-muted">{tc("panel.retention", { days: config.crowd.resultsDays })}</p>
             </div>
           )}
-          {!mayDownload && task.isPublic && !crowd && <p className="card p-5 text-sm text-muted">{t("publicNote")}</p>}
           {crowd && me && !owner && task.isPublic && (
             <div className="px-1">
               <ReportButton taskId={task.id} />

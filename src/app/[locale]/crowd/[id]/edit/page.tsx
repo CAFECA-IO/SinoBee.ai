@@ -5,7 +5,7 @@ import { config } from "@/lib/config";
 import { currentUser } from "@/lib/auth";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Buyer } from "@/components/checkout";
-import { CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecEditor, type SpecView } from "@/components/crowd";
+import { AutoDraft, CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecDoc, TitleEdit, type SpecView } from "@/components/crowd";
 import { creditLeft } from "@/lib/crowd/proposal";
 import type { Screening } from "@/lib/crowd/screening";
 import { CATEGORIES, durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
@@ -28,16 +28,28 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
   const fee = Math.round(config.crowd.proposalFee);
   const mb = (b: number) => Math.round(b / 1048576);
   const chat = ((task.specChat ?? []) as { role: "user" | "assistant"; content: string }[]).map(({ role, content }) => ({ role, content }));
+  const step = !paid ? 1 : !spec ? 2 : 3;
   return (
     <div className="container-x py-10">
       <nav className="text-sm text-muted">
-        <Link href="/tasks?mine=1" className="hover:text-accent">{t("title")}</Link>
+        <Link href="/tasks?mine=1" className="hover:text-accent">{t("myList")}</Link>
       </nav>
-      <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{task.title}</h1>
+      <ol className="mt-4 flex flex-wrap gap-2 text-xs" aria-label={t("draft.steps")}>
+        {[1, 2, 3].map((n) => (
+          <li key={n} className={`rounded-full border px-3 py-1 ${n === step ? "border-accent bg-accent-soft font-semibold text-accent" : n < step ? "border-line text-ok" : "border-line text-muted"}`} aria-current={n === step ? "step" : undefined}>
+            {n < step ? "✓ " : `${n}. `}
+            {t(`draft.step${n}`)}
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4">
+        <TitleEdit taskId={task.id} title={task.title} />
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted">
-        <span>{t("edit.draft")}</span>
+        {task.kind === "EVALUATION" && <span className="chip">{t("form.kinds.EVALUATION")}</span>}
         <span className="flex items-center gap-2">
           {t("form.category")} <CategorySelect taskId={task.id} value={task.category} categories={CATEGORIES} />
+          <span className="text-xs">{t("draft.aiCategory")}</span>
         </span>
       </div>
       {screening?.decision === "rejected" && (
@@ -60,42 +72,56 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
           )}
         </div>
       )}
-      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-8">
+
+      {!paid ? (
+        <div className="mt-6 grid max-w-3xl gap-6">
           <section className="card space-y-3 p-6">
-            <h2 className="h3">{t("chat.title")}</h2>
-            <SpecChat taskId={task.id} chat={chat} canChat={paid && left > 0.01} outOfCredit={paid && left <= 0.01} />
+            <h2 className="h3">{t("draft.payTitle")}</h2>
+            <p className="whitespace-pre-wrap rounded-xl bg-panel-2 p-4 text-sm">{task.prompt}</p>
+            <p className="text-sm text-muted">{t("edit.feeNote")}</p>
+            <ProposalFee taskId={task.id} fee={fee} paid={false} buyer={(me!.billing ?? null) as Buyer | null} />
           </section>
-          <section className="card space-y-3 p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="h3">{t("spec.title")}</h2>
-              {task.specVersion > 0 && <span className="chip">{t("spec.version", { v: task.specVersion })}</span>}
-            </div>
-            {!spec && <p className="text-sm text-muted">{t("spec.empty")}</p>}
-            <SpecEditor key={task.specVersion} taskId={task.id} spec={spec as SpecView | null} />
-          </section>
-          <section className="card space-y-3 p-6">
-            <h2 className="h3">{t("files.title")}</h2>
-            <p className="text-xs text-muted">{t("files.note", { free: mb(config.crowd.freeFileBytes), block: mb(config.crowd.blockBytes), price: sharePrice(), max: mb(config.crowd.maxFileBytes) })}</p>
-            <InputFiles taskId={task.id} editable={paid} files={task.inputFiles.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: Number(f.sizeBytes), visibility: f.visibility }))} />
-          </section>
-        </div>
-        <aside className="space-y-4">
-          <div className="card space-y-3 p-5">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">{t("edit.credit")}</span>
-              <span className="font-mono text-sm">{paid ? t("edit.creditLeft", { amount: left.toFixed(2) }) : t("edit.creditNone")}</span>
-            </div>
-            <p className="text-xs text-muted">{t("edit.feeNote")}</p>
-            <ProposalFee taskId={task.id} fee={fee} paid={paid} buyer={(me!.billing ?? null) as Buyer | null} />
-          </div>
-          <div className="card space-y-3 p-5">
-            <div className="font-semibold">{t("open.title")}</div>
-            <OpenFunding taskId={task.id} durations={durations()} p90={spec?.estimate.p90Twd ?? 0} price={sharePrice()} gaps={specGaps(spec)} paid={paid} />
-          </div>
           <DiscardProposal taskId={task.id} />
-        </aside>
-      </div>
+        </div>
+      ) : !spec ? (
+        <div className="mt-6 max-w-3xl">
+          <AutoDraft taskId={task.id} />
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0 space-y-6">
+            <section className="card space-y-4 p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="h3">{t("spec.title")}</h2>
+                <span className="chip">{t("spec.version", { v: task.specVersion })}</span>
+              </div>
+              <SpecDoc key={task.specVersion} taskId={task.id} spec={spec as SpecView} evaluation={task.kind === "EVALUATION" ? { method: task.evalMethod, criteria: task.evalCriteria } : undefined} />
+            </section>
+            <details className="card p-6">
+              <summary className="cursor-pointer font-semibold">{t("files.title")} <span className="text-xs font-normal text-muted">（{t("draft.optional")}）</span></summary>
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted">{t("files.note", { free: mb(config.crowd.freeFileBytes), block: mb(config.crowd.blockBytes), price: sharePrice(), max: mb(config.crowd.maxFileBytes) })}</p>
+                <InputFiles taskId={task.id} editable={paid} files={task.inputFiles.map((f) => ({ id: f.id, filename: f.filename, sizeBytes: Number(f.sizeBytes), visibility: f.visibility }))} />
+              </div>
+            </details>
+          </div>
+          <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+            <section className="card space-y-3 p-5">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">{t("chat.title")}</h2>
+                <span className="font-mono text-xs text-muted">{t("edit.creditLeft", { amount: left.toFixed(2) })}</span>
+              </div>
+              <SpecChat taskId={task.id} chat={chat} canChat={left > 0.01} outOfCredit={left <= 0.01} />
+              {left <= 1 && <ProposalFee taskId={task.id} fee={fee} paid buyer={(me!.billing ?? null) as Buyer | null} />}
+            </section>
+            <section className="card space-y-3 p-5">
+              <h2 className="font-semibold">{t("open.title")}</h2>
+              <OpenFunding taskId={task.id} durations={durations()} p90={spec.estimate.p90Twd} price={sharePrice()} gaps={specGaps(spec)} paid={paid} />
+            </section>
+            <DiscardProposal taskId={task.id} />
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

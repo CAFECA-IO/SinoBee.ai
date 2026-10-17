@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
 import { Link } from "@/i18n/navigation";
-import { BuyerFields, PayForm, emptyBuyer, postJson, type Buyer } from "./checkout";
+import { AgreeTerms, BuyerFields, PayForm, emptyBuyer, postJson, useCheckout, type Buyer } from "./checkout";
 
 type ModelOpt = { id: string; label: string; vendor: string };
 
@@ -37,64 +37,120 @@ export function AgreeCrowdTerms() {
 
 // ───────────── new proposal ─────────────
 
-export function CrowdNewForm({ models, skill, categories }: { models: ModelOpt[]; skill: { id: string; label: string } | null; categories: readonly string[] }) {
+export function CrowdNewForm({
+  models,
+  skill,
+  kind: initialKind,
+  evalMethods,
+  fee,
+  buyer: initialBuyer,
+}: {
+  models: ModelOpt[];
+  skill: { id: string; label: string } | null;
+  kind: "TASK" | "EVALUATION";
+  evalMethods: readonly string[];
+  fee: number;
+  buyer?: Partial<Buyer> | null;
+}) {
   const t = useTranslations("crowd.form");
-  const tc = useTranslations("crowd.categories");
-  const [category, setCategory] = useState(categories[0] ?? "other");
+  const tm = useTranslations("taskForm.methods");
+  const tk = useTranslations("checkout");
   const router = useRouter();
+  const [kind, setKind] = useState(initialKind);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [model, setModel] = useState(models[1]?.id ?? models[0]?.id ?? "");
   const [useSkill, setUseSkill] = useState(!!skill);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+  const [method, setMethod] = useState("");
+  const [buyer, setBuyer] = useState(() => emptyBuyer(initialBuyer));
+  const { go, busy, err } = useCheckout();
   return (
     <form
       className="card max-w-3xl space-y-5 p-6"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        setBusy(true);
-        setErr("");
-        try {
-          const r = await postJson<{ task: { id: string } }>("/api/crowd", { title, description, model, category, skillVersionId: useSkill && skill ? skill.id : null, agreeTerms: true });
+        void go(async () => {
+          const r = await postJson<{ task: { id: string }; payment: { checkoutUrl?: string; error?: string } | null }>("/api/crowd", {
+            title: title.trim() || null,
+            description,
+            model,
+            kind,
+            skillVersionId: useSkill && skill ? skill.id : null,
+            evalMethod: kind === "EVALUATION" && method ? method : null,
+            agreeTerms: true,
+            buyer,
+          });
+          if (r.payment?.checkoutUrl) return r.payment.checkoutUrl;
+          // the checkout could not be created: pay from the proposal page
           router.push(`/crowd/${r.task.id}/edit`);
-        } catch (e) {
-          setErr((e as Error).message);
-          setBusy(false);
-        }
+          return null;
+        });
       }}
     >
-      <div>
-        <label className="label">{t("title")}</label>
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} minLength={3} maxLength={120} required />
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("kind")}>
+        {(["TASK", "EVALUATION"] as const).map((k) => (
+          <button type="button" role="radio" aria-checked={kind === k} key={k} onClick={() => setKind(k)} className={`rounded-xl border px-4 py-2 text-sm ${kind === k ? "border-accent bg-accent-soft font-semibold" : "border-line"}`}>
+            {t(`kinds.${k}`)}
+          </button>
+        ))}
       </div>
       <div>
-        <label className="label">{t("description")}</label>
-        <textarea className="input min-h-40" value={description} onChange={(e) => setDescription(e.target.value)} minLength={10} maxLength={20000} required />
+        <label className="label" htmlFor="crowd-desc">{kind === "EVALUATION" ? t("descriptionEval") : t("description")}</label>
+        <textarea
+          id="crowd-desc"
+          className="input min-h-48 text-base"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          minLength={10}
+          maxLength={20000}
+          required
+          placeholder={kind === "EVALUATION" ? t("placeholderEval") : t("placeholder")}
+        />
         <p className="mt-1 text-xs text-muted">{t("descriptionHint")}</p>
       </div>
-      <div>
-        <label className="label">{t("category")}</label>
-        <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
-          {categories.map((c) => (
-            <option key={c} value={c}>{tc(c as "other")}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="label">{t("model")}</label>
-        <select className="input" value={model} onChange={(e) => setModel(e.target.value)}>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.label} — {m.vendor}
-            </option>
-          ))}
-        </select>
-      </div>
+      {kind === "EVALUATION" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">{t("method")}</label>
+            <select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="">{t("methodAuto")}</option>
+              {evalMethods.map((m) => (
+                <option key={m} value={m}>{tm(m as "rubric")}</option>
+              ))}
+            </select>
+          </div>
+          <div className="text-xs text-muted sm:pt-7">{skill && useSkill ? t("subjectSkill", { skill: skill.label }) : t("subjectModel")}</div>
+        </div>
+      )}
       {skill && <Toggle checked={useSkill} onChange={setUseSkill} label={t("useSkill", { skill: skill.label })} />}
-      <AgreeCrowdTerms />
+      <details className="rounded-xl border border-line p-4 text-sm">
+        <summary className="cursor-pointer font-medium">{t("advanced")}</summary>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="label">{t("title")}</label>
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder={t("titleAuto")} />
+          </div>
+          <div>
+            <label className="label">{kind === "EVALUATION" ? t("modelEval") : t("model")}</label>
+            <select className="input" value={model} onChange={(e) => setModel(e.target.value)}>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label} — {m.vendor}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </details>
+      <div className="space-y-3 rounded-xl bg-panel-2 p-4">
+        <p className="text-sm">{t("feeLine", { fee })}</p>
+        <BuyerFields value={buyer} onChange={setBuyer} />
+        <AgreeTerms />
+        <AgreeCrowdTerms />
+      </div>
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary" disabled={busy}>{busy ? t("creating") : t("create")}</button>
+      <button className="btn-primary w-full !py-3 text-base" disabled={busy}>{busy ? tk("redirecting") : t("create", { fee })}</button>
+      <p className="text-center text-xs text-muted">{t("after")}</p>
     </form>
   );
 }
@@ -299,6 +355,215 @@ export function SpecEditor({ taskId, spec, revise = false }: { taskId: string; s
   );
 }
 
+// ───────────── generated spec document ─────────────
+
+/** Right after the proposal fee: the model drafts the spec from the description */
+export function AutoDraft({ taskId }: { taskId: string }) {
+  const t = useTranslations("crowd.draft");
+  const router = useRouter();
+  const [err, setErr] = useState("");
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setErr("");
+    send(`/api/crowd/${taskId}/generate`, "POST", {})
+      .then(() => alive && router.refresh())
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [taskId, router, n]);
+  return (
+    <div className="card space-y-3 p-8 text-center" aria-live="polite">
+      {err ? (
+        <>
+          <p className="text-err">{err}</p>
+          <button className="btn-primary" onClick={() => setN(n + 1)}>{t("retry")}</button>
+        </>
+      ) : (
+        <>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-accent-soft border-t-accent" />
+          <p className="font-semibold">{t("working")}</p>
+          <p className="text-sm text-muted">{t("workingHint")}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** One line of the document: click to edit, Enter or leaving the field saves, Esc cancels */
+function DocLine({ value, onSave, onDelete, placeholder, multiline = false }: { value: string; onSave: (v: string) => void; onDelete?: () => void; placeholder: string; multiline?: boolean }) {
+  const t = useTranslations("crowd.doc");
+  const [editing, setEditing] = useState(!value);
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => {
+    setEditing(false);
+    const next = v.trim();
+    if (!next && onDelete) return onDelete();
+    if (next !== value) onSave(next);
+  };
+  if (!editing)
+    return (
+      <div className="group flex items-start gap-2">
+        <button type="button" className="min-w-0 flex-1 cursor-text whitespace-pre-wrap rounded-lg px-2 py-1 text-left hover:bg-panel-2" onClick={() => setEditing(true)} title={t("clickToEdit")}>
+          {value || <span className="text-muted">{placeholder}</span>}
+        </button>
+        {onDelete && (
+          <button type="button" className="px-1 text-muted opacity-0 hover:text-err group-hover:opacity-100 focus:opacity-100" onClick={onDelete} aria-label={t("remove")}>
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <textarea
+      autoFocus
+      className="input w-full"
+      rows={multiline ? 4 : Math.min(4, Math.max(1, Math.ceil(v.length / 60)))}
+      value={v}
+      placeholder={placeholder}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          setV(value);
+          setEditing(false);
+        } else if (e.key === "Enter" && !e.shiftKey && !multiline) {
+          e.preventDefault();
+          commit();
+        }
+      }}
+    />
+  );
+}
+
+type DocState = { summary: string; scope: string; outOfScope: string; deliverables: string[]; method: string[]; acceptance: string[]; risks: string[] };
+
+/** The spec as a document: every line can be edited, removed or added by hand; the estimate is the model's */
+export function SpecDoc({ taskId, spec, evaluation }: { taskId: string; spec: SpecView; evaluation?: { method: string | null; criteria: string | null } }) {
+  const t = useTranslations("crowd.doc");
+  const ts = useTranslations("crowd.spec");
+  const tm = useTranslations("taskForm.methods");
+  const router = useRouter();
+  const [doc, setDoc] = useState<DocState>({
+    summary: spec.summary,
+    scope: spec.scope ?? "",
+    outOfScope: spec.outOfScope ?? "",
+    deliverables: spec.deliverables,
+    method: spec.method,
+    acceptance: spec.acceptance,
+    risks: spec.risks ?? [],
+  });
+  const [state, setState] = useState<"" | "saving" | "saved" | "error">("");
+  const save = async (next: DocState) => {
+    setDoc(next);
+    setState("saving");
+    try {
+      await send(`/api/crowd/${taskId}/spec`, "PUT", { spec: { ...next, deliverables: next.deliverables.filter(Boolean), method: next.method.filter(Boolean), acceptance: next.acceptance.filter(Boolean), risks: next.risks.filter(Boolean) } });
+      setState("saved");
+      router.refresh();
+    } catch {
+      setState("error");
+    }
+  };
+  const text = (k: "summary" | "scope" | "outOfScope", multiline = false) => (
+    <section className="space-y-1">
+      <h3 className="text-sm font-semibold text-muted">{ts(k)}</h3>
+      <DocLine value={doc[k]} placeholder={t("empty")} multiline={multiline} onSave={(v) => save({ ...doc, [k]: v })} />
+    </section>
+  );
+  const items = (k: "deliverables" | "method" | "acceptance" | "risks", numbered = false) => (
+    <section className="space-y-1">
+      <h3 className="text-sm font-semibold text-muted">{ts(k)}</h3>
+      <ol className="space-y-0.5">
+        {doc[k].map((line, i) => (
+          <li key={`${k}-${i}-${doc[k].length}`} className="flex items-start gap-1">
+            <span className="w-6 shrink-0 pt-1 text-right font-mono text-xs text-muted">{numbered ? `${i + 1}.` : "•"}</span>
+            <div className="min-w-0 flex-1">
+              <DocLine
+                value={line}
+                placeholder={t("newLine")}
+                onSave={(v) => save({ ...doc, [k]: doc[k].map((x, j) => (j === i ? v : x)) })}
+                onDelete={() => save({ ...doc, [k]: doc[k].filter((_, j) => j !== i) })}
+              />
+            </div>
+          </li>
+        ))}
+      </ol>
+      <button type="button" className="ml-7 text-xs text-accent" onClick={() => setDoc({ ...doc, [k]: [...doc[k], ""] })}>
+        + {t("add")}
+      </button>
+    </section>
+  );
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted">
+        <span>{t("hint")}</span>
+        <span aria-live="polite" className={state === "error" ? "text-err" : ""}>{state === "saving" ? t("saving") : state === "saved" ? t("saved") : state === "error" ? t("saveError") : ""}</span>
+      </div>
+      {text("summary", true)}
+      {evaluation && (
+        <section className="space-y-1 rounded-xl border border-line p-3">
+          <h3 className="text-sm font-semibold text-muted">{t("evaluation")}</h3>
+          <p className="text-sm">{evaluation.method ? tm(evaluation.method as "rubric") : t("methodPending")}</p>
+          {evaluation.criteria && <p className="whitespace-pre-wrap text-sm text-muted">{evaluation.criteria}</p>}
+          <p className="text-xs text-muted">{t("askAi")}</p>
+        </section>
+      )}
+      {items("deliverables")}
+      {items("method", true)}
+      {items("acceptance", true)}
+      <div className="grid gap-5 sm:grid-cols-2">
+        {text("scope")}
+        {text("outOfScope")}
+      </div>
+      {items("risks")}
+      <section className="space-y-2 rounded-xl bg-panel-2 p-4">
+        <h3 className="text-sm font-semibold">{t("estimate")}</h3>
+        <p className="text-sm">{t("estimateLine", { p50: spec.estimate.p50Twd.toLocaleString("en-US"), p90: spec.estimate.p90Twd.toLocaleString("en-US") })}</p>
+        {spec.estimate.basis && <p className="text-xs text-muted">{spec.estimate.basis}</p>}
+        {(spec.stretch ?? []).length > 0 && (
+          <div className="pt-1">
+            <div className="text-xs font-semibold text-muted">{ts("stretch")}</div>
+            <ul className="mt-1 space-y-0.5 text-sm">
+              {(spec.stretch ?? []).map((x, i) => (
+                <li key={i}>
+                  {x.title} <span className="font-mono text-xs text-muted">+NT${x.twd.toLocaleString("en-US")}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="text-xs text-muted">{t("askAi")}</p>
+      </section>
+    </div>
+  );
+}
+
+/** The proposal title, edited in place */
+export function TitleEdit({ taskId, title }: { taskId: string; title: string }) {
+  const t = useTranslations("crowd.doc");
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(title);
+  useEffect(() => setV(title), [title]);
+  const commit = async () => {
+    setEditing(false);
+    const next = v.trim();
+    if (next.length < 3 || next === title) return setV(title);
+    await send(`/api/crowd/${taskId}/draft`, "PATCH", { title: next }).catch(() => setV(title));
+    router.refresh();
+  };
+  return editing ? (
+    <input autoFocus className="input text-2xl font-bold" value={v} maxLength={120} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => (e.key === "Enter" ? commit() : e.key === "Escape" ? (setV(title), setEditing(false)) : undefined)} />
+  ) : (
+    <button type="button" className="text-left text-2xl font-bold hover:text-accent sm:text-3xl" onClick={() => setEditing(true)} title={t("clickToEdit")}>
+      {title}
+    </button>
+  );
+}
+
 // ───────────── reference files ─────────────
 
 type FileRow = { id: string; filename: string; sizeBytes: number; visibility: string };
@@ -373,9 +638,10 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
   const t = useTranslations("crowd.open");
   const ts = useTranslations("crowd.spec");
   const router = useRouter();
+  const goalFor = (rate: number) => Math.max(price, Math.ceil(p90 / (1 - rate) / price - 1e-9) * price);
   const [days, setDays] = useState(durations[0]?.days ?? 7);
   const rate = durations.find((d) => d.days === days)?.rate ?? 0;
-  const min = useMemo(() => Math.max(price, Math.ceil(p90 / (1 - rate) / price - 1e-9) * price), [p90, rate, price]);
+  const min = useMemo(() => goalFor(rate), [p90, rate, price]); // eslint-disable-line react-hooks/exhaustive-deps
   const [goal, setGoal] = useState("");
   const [early, setEarly] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -402,24 +668,32 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
         <legend className="label">{t("duration")}</legend>
         <div className="grid grid-cols-2 gap-2">
           {durations.map((d) => (
-            <button type="button" key={d.days} onClick={() => setDays(d.days)} className={`rounded-xl border p-3 text-left text-sm ${d.days === days ? "border-accent bg-accent-soft" : "border-line"}`}>
+            <button type="button" key={d.days} onClick={() => setDays(d.days)} className={`rounded-xl border p-3 text-left text-sm ${d.days === days ? "border-accent bg-accent-soft" : "border-line"}`} aria-pressed={d.days === days}>
               <div className="font-semibold">{t("days", { days: d.days })}</div>
+              <div className="font-mono text-xs">{p90 > 0 ? `NT$${goalFor(d.rate).toLocaleString("en-US")}` : "—"}</div>
               <div className="text-xs text-muted">{d.rate === 0 ? t("free") : t("fee", { rate: +(d.rate * 100).toFixed(2) })}</div>
             </button>
           ))}
         </div>
+        <p className="text-xs text-muted">{t("goalAuto", { goal: (Number(goal) || min).toLocaleString("en-US") })}</p>
       </fieldset>
-      <div>
-        <label className="label">{t("goal")}</label>
-        <input className="input font-mono" inputMode="numeric" placeholder={String(min)} value={goal} onChange={(e) => setGoal(e.target.value.replace(/\D/g, ""))} />
-        <p className="mt-1 text-xs text-muted">{t("minGoal", { min, price })}</p>
-      </div>
-      <Toggle checked={early} onChange={setEarly} label={t("startEarly")} description={t("startEarlyHint")} />
+      <details className="text-sm">
+        <summary className="cursor-pointer text-muted">{t("more")}</summary>
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="label">{t("goal")}</label>
+            <input className="input font-mono" inputMode="numeric" placeholder={String(min)} value={goal} onChange={(e) => setGoal(e.target.value.replace(/\D/g, ""))} />
+            <p className="mt-1 text-xs text-muted">{t("minGoal", { min, price })}</p>
+          </div>
+          <Toggle checked={early} onChange={setEarly} label={t("startEarly")} description={t("startEarlyHint")} />
+        </div>
+      </details>
       <AgreeCrowdTerms />
       {!paid && <p className="text-sm text-warn">{t("needFee")}</p>}
       {gaps.length > 0 && <p className="text-sm text-warn">{t("missing", { list: gaps.map((g) => (g === "spec" ? ts("title") : g === "estimate" ? ts("estimate") : ts(g as "summary"))).join("、") })}</p>}
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary w-full" disabled={!ready || busy}>{t("submit")}</button>
+      <button className="btn-primary w-full !py-3" disabled={!ready || busy}>{t("submit")}</button>
+      <p className="text-xs text-muted">{t("afterSubmit")}</p>
     </form>
   );
 }

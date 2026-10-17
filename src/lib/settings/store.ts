@@ -12,7 +12,7 @@ const PREFIX = "cfg.";
 /** values earlier .env.example files shipped with; importing them would override better defaults */
 const STALE_EXAMPLE_VALUES: Record<string, string> = { LEGAL_ENTITY: "CAFECA", PAYMENT_MODE: "chain" };
 /** variables from earlier versions that nothing reads any more (TWDC payments, the old subscription, …) */
-const OBSOLETE = new Set(["TREASURY_ADDRESS", "TWDC_ADDRESS", "TWDC_DECIMALS", "MIN_TASK_BUDGET_TWDC", "MIN_TOPUP_TWDC", "USD_TWD_RATE", "SUBSCRIPTION_PRICE_TWDC", "SUBSCRIPTION_DAYS", "RUNNER_PASS_ENV"]);
+const OBSOLETE = new Set(["TREASURY_ADDRESS", "TWDC_ADDRESS", "TWDC_DECIMALS", "MIN_TASK_BUDGET_TWDC", "MIN_TOPUP_TWDC", "USD_TWD_RATE", "SUBSCRIPTION_PRICE_TWDC", "SUBSCRIPTION_DAYS", "RUNNER_PASS_ENV", "MIN_TASK_BUDGET_TWD", "MIN_TOPUP_TWD"]);
 const g = globalThis as unknown as { __sbSettingsTimer?: NodeJS.Timeout };
 
 /** Read every stored setting into the in-memory cache (decrypting secrets). Safe to call repeatedly. */

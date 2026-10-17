@@ -8,24 +8,38 @@ import { createPayment, type Buyer } from "../payments";
 import { deleteObject, putObject } from "../storage";
 import { addDays } from "../retention";
 import { postStatus } from "./agent";
-import { CATEGORIES, feeRate, fileCost, minimumGoal, normalizeSpec, sharePrice, specGaps, specMarkdown, type Spec } from "./rules";
+import { CATEGORIES, EVAL_METHODS, feeRate, fileCost, minimumGoal, normalizeSpec, sharePrice, specGaps, specMarkdown, type Spec } from "./rules";
 import type { Prisma, Task } from "@/generated/prisma/client";
 
 /**
- * Crowdfunding proposals (Task.status DRAFT): written by the proposer with the spec dialogue, paid for with the
- * proposal fee credit, then opened for pledges.
+ * Crowdfunding proposals (Task.status DRAFT). The proposer only describes what they want and pays the proposal fee;
+ * the model then drafts the whole spec (title, category, deliverables, method, acceptance criteria and the cost
+ * estimate that sets the goal). The proposer edits it line by line or asks the model for changes, picks a period and
+ * submits it for screening.
  */
 
 export const DraftInput = z.object({
-  title: z.string().trim().min(3).max(120),
-  /** what the proposer wants, in their own words (the dialogue turns it into a spec) */
+  /** optional: the model names the proposal when left empty */
+  title: z.string().trim().max(120).optional().nullable(),
+  /** what the proposer wants, in their own words (the model turns it into a spec) */
   description: z.string().trim().min(10).max(20_000),
   model: z.string().min(3).max(200),
+  kind: z.enum(["TASK", "EVALUATION"]).default("TASK"),
   skillVersionId: z.string().optional().nullable(),
-  category: z.enum(CATEGORIES).optional(),
+  /** evaluations: left empty, the model chooses the method and writes the criteria */
+  evalMethod: z.enum(EVAL_METHODS).optional().nullable(),
+  evalCriteria: z.string().trim().max(10_000).optional().nullable(),
 });
 
-export async function createDraft(userId: string, input: z.infer<typeof DraftInput>) {
+/** The provisional title of a proposal created without one (replaced by the model's title) */
+export function placeholderTitle(description: string): string {
+  const first = description.trim().split("\n")[0].replace(/\s+/g, " ");
+  const cps = [...first];
+  return cps.length <= 40 ? first : cps.slice(0, 39).join("") + "…";
+}
+
+export async function createDraft(userId: string, raw: z.input<typeof DraftInput>) {
+  const input = DraftInput.parse(raw);
   const model = await offeredModel(input.model);
   if (!model) throw new HttpError(400, "unsupported model");
   if (input.skillVersionId) {
@@ -38,17 +52,18 @@ export async function createDraft(userId: string, input: z.infer<typeof DraftInp
   return db.task.create({
     data: {
       userId,
-      kind: "TASK",
+      kind: input.kind,
       crowdfund: true,
       status: "DRAFT",
       // crowdfunded tasks are always public: anyone can back them
       isPublic: true,
-      title: input.title,
-      category: input.category ?? null,
+      title: input.title && input.title.length >= 3 ? input.title : placeholderTitle(input.description),
       termsVersion,
       prompt: input.description,
       model: input.model,
       skillVersionId: input.skillVersionId || null,
+      evalMethod: input.kind === "EVALUATION" ? (input.evalMethod ?? null) : null,
+      evalCriteria: input.kind === "EVALUATION" ? input.evalCriteria || null : null,
       usdTwdRate: fx,
       priceBuffer: buffer,
       modelPriceUsd: model.usd,
@@ -140,9 +155,15 @@ export async function canReadFile(task: Pick<Task, "id" | "userId">, file: { vis
 
 // ───────────── spec ─────────────
 
+/**
+ * The proposer edits the spec by hand. Once the model has drafted it, the cost estimate and stretch goals stay the
+ * model's (they set the goal); only the model changes them, through the dialogue.
+ */
 export async function saveSpec(userId: string, taskId: string, spec: unknown) {
-  await ownDraft(userId, taskId);
-  const s = normalizeSpec(spec);
+  const t = await ownDraft(userId, taskId);
+  const current = t.spec ? normalizeSpec(t.spec) : null;
+  const input = normalizeSpec(spec);
+  const s = current ? { ...input, estimate: current.estimate, stretch: current.stretch } : input;
   await db.task.update({ where: { id: taskId }, data: { spec: s as unknown as Prisma.InputJsonValue, specVersion: { increment: 1 } } });
   return s;
 }
@@ -160,6 +181,7 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
   const spec = t.spec ? normalizeSpec(t.spec) : null;
   const gaps = specGaps(spec);
   if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);
+  if (t.kind === "EVALUATION" && !t.evalMethod) throw new HttpError(400, "the spec is missing: evaluation method");
   const rate = feeRate(input.durationDays);
   const min = minimumGoal(spec!.estimate.p90Twd, rate);
   const goal = input.goalTwd ?? min;

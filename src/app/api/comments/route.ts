@@ -24,7 +24,7 @@ async function targetOwner(type: "SKILL" | "TASK" | "EVALUATION", id: string, vi
     return t && canView(t, viewer) ? { owner: t.userId, link: `/tasks/${t.id}`, title: t.title } : null;
   }
   const r = await db.evaluationReport.findUnique({ where: { id }, include: { task: true } });
-  return r ? { owner: r.requesterId, link: `/benchmarks/reports/${r.id}`, title: r.task.title } : null;
+  return r && r.task.status === "COMPLETED" ? { owner: r.requesterId, link: `/benchmarks/reports/${r.id}`, title: r.task.title } : null;
 }
 
 export const POST = handle(async (req: Request) => {

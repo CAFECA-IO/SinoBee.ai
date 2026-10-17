@@ -17,18 +17,16 @@ import type { Payment, PaymentPurpose, Prisma } from "@/generated/prisma/client"
  *  2. Oen redirects back to /pay/return/:id and POSTs an unsigned webhook. Neither is trusted: both only trigger
  *     syncPayment, which reads GET /transactions/:id and applies the result when orderId, amount and the
  *     transaction id all match our row.
- *  3. Applying is idempotent: the PENDING → CONFIRMED update succeeds once, and only that caller grants the budget
- *     or the subscription period.
+ *  3. Applying is idempotent: the PENDING → CONFIRMED update succeeds once, and only that caller grants the proposal
+ *     credit or the subscription period (card pledges are booked by the crowdfunding charge itself).
  *  4. reconcilePayments (worker, every few minutes) settles payments whose webhook never arrived, through
  *     GET /order/:orderId/transactions, and expires abandoned checkouts.
- *  5. refundPayment (admin): one Oen refund per transaction; reverses the budget or cancels the period.
+ *  5. refundPayment (admin): one Oen refund per transaction; returns a pledge or cancels the period.
  */
 
 export type Buyer = { name: string; email: string; invoice?: OenInvoice };
 
 const PRODUCT: Record<PaymentPurpose, { code: string; zh: string }> = {
-  TASK_BUDGET: { code: "TASK-BUDGET", zh: "委託任務預算" },
-  TASK_TOPUP: { code: "TASK-TOPUP", zh: "委託任務補充經費" },
   SUBSCRIPTION: { code: "SUB", zh: "SinoBee.ai 訂閱" },
   CROWD_PROPOSAL: { code: "CROWD-PROPOSAL", zh: "眾籌提案費" },
   CROWD_PLEDGE: { code: "CROWD-PLEDGE", zh: "眾籌出資" },
@@ -181,13 +179,6 @@ async function grant(paymentId: string) {
     return grantProposalCredit(pay.taskId, pay.amountTwd ?? 0, pay.id);
   }
   // card pledges are booked by the crowdfunding charge itself (src/lib/crowd/lifecycle.ts)
-  if (pay.purpose === "CROWD_PLEDGE") return;
-  const task = await db.task.findUniqueOrThrow({ where: { id: pay.taskId } });
-  const wasWaiting = task.status === "AWAITING_PAYMENT" || task.status === "NEEDS_FUNDING";
-  await db.task.update({ where: { id: task.id }, data: { budget: { increment: pay.amount }, ...(wasWaiting ? { status: "QUEUED", fundingRequestedAt: null } : {}) } });
-  await db.taskEvent.create({
-    data: { taskId: task.id, type: "payment", message: `${pay.purpose === "TASK_TOPUP" ? "Top-up" : "Budget"} ${pay.amountTwd} TWD confirmed`, data: { payment: pay.id, transaction: pay.transactionHid } },
-  });
 }
 
 /** Re-read one payment from Oen (return page, webhook, admin "check now") */
@@ -272,7 +263,7 @@ export async function completeMockPayment(userId: string, paymentId: string, ok:
 
 // ───────────── refunds ─────────────
 
-/** Most that may be refunded: the whole amount, but for task payments never more than the unspent budget */
+/** Most that may be refunded: the whole amount; a pledge collected for a funded task never more than its unspent budget */
 export async function refundable(pay: Payment): Promise<number> {
   if (pay.status !== "CONFIRMED" || pay.refundedTwd > 0 || !pay.amountTwd) return 0;
   if (!pay.taskId) return pay.amountTwd;
@@ -310,7 +301,7 @@ export async function refundPayment(actorId: string, paymentId: string, opts: { 
   return recordRefund(await db.payment.findUniqueOrThrow({ where: { id: pay.id } }), amount, opts.reason ?? null, actorId);
 }
 
-/** Book a refund that Oen has accepted: reverse the budget or cancel the subscription period */
+/** Book a refund that Oen has accepted: return the pledge or cancel the subscription period */
 async function recordRefund(pay: Payment, amount: number, reason: string | null, actorId: string | null) {
   const full = amount >= (pay.amountTwd ?? 0);
   const done = await db.payment.updateMany({
@@ -324,9 +315,6 @@ async function recordRefund(pay: Payment, amount: number, reason: string | null,
     const t = await db.task.findUnique({ where: { id: pay.taskId } });
     if (t?.fundedAt) await db.task.update({ where: { id: pay.taskId }, data: { budget: { decrement: amount } } });
     await db.taskEvent.create({ data: { taskId: pay.taskId, type: "refund", message: `Refunded ${amount} TWD of a pledge`, data: { payment: pay.id } } });
-  } else if (pay.taskId) {
-    await db.task.update({ where: { id: pay.taskId }, data: { budget: { decrement: amount } } });
-    await db.taskEvent.create({ data: { taskId: pay.taskId, type: "refund", message: `Refunded ${amount} TWD`, data: { payment: pay.id } } });
   }
   await audit(actorId, "payment.refund", { type: "payment", id: pay.id }, { amount, reason, full });
   await notify(pay.userId, { type: "payment.refunded", title: `已退款 Refunded ${amount} TWD`, body: reason ?? "", link: pay.taskId ? `/tasks/${pay.taskId}` : "/account#subscription" }).catch(() => undefined);

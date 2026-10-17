@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { config } from "@/lib/config";
+import { durations, sharePrice } from "@/lib/crowd/rules";
 import { publicPrices } from "@/lib/public-config";
 import { referenceBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
 import { listPlans } from "@/lib/plans";
@@ -111,31 +112,29 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="card p-6">
-          <h2 className="h3">{t("free")}</h2>
+          <h2 className="h3">{t("crowdTitle")}</h2>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted">
-            <li>{t("freeA", { days: config.retention.freeDays })}</li>
-            <li>{t("freeB", { days: config.retention.freeDays })}</li>
-            <li>{t("freeC")}</li>
+            <li>{t("crowd.share", { price: sharePrice() })}</li>
+            <li>{t("crowd.fee", { fee: Math.round(config.crowd.proposalFee) })}</li>
+            <li>{t("crowd.goal")}</li>
+            <li>{t("crowd.leftover")}</li>
           </ul>
+          <Link href="/crowd/new" className="btn-primary mt-5">{t("crowd.cta")}</Link>
         </div>
-        <div className="card border-accent p-6">
-          <h2 className="h3">
-            {t("sub")}
-          </h2>
-          <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-muted">
-            <li>{t("subA")}</li>
-            <li>{t("subB", { days: config.retention.subscriberDays })}</li>
-            <li>{t("subC")}</li>
-          </ul>
-          <Link href="/pricing#plans" className="btn-ghost mt-5">{t("seePlans")}</Link>
+        <div className="card p-6">
+          <h2 className="h3">{t("crowd.periods")}</h2>
+          <table className="mt-3 w-full text-sm">
+            <tbody>
+              {durations().map((d) => (
+                <tr key={d.days} className="border-b border-line last:border-0">
+                  <td className="py-2">{t("crowd.days", { days: d.days })}</td>
+                  <td className="py-2 text-right font-mono">{d.rate === 0 ? t("crowd.noFee") : `${+(d.rate * 100).toFixed(2)}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-muted">{t("crowd.periodNote", { days: config.crowd.resultsDays })}</p>
         </div>
-      </section>
-
-      <section className="card space-y-2 p-6 text-sm text-muted">
-        <h2 className="h3 text-ink">{t("budgetTitle")}</h2>
-        {[0, 1, 2, 3].map((i) => (
-          <p key={i}>{t(`budget.${i}`)}</p>
-        ))}
       </section>
     </div>
   );

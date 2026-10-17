@@ -41,8 +41,6 @@ export const SETTINGS: SettingDef[] = [
   // ───── payments ─────
   { key: "payments.provider", env: "PAYMENT_PROVIDER", type: "select", group: "payments", default: "oen", options: ["oen"], label: L("金流服務", "Payment provider") },
   { key: "payments.mode", env: "PAYMENT_MODE", type: "select", group: "payments", default: "oen", options: ["oen", "mock"], label: L("模式", "Mode"), help: L("mock：本機模擬結帳頁，只在開發環境有效", "mock: local fake checkout, development only") },
-  { key: "payments.minTaskBudget", env: "MIN_TASK_BUDGET_TWD", type: "number", group: "payments", default: "30", label: L("委託最低預算（TWD）", "Minimum task budget (TWD)") },
-  { key: "payments.minTopUp", env: "MIN_TOPUP_TWD", type: "number", group: "payments", default: "10", label: L("最低補充經費（TWD）", "Minimum top-up (TWD)") },
   { key: "oen.env", env: "OEN_ENV", type: "select", group: "payments", provider: "oen", default: "testing", options: ["testing", "production"], label: L("環境", "Environment"), help: L("正式環境需先向 Oen 申請伺服器固定 IP 白名單", "production needs the server IP on Oen's allowlist") },
   { key: "oen.merchantId", env: "OEN_MERCHANT_ID", type: "text", group: "payments", provider: "oen", required: true, label: L("網域名稱（merchantId）", "Domain (merchantId)"), help: L("例如應援頁 https://sinobee.oen.tw 就填 sinobee", "e.g. sinobee for https://sinobee.oen.tw") },
   { key: "oen.token", env: "OEN_API_TOKEN", type: "secret", group: "payments", provider: "oen", required: true, label: L("API Token", "API token"), help: L("CRM「總設定 → 開發者 → 應援金流設定 → 存取 Token」產生", "Generated in the Oen CRM: Settings → Developer → Access token") },
@@ -55,9 +53,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "apiKeys.openai", env: "OPENAI_API_KEY", type: "secret", group: "apiKeys", label: L("OpenAI", "OpenAI") },
   { key: "apiKeys.gemini", env: "GEMINI_API_KEY", type: "secret", group: "apiKeys", label: L("Google Gemini", "Google Gemini") },
   { key: "apiKeys.deepseek", env: "DEEPSEEK_API_KEY", type: "secret", group: "apiKeys", label: L("DeepSeek", "DeepSeek") },
-  { key: "apiKeys.openrouter", env: "OPENROUTER_API_KEY", type: "secret", group: "apiKeys", label: L("OpenRouter（委託容器）", "OpenRouter (task containers)") },
-  { key: "apiKeys.brave", env: "BRAVE_API_KEY", type: "secret", group: "apiKeys", label: L("Brave Search（委託容器）", "Brave Search (task containers)") },
-  { key: "apiKeys.tavily", env: "TAVILY_API_KEY", type: "secret", group: "apiKeys", label: L("Tavily（委託容器）", "Tavily (task containers)") },
+  { key: "apiKeys.openrouter", env: "OPENROUTER_API_KEY", type: "secret", group: "apiKeys", label: L("OpenRouter（任務容器）", "OpenRouter (task containers)") },
+  { key: "apiKeys.brave", env: "BRAVE_API_KEY", type: "secret", group: "apiKeys", label: L("Brave Search（任務容器）", "Brave Search (task containers)") },
+  { key: "apiKeys.tavily", env: "TAVILY_API_KEY", type: "secret", group: "apiKeys", label: L("Tavily（任務容器）", "Tavily (task containers)") },
 
   // ───── model relay ─────
   { key: "llm.rpm", env: "LLM_RPM", type: "number", group: "llm", default: "60", label: L("每用戶每分鐘請求數", "Requests per minute per user") },

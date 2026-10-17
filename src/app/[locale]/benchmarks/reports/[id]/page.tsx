@@ -15,7 +15,7 @@ type Result = { score: number; verdict?: string | null; summary?: string; metric
 
 export async function generateMetadata({ params }: P) {
   const r = await db.evaluationReport.findUnique({ where: { id: (await params).id }, include: { task: true } });
-  return r ? { title: r.task.title } : {};
+  return r && r.task.status === "COMPLETED" ? { title: r.task.title } : {};
 }
 
 export default async function ReportPage({ params }: P) {
@@ -27,7 +27,8 @@ export default async function ReportPage({ params }: P) {
     where: { id },
     include: { task: true, requester: true, skillVersion: { include: { skill: { include: { publisher: true } } } } },
   });
-  if (!r) notFound();
+  // published once the backers accepted the run
+  if (!r || r.task.status !== "COMPLETED") notFound();
   const res = r.result as unknown as Result;
   const who = r.requester.publisher ?? (r.requester.handle ? `@${r.requester.handle}` : r.requester.account);
   const facts: [string, React.ReactNode][] = [

@@ -7,10 +7,9 @@ Official website of [SinoBee](https://github.com/CAFECA-IO/SinoBee) — the open
 | Introduction, download & install guide | `/`, `/download` |
 | **Skill Hub** — submit, download, rate (★1–5), threaded discussion; review + ed25519 signing; revocations; SinoBee-compatible **Hub API v1** | `/skills`, `/api/v1/*`, `/.well-known/sinobee-hub-keys.json` |
 | **Sign in with CAFECA** (popup / redirect / cross-device QR, ERC-1271 verification, signing channel) | `/login`, `/api/auth/*` |
-| **Commissioned tasks** paid in TWDC through the CAFECA signing channel; one isolated Docker container per user; metered at **1.5 × (tokens + AWS VM + AWS S3)**; public/private; 👍/👎 + comments; budget exhausted → partial results + CAFECA notification → top-up or close | `/tasks`, `worker/` |
-| **Crowdfunded tasks**: NT$30 shares (1 / 5 / 20); NT$30 proposal fee as credit for an AI spec dialogue and reference files (50 MB free, then 1 share per 50 MB); 7 / 30 / 90 / 180-day campaigns (0 / 3 / 6 / 10 % fee); cards saved with Oen tokens and charged only when the goal is reached; points and subscription quota pledges; the agent reports progress as comments; leftover budget becomes platform points | `/crowd/new`, `/tasks/:id`, `src/lib/crowd/` |
-| **Retention**: non-subscribers' containers and results are kept 7 days after a task finishes, then deleted (downloads return 410) | `worker/index.ts` cleanup |
-| **Benchmarks**: anyone can commission an evaluation; every public report records time, requester, skill, model, method, process and result; model leaderboard + per-skill reports | `/benchmarks` |
+| **Crowdfunded tasks** (the only way tasks run): describe it, pay the NT$30 proposal fee, and a model drafts the title, category, spec and cost estimate (the goal); edit lines or ask the model, pick a period, submit. NT$30 shares (1 / 5 / 20); the proposal fee is credit for the spec model and reference files (50 MB free, then 1 share per 50 MB); 7 / 30 / 90 / 180-day campaigns (0 / 3 / 6 / 10 % fee); cards saved with Oen tokens and charged only when the goal is reached; points and subscription quota pledges; the agent reports progress as comments; leftover budget becomes platform points | `/crowd`, `/crowd/new`, `/tasks/:id`, `/tasks` (mine), `src/lib/crowd/`, `worker/` |
+| **Retention**: results are kept `crowd.resultsDays` for the backers, then deleted (downloads return 410); each task's container is removed after settlement | `worker/index.ts` cleanup |
+| **Benchmarks**: evaluations are crowdfunds too (`kind = EVALUATION`; the model picks the method and criteria if the proposer leaves them open); the report (`outputs/evaluation.json`) is published once the backers accept the run, with time, proposer, skill, model, method, process and result; model leaderboard + per-skill reports | `/benchmarks` |
 | zh-TW (default) / English | `src/messages/*.json` |
 
 ## Stack
@@ -22,7 +21,7 @@ src/app/[locale]/…        pages (server components)
 src/app/api/…             JSON API (auth, tasks, payments, skills, comments, Hub v1)
 src/lib/cafeca/           CAFECA sign-in protocol + verifier (vendored from Luphia/cafeca, viem only)
 src/lib/skills/           Agent Skills spec validation, content hash (identical to SinoBee), bundle, scan, ed25519 signing
-src/lib/payments.ts       TWDC payment intents + on-chain Transfer verification
+src/lib/payments.ts       Oen payments (proposal fees, card pledges, subscriptions), webhook + reconciliation
 src/lib/pricing.ts        1.5× billing formula, model price table
 src/lib/notify.ts         inbox + CAFECA notification webhook
 worker/                   task runner: claim → docker run → meter → stop at budget → upload → notify; cleanup
@@ -43,7 +42,7 @@ npm run worker                  # second terminal
 npm test
 ```
 
-`DEV_LOGIN=1` shows a developer sign-in button (ignored in production builds). `PAYMENT_MODE=mock` auto-confirms payments, `RUNNER_MODE=mock` simulates SinoBee runs so the whole budget → top-up → completion → download flow can be exercised.
+`DEV_LOGIN=1` shows a developer sign-in button (ignored in production builds). `PAYMENT_MODE=mock` auto-confirms payments, `RUNNER_MODE=mock` simulates SinoBee runs so the whole proposal → funding → run → review → settlement flow can be exercised.
 
 ## One command: `npm run swarm`
 
@@ -125,20 +124,15 @@ The worker needs the Docker socket (it creates `sb-u-<userId>` containers with a
 
 No registration with CAFECA is needed. The site issues a one-time nonce bound to the browser, the wallet signs an EIP-712 `SignIn` message with the user's Passkey, and the backend verifies it with `isValidSignature` (ERC-1271) on chain 8018 — see `src/lib/signin-flow.ts`. `PUBLIC_ORIGIN` must exactly match the public origin (scheme + host + port). The site metadata shown in the wallet is served at `/.well-known/cafeca-site.json`.
 
-### Payments
-
-`POST /api/tasks` creates the task and a payment intent → the browser calls `channel.sendCalls([TWDC.transfer(treasury, amount)])` through the CAFECA signing channel → `POST /api/payments/:id/confirm {txHash}` → the server reads the receipt and requires a `Transfer(from=user, to=treasury, value≥amount)` log from the TWDC contract (each tx hash can be used once).
-
 ### Billing
 
 ```
-charge (TWDC) = PRICE_MARKUP(1.5) × (token cost + VM cost + S3 cost) × USD_TWD_RATE
-token cost = SinoBee's own per-call accounting for the task's session (vendor prices, cache discounts)
+charge (TWD) = (token cost at the published model price × price buffer) + (VM cost + S3 cost) × markup
 VM cost    = run seconds × AWS_VM_HOURLY_USD
 S3 cost    = result size × retention days × AWS_S3_GB_MONTH_USD + request fees
 ```
 
-The meter runs every 15 s; when the charge reaches the budget the agent is stopped, the `outputs/` folder is packaged as a partial result and the user is asked (inbox + CAFECA) to top up or close. A top-up resumes the same SinoBee session in the same container.
+Model prices and the exchange rate are snapshotted when a crowdfund is funded. The meter runs every 15 s and never charges more than the task budget; when the budget runs out the agent is stopped, `outputs/` is packaged as a partial result and the proposer can open a top-up round or close the task.
 
 ### Crowdfunding
 
@@ -202,8 +196,7 @@ Tests run against `tests/helpers/stub-boltchain.ts`. It is a JSON-RPC stand-in t
 ## Open items
 
 - **CAFECA notifications**: the CAFECA README does not yet document a notification API. Notifications are stored in the on-site inbox and POSTed to `CAFECA_NOTIFY_URL` when configured (`src/lib/notify.ts`).
-- **Model keys in user containers**: the worker passes `RUNNER_PASS_ENV` keys into user containers. Since commissioned agents run with `approval: auto`, prefer per-task scoped keys or an LLM gateway in production.
-- **Unused budget**: charges never exceed the budget; the remaining balance is shown but refunds (treasury → user) are not automated.
+- **Model keys in task containers**: the worker passes `RUNNER_PASS_ENV` keys into task containers. Since agents run with `approval: auto`, prefer per-task scoped keys or an LLM gateway in production.
 - Model and AWS prices are reference values — review `src/lib/pricing.ts` and the `AWS_*` env vars before launch.
 
 ## License

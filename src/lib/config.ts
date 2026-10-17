@@ -75,12 +75,6 @@ export const config = {
     get mode() {
       return (sv("payments.mode") === "mock" ? "mock" : "oen") as "oen" | "mock";
     },
-    get minTaskBudget() {
-      return svNum("payments.minTaskBudget");
-    },
-    get minTopUp() {
-      return svNum("payments.minTopUp");
-    },
   },
 
   /** Oen payments (https://developer.oen.tw) */

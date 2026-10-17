@@ -26,9 +26,3 @@ export async function resultsRetentionDays(userId: string): Promise<number> {
   return g ? Math.max(free, Math.ceil((g.getTime() - Date.now()) / 86400_000)) : free;
 }
 
-/** When the user's container may be removed: the grace end for subscribers, otherwise 7 days after the last task */
-export async function containerExpiry(userId: string, from = new Date()): Promise<Date> {
-  const g = await graceEnd(userId);
-  const free = addDays(from, config.retention.freeDays);
-  return g && g > free ? g : free;
-}

@@ -20,7 +20,7 @@ export async function Footer() {
           <a className="block text-muted hover:text-accent" href={AGENT_URL} target="_blank" rel="noopener">{n("tryAgent")}</a>
           <Link className="block text-muted hover:text-accent" href="/download">{n("download")}</Link>
           <Link className="block text-muted hover:text-accent" href="/skills">{n("skills")}</Link>
-          <Link className="block text-muted hover:text-accent" href="/tasks">{n("tasks")}</Link>
+          <Link className="block text-muted hover:text-accent" href="/crowd">{n("tasks")}</Link>
           <Link className="block text-muted hover:text-accent" href="/benchmarks">{n("benchmarks")}</Link>
         </div>
         <div className="space-y-2 text-sm">

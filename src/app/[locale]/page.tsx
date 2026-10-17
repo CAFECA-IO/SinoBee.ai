@@ -50,7 +50,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       orderBy: [{ downloads: "desc" }, { ratingAvg: "desc" }],
       take: 6,
     }),
-    Promise.all([db.skill.count({ where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } } }), db.task.count({ where: { status: "COMPLETED" } }), db.evaluationReport.count()]),
+    Promise.all([db.skill.count({ where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } } }), db.task.count({ where: { status: "COMPLETED" } }), db.evaluationReport.count({ where: { task: { status: "COMPLETED" } } })]),
   ]);
 
   return (
@@ -70,7 +70,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             <div className="mt-8 flex flex-wrap gap-3">
               <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary !px-6 !py-3 text-base"><Icon name="rocket" />{t("ctaTry")}</a>
               <Link href="/download" aria-label={t("ctaInstall")} data-tip={t("ctaInstall")} className="icon-btn outline lg"><Icon name="download" /></Link>
-              <Link href="/tasks/new" aria-label={t("ctaCommission")} data-tip={t("ctaCommission")} className="icon-btn outline lg"><Icon name="task" /></Link>
+              <Link href="/crowd/new" aria-label={t("ctaCommission")} data-tip={t("ctaCommission")} className="icon-btn outline lg"><Icon name="users" /></Link>
             </div>
             <p className="mt-3 text-sm text-muted">{t("tryNote")}</p>
             <div className="mt-8 max-w-xl">
@@ -164,7 +164,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           <div key={k} className="card flex flex-col p-6">
             <h3 className="h3">{t(`pillars.${k}.title`)}</h3>
             <p className="mt-2 flex-1 text-sm text-muted">{t(`pillars.${k}.body`)}</p>
-            <Link href={k === "hub" ? "/skills" : k === "commission" ? "/tasks/new" : "/benchmarks"} className="btn-ghost mt-5 self-start">
+            <Link href={k === "hub" ? "/skills" : k === "commission" ? "/crowd" : "/benchmarks"} className="btn-ghost mt-5 self-start">
               {t(`pillars.${k}.cta`)} →
             </Link>
           </div>

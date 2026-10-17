@@ -62,7 +62,8 @@ const txOf = async (paymentId: string) => oen.txs.get((await db.payment.findUniq
 
 async function submit(title: string, opts: { goal?: number; category?: "data" | "research"; description?: string } = {}) {
   const goal = opts.goal ?? 150;
-  const t = await proposal.createDraft(ann.id, { title, description: opts.description ?? "Collect public bus timetables and compare them", model: MODEL, category: opts.category ?? "data" });
+  const t = await proposal.createDraft(ann.id, { title, description: opts.description ?? "Collect public bus timetables and compare them", model: MODEL });
+  await db.task.update({ where: { id: t.id }, data: { category: opts.category ?? "data" } });
   const c = await proposal.buyProposalFee(ann.id, t.id, buyer);
   oen.pay((await txOf(c.id)).transactionId);
   await pay.syncPayment(c.id);

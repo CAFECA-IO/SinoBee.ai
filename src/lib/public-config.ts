@@ -21,15 +21,6 @@ export async function publicPrices() {
   };
 }
 
-/** Pricing numbers safe to send to the browser (TWD, final) */
-export async function pricingForClient() {
-  return {
-    ...(await publicPrices()),
-    retentionDays: config.retention.freeDays,
-    minBudget: config.payments.minTaskBudget,
-  };
-}
-
-/** Models offered for commissioned tasks with their published prices per 1M tokens (TWD) */
+/** Models offered for crowdfunded tasks with their published prices per 1M tokens (TWD) */
 export const modelsForClient = async () =>
   (await currentModels()).map(({ modelId, label, vendor, twd }) => ({ id: modelId, label, vendor, input: twd.input, cacheRead: twd.cacheRead, output: twd.output }));

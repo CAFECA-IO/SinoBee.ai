@@ -19,13 +19,14 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
   const labels = Object.fromEntries([...catalog.values()].map((m) => [m.modelId, m.label]));
   const offered = (await currentModels()).length;
   const [byModel, byModelMethod, skillReports, recent] = await Promise.all([
-    db.evaluationReport.groupBy({ by: ["model"], where: { skillVersionId: null }, _avg: { score: true }, _count: true, _max: { evaluatedAt: true } }),
-    db.evaluationReport.groupBy({ by: ["model", "method"], where: { skillVersionId: null }, _avg: { score: true } }),
+    db.evaluationReport.groupBy({ by: ["model"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true }, _count: true, _max: { evaluatedAt: true } }),
+    db.evaluationReport.groupBy({ by: ["model", "method"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true } }),
     db.evaluationReport.findMany({
-      where: { skillVersionId: { not: null }, score: { not: null } },
+      where: { skillVersionId: { not: null }, score: { not: null }, task: { status: "COMPLETED" } },
       select: { score: true, skillVersion: { select: { skill: { select: { id: true, name: true, publisher: { select: { publisher: true } } } } } } },
     }),
     db.evaluationReport.findMany({
+      where: { task: { status: "COMPLETED" } },
       include: { requester: true, skillVersion: { include: { skill: { include: { publisher: true } } } } },
       orderBy: { evaluatedAt: "desc" },
       take: 20,
@@ -51,7 +52,7 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
           <h1 className="h1">{t("title")}</h1>
           <p className="mt-2 max-w-3xl text-muted">{t("lead")}</p>
         </div>
-        <Link href="/benchmarks/new" className="btn-primary">{t("commission")}</Link>
+        <Link href="/crowd/new?kind=evaluation" className="btn-primary">{t("commission")}</Link>
       </div>
 
       <section className="space-y-4">
