@@ -1239,7 +1239,8 @@
       "sending": "Thinking…",
       "needFee": "Pay the proposal fee to start the dialogue.",
       "outOfCredit": "Proposal credit used up; buy another proposal fee to continue.",
-      "cost": "This turn {cost} TWD"
+      "cost": "This turn {cost} TWD",
+      "failed": "The AI did not finish its reply. Please try again."
     },
     "spec": {
       "title": "Spec",
@@ -1507,7 +1508,8 @@
       "workingHint": "Deliverables, method, acceptance criteria and cost from your description; usually under a minute.",
       "retry": "Try again",
       "aiCategory": "(chosen by AI, you can change it)",
-      "optional": "optional"
+      "optional": "optional",
+      "failed": "The AI did not finish the draft. Please try again."
     },
     "doc": {
       "hint": "Click any line to edit it; Enter saves, Esc cancels. Or ask AI on the right.",

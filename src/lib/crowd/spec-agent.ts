@@ -20,7 +20,8 @@ import type { Task } from "@/generated/prisma/client";
 export type ChatTurn = { role: "user" | "assistant"; content: string; at: string };
 
 const MAX_TURNS = 40;
-const MAX_OUTPUT = 2500;
+/** room for a complete spec in Chinese (and for reasoning models' thinking, which counts as output) */
+const MAX_OUTPUT = 8000;
 
 type DraftTask = Pick<Task, "title" | "prompt" | "model" | "kind" | "evalMethod" | "evalCriteria" | "category"> & { skill?: string | null };
 
@@ -69,10 +70,12 @@ async function callModel(model: ModelPriceView, system: string, messages: { role
   const upstream = model.modelId.split("/").slice(1).join("/");
   if (!p?.key) {
     if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
+    // the development stand-in answers at once; tests can slow it down to watch a running job
+    if (process.env.SPEC_MOCK_DELAY_MS) await new Promise((r) => setTimeout(r, Number(process.env.SPEC_MOCK_DELAY_MS)));
     return mockReply(messages);
   }
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 120_000);
+  const timer = setTimeout(() => ctrl.abort(), 240_000);
   try {
     if (p.kind === "anthropic") {
       const r = await fetch(`${p.base}/v1/messages`, {
@@ -91,7 +94,7 @@ async function callModel(model: ModelPriceView, system: string, messages: { role
     const r = await fetch(`${p.base}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${p.key}` },
-      body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, ...messages], [provider === "openai" ? "max_completion_tokens" : "max_tokens"]: MAX_OUTPUT }),
+      body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, ...messages], [provider === "openai" ? "max_completion_tokens" : "max_tokens"]: provider === "openai" ? MAX_OUTPUT * 2 : MAX_OUTPUT }),
       signal: ctrl.signal,
     });
     const j = (await r.json().catch(() => ({}))) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; error?: { message?: string } };
@@ -162,7 +165,60 @@ function applied(task: Task, a: Answer): Prisma.TaskUpdateInput {
   };
 }
 
-const busy = new Set<string>();
+/**
+ * Model calls take from seconds to a few minutes, longer than proxies in front of the site wait for a response. So
+ * the browser starts a job (startGenerate / startTurn), the model runs in the background and the page polls
+ * specJobState until the draft is updated. Jobs live in this server process; one per proposal at a time.
+ */
+type Job = { state: "running" | "error"; kind: "generate" | "turn"; error?: string; at: number };
+const g = globalThis as unknown as { __sbSpecJobs?: Map<string, Job> };
+const jobs = (g.__sbSpecJobs ??= new Map<string, Job>());
+
+/** What the page polls: the job and whether the spec exists yet (owner only) */
+export async function specProgress(userId: string, taskId: string) {
+  const task = await ownDraft(userId, taskId);
+  return { ...specJobState(taskId), hasSpec: !!task.spec, chatLength: Array.isArray(task.specChat) ? task.specChat.length : 0 };
+}
+
+export function specJobState(taskId: string): { state: "idle" | "running" | "error"; kind?: string; error?: string } {
+  const j = jobs.get(taskId);
+  if (!j) return { state: "idle" };
+  // a job that never finished (a crash) does not block the proposal forever
+  if (j.state === "running" && Date.now() - j.at > 10 * 60_000) {
+    jobs.delete(taskId);
+    return { state: "idle" };
+  }
+  return { state: j.state, kind: j.kind, error: j.error };
+}
+
+function runJob(taskId: string, kind: Job["kind"], work: () => Promise<unknown>) {
+  if (jobs.get(taskId)?.state === "running") throw new HttpError(409, "the AI is still working on this proposal");
+  jobs.set(taskId, { state: "running", kind, at: Date.now() });
+  void work().then(
+    () => jobs.delete(taskId),
+    (e) => {
+      console.warn("spec job", taskId, kind, (e as Error).message);
+      jobs.set(taskId, { state: "error", kind, error: (e as Error).message.slice(0, 500), at: Date.now() });
+    },
+  );
+}
+
+/** Start drafting the spec in the background (no-op when it exists or is being drafted) */
+export async function startGenerate(userId: string, taskId: string) {
+  const task = await ownDraft(userId, taskId);
+  if (task.spec) return { state: "done" as const };
+  checkCredit(task);
+  if (jobs.get(taskId)?.state !== "running") runJob(taskId, "generate", () => generateSpec(userId, taskId));
+  return { state: "running" as const };
+}
+
+/** Start one dialogue turn in the background */
+export async function startTurn(userId: string, taskId: string, message: string) {
+  if (!message.trim()) throw new HttpError(400, "message is required");
+  checkCredit(await ownDraft(userId, taskId));
+  runJob(taskId, "turn", () => specTurn(userId, taskId, message));
+  return { state: "running" as const };
+}
 
 async function ask(task: Task, chat: ChatTurn[], message: string) {
   const models = await currentModels();
@@ -194,20 +250,17 @@ export async function generateSpec(userId: string, taskId: string) {
   const task = await ownDraft(userId, taskId);
   if (task.spec) return { generated: false, spec: normalizeSpec(task.spec), creditLeft: creditLeft(task) };
   checkCredit(task);
-  if (busy.has(taskId)) throw new HttpError(409, "the spec is being drafted");
-  busy.add(taskId);
-  try {
+  {
     const instruction =
       "Draft the complete crowdfunding proposal from my description now: a short title, the category, every part of the spec and the cost estimate" +
       (task.kind === "EVALUATION" ? ", plus the evaluation method and criteria" : "") +
       ". In the reply, say in two or three sentences what you assumed and what I should check.";
     const { parsed, cost } = await ask(task, [], instruction);
+    if (!parsed.spec) throw new HttpError(502, "the AI did not return a complete spec; try again");
     const now = new Date().toISOString();
     const chat: ChatTurn[] = [{ role: "assistant", content: parsed.reply || "…", at: now }];
     const updated = await db.task.update({ where: { id: taskId }, data: { specChat: chat as unknown as Prisma.InputJsonValue, ...applied(task, parsed) } });
     return { generated: true, spec: updated.spec ? normalizeSpec(updated.spec) : null, costTwd: cost, creditLeft: creditLeft(updated) };
-  } finally {
-    busy.delete(taskId);
   }
 }
 

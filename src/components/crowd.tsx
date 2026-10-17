@@ -208,7 +208,8 @@ export function SpecChat({ taskId, chat: initial, canChat, outOfCredit }: { task
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [cost, setCost] = useState<number | null>(null);
+  // the server's dialogue (after router.refresh) replaces the local copy
+  useEffect(() => setChat(initial), [initial]);
   return (
     <div className="space-y-3">
       <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-xl border border-line p-4">
@@ -232,9 +233,15 @@ export function SpecChat({ taskId, chat: initial, canChat, outOfCredit }: { task
           setChat((c) => [...c, { role: "user", content: text }]);
           setMsg("");
           try {
-            const r = await send(`/api/crowd/${taskId}/spec`, "POST", { message: text });
-            setChat((c) => [...c, { role: "assistant", content: r.reply || "…" }]);
-            setCost(r.costTwd);
+            await send(`/api/crowd/${taskId}/spec`, "POST", { message: text });
+            // the reply is written in the background; wait for the job to finish, then reload the draft
+            for (;;) {
+              await new Promise((r) => setTimeout(r, 2000));
+              const p = await send(`/api/crowd/${taskId}/generate`, "GET").catch(() => null);
+              if (!p || p.state === "running") continue;
+              if (p.state === "error") throw new Error(p.error || t("failed"));
+              break;
+            }
             router.refresh();
           } catch (e) {
             setErr((e as Error).message);
@@ -247,7 +254,6 @@ export function SpecChat({ taskId, chat: initial, canChat, outOfCredit }: { task
         <textarea className="input min-h-16 flex-1" value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={t("placeholder")} disabled={!canChat || busy} maxLength={8000} />
         <button className="btn-primary self-end" disabled={!canChat || busy || !msg.trim()}>{t("send")}</button>
       </form>
-      {cost !== null && <p className="text-xs text-muted">{t("cost", { cost: cost.toFixed(2) })}</p>}
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
     </div>
   );
@@ -378,13 +384,33 @@ export function AutoDraft({ taskId }: { taskId: string }) {
   useEffect(() => {
     let alive = true;
     setErr("");
-    send(`/api/crowd/${taskId}/generate`, "POST", {})
-      .then(() => alive && router.refresh())
-      .catch((e) => alive && setErr((e as Error).message));
+    (async () => {
+      try {
+        // the model runs in the background; the page asks how it is going until the spec is there
+        const start = await send(`/api/crowd/${taskId}/generate`, "POST", {});
+        if (start.state === "done") return alive && router.refresh();
+        let restarts = 0;
+        while (alive) {
+          await new Promise((r) => setTimeout(r, 2500));
+          if (!alive) return;
+          const p = await send(`/api/crowd/${taskId}/generate`, "GET").catch(() => null);
+          if (!p) continue; // a dropped poll is retried
+          if (p.hasSpec) return router.refresh();
+          if (p.state === "error") return setErr(p.error || t("failed"));
+          if (p.state === "idle") {
+            // the job is gone without a spec (e.g. the server restarted): start it again once
+            if (restarts++ > 0) return setErr(t("failed"));
+            await send(`/api/crowd/${taskId}/generate`, "POST", {});
+          }
+        }
+      } catch (e) {
+        if (alive) setErr((e as Error).message);
+      }
+    })();
     return () => {
       alive = false;
     };
-  }, [taskId, router, n]);
+  }, [taskId, router, n, t]);
   return (
     <div className="card space-y-3 p-8 text-center" aria-live="polite">
       {err ? (

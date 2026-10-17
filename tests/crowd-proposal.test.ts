@@ -145,3 +145,46 @@ test("the platform model follows the admin settings and the keys that are set, n
     }
   }
 });
+
+test("drafting runs in the background (no long request for a proxy to cut off); the page polls the progress", async () => {
+  const t = await paidDraft({ description: "Map every public drinking fountain in Taipei", model: MODEL });
+  const other = await db.user.create({ data: { account: "0x" + "e".repeat(40), handle: "eve" } });
+  await assert.rejects(spec.specProgress(other.id, t.id), /not found/, "only the proposer sees the progress");
+  process.env.SPEC_MOCK_DELAY_MS = "300";
+  assert.deepEqual(await spec.startGenerate(ann.id, t.id), { state: "running" });
+  assert.equal((await spec.specProgress(ann.id, t.id)).state, "running");
+  await assert.rejects(spec.startTurn(ann.id, t.id, "more detail"), /still working/, "one job at a time");
+  assert.deepEqual(await spec.startGenerate(ann.id, t.id), { state: "running" }, "a second start joins the running job");
+  await new Promise((r) => setTimeout(r, 100));
+  delete process.env.SPEC_MOCK_DELAY_MS;
+  let p = await spec.specProgress(ann.id, t.id);
+  for (let i = 0; i < 100 && !p.hasSpec; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+    p = await spec.specProgress(ann.id, t.id);
+  }
+  assert.equal(p.hasSpec, true);
+  assert.equal(p.state, "idle");
+  assert.deepEqual(await spec.startGenerate(ann.id, t.id), { state: "done" });
+
+  // a dialogue turn the same way
+  assert.deepEqual(await spec.startTurn(ann.id, t.id, "加上英文摘要"), { state: "running" });
+  for (let i = 0; i < 100 && (await spec.specProgress(ann.id, t.id)).state === "running"; i++) await new Promise((r) => setTimeout(r, 20));
+  p = await spec.specProgress(ann.id, t.id);
+  assert.equal(p.state, "idle");
+  assert.equal(p.chatLength, 3, "the model's note, the question and the reply");
+
+  // a failure is reported to the page, not swallowed
+  const keep = process.env.NODE_ENV;
+  const noModel = await paidDraft({ description: "Survey night markets", model: MODEL });
+  (process.env as Record<string, string>).NODE_ENV = "production";
+  try {
+    await spec.startGenerate(ann.id, noModel.id);
+    for (let i = 0; i < 100 && (await spec.specProgress(ann.id, noModel.id)).state === "running"; i++) await new Promise((r) => setTimeout(r, 20));
+  } finally {
+    (process.env as Record<string, string | undefined>).NODE_ENV = keep;
+  }
+  const failed = await spec.specProgress(ann.id, noModel.id);
+  assert.equal(failed.state, "error");
+  assert.ok(failed.error && failed.error.length > 0, failed.error);
+  assert.equal(failed.hasSpec, false);
+});

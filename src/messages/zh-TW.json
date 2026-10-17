@@ -1239,7 +1239,8 @@
       "sending": "思考中…",
       "needFee": "支付提案費後即可開始對話。",
       "outOfCredit": "提案額度已用完，加購提案費後可繼續對話。",
-      "cost": "本輪 {cost} TWD"
+      "cost": "本輪 {cost} TWD",
+      "failed": "AI 沒有完成回覆，請重試。"
     },
     "spec": {
       "title": "需求規格",
@@ -1507,7 +1508,8 @@
       "workingHint": "依描述撰寫交付物、執行方法、驗收標準與費用，通常不到一分鐘。",
       "retry": "再試一次",
       "aiCategory": "（AI 自動分類，可修改）",
-      "optional": "選填"
+      "optional": "選填",
+      "failed": "AI 沒有完成草擬，請重試。"
     },
     "doc": {
       "hint": "點任一行即可修改，Enter 儲存、Esc 取消；也可以在右側請 AI 調整。",
