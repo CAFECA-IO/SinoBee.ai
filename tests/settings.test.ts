@@ -72,7 +72,11 @@ test("environment wins and is locked; admin edits are validated and audited with
   await store.saveSetting(adminId, "llm.rpm", "10");
   assert.equal(config.llm.rpm, 10);
   await assert.rejects(store.saveSetting(adminId, "oen.env", "staging"), /one of testing, production/);
-  await assert.rejects(store.saveSetting(adminId, "oen.methods", "cvs,bitcoin"), /unknown value bitcoin/);
+  await store.saveSetting(adminId, "site.testMode", "on");
+  assert.equal(config.testMode, true, "test mode switch");
+  assert.equal(config.oen.env, "testing", "test mode always uses Oen testing");
+  await store.saveSetting(adminId, "site.testMode", "0");
+  assert.equal(config.testMode, false);
   await store.saveSetting(adminId, "oen.token", "new-secret-token");
   const a = await db.adminAudit.findFirstOrThrow({ where: { targetId: "oen.token" }, orderBy: { createdAt: "desc" } });
   assert.ok(!JSON.stringify(a.detail).includes("new-secret-token"));

@@ -6,6 +6,7 @@ import type { Buyer } from "@/components/checkout";
 import { CrowdNewForm } from "@/components/crowd";
 import { modelsForClient } from "@/lib/public-config";
 import { skillOption } from "@/lib/skill-option";
+import { checkoutCards } from "@/lib/crowd/cards";
 import { EVAL_METHODS } from "@/lib/crowd/rules";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -37,7 +38,7 @@ export default async function NewCrowdPage({ params, searchParams }: { params: P
         ))}
       </ol>
       <div className="mt-8">
-        <CrowdNewForm models={models} skill={skill} kind={sp.kind === "evaluation" ? "EVALUATION" : "TASK"} evalMethods={EVAL_METHODS} fee={fee} buyer={(me!.billing ?? null) as Buyer | null} />
+        <CrowdNewForm models={models} skill={skill} kind={sp.kind === "evaluation" ? "EVALUATION" : "TASK"} evalMethods={EVAL_METHODS} fee={fee} buyer={(me!.billing ?? null) as Buyer | null} {...await checkoutCards(me!.id)} />
       </div>
     </div>
   );

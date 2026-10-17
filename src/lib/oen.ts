@@ -4,13 +4,13 @@ import { HttpError } from "./errors";
 /**
  * Oen Payment API client (https://developer.oen.tw). Server-side only: the token never reaches the browser.
  *
- *  POST /checkout                      → { id (27 chars), transactionHid (P…) }; checkout page valid for 5 minutes
  *  GET  /transactions/:id              → Transaction (source of truth; webhooks are unsigned and only a hint)
  *  GET  /order/:orderId/transactions   → every transaction created for one order (reconciliation)
  *  POST /refunds/:transactionHid       → one successful API refund per transaction
  *  POST /checkout-token                → card binding page (3-D Secure); the token arrives only in the webhook
  *  POST /token/transactions            → charge a saved card (no 3-D Secure, no notification: the response decides)
  *
+ * SinoBee charges only saved cards: a card is bound once (3-D Secure) and each checkout charges its token.
  * Every response is { code: "S0000" | error code, data, message }.
  */
 
@@ -47,19 +47,25 @@ export class OenError extends Error {
   }
 }
 
-export function oenConfigured() {
-  return !!(config.oen.token && config.oen.merchantId);
+export function oenConfigured(sandbox = config.testMode) {
+  const c = config.oen.for(sandbox);
+  return !!(c.token && c.merchantId);
 }
 
-async function call<T>(method: "GET" | "POST", path: string, body?: object, extraHeaders: Record<string, string> = {}): Promise<T> {
-  if (!oenConfigured()) throw new HttpError(503, "Oen payments are not configured (OEN_MERCHANT_ID / OEN_API_TOKEN)");
+/**
+ * One Oen API call. `sandbox` picks the credentials: records made in test mode always talk to the testing
+ * environment (with the test credentials when set), whatever mode the site is in now.
+ */
+async function call<T>(method: "GET" | "POST", path: string, body: object | undefined, sandbox: boolean, extraHeaders: Record<string, string> = {}): Promise<T> {
+  if (!oenConfigured(sandbox)) throw new HttpError(503, "Oen payments are not configured (OEN_MERCHANT_ID / OEN_API_TOKEN)");
+  const c = config.oen.for(sandbox);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30_000);
   try {
-    const r = await fetch(`${config.oen.apiBase}${path}`, {
+    const r = await fetch(`${c.apiBase}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${config.oen.token}`, ...(body ? { "Content-Type": "application/json" } : {}), ...extraHeaders },
-      body: body ? JSON.stringify({ merchantId: config.oen.merchantId, ...body }) : undefined,
+      headers: { Authorization: `Bearer ${c.token}`, ...(body ? { "Content-Type": "application/json" } : {}), ...extraHeaders },
+      body: body ? JSON.stringify({ merchantId: c.merchantId, ...body }) : undefined,
       signal: ctrl.signal,
     });
     const text = await r.text();
@@ -77,54 +83,24 @@ async function call<T>(method: "GET" | "POST", path: string, body?: object, extr
   }
 }
 
-export async function createCheckout(p: {
-  amount: number;
-  orderId: string;
-  successUrl: string;
-  failureUrl: string;
-  product: OenProduct;
-  userId?: string;
-  userName?: string;
-  userEmail?: string;
-  invoiceInfo?: OenInvoice;
-  customId?: string;
-}) {
-  const data = await call<{ id: string; transactionHid: string }>("POST", "/checkout", {
-    amount: p.amount,
-    currency: "TWD",
-    orderId: p.orderId,
-    successUrl: p.successUrl,
-    failureUrl: p.failureUrl,
-    productDetails: [p.product],
-    ...(config.oen.methods.length ? { allowedPaymentMethods: config.oen.methods } : {}),
-    userId: p.userId,
-    userName: p.userName,
-    userEmail: p.userEmail,
-    invoiceInfo: p.invoiceInfo,
-    customId: p.customId,
-  });
-  return { ...data, url: `${config.oen.checkoutBase}/checkout/${data.id}` };
-}
+export const getTransaction = (id: string, sandbox: boolean) => call<OenTransaction>("GET", `/transactions/${encodeURIComponent(id)}`, undefined, sandbox);
 
-export const getTransaction = (id: string) => call<OenTransaction>("GET", `/transactions/${encodeURIComponent(id)}`);
+export const orderTransactions = (orderId: string, sandbox: boolean) => call<OenTransaction[]>("GET", `/order/${encodeURIComponent(orderId)}/transactions`, undefined, sandbox);
 
-export const orderTransactions = (orderId: string) => call<OenTransaction[]>("GET", `/order/${encodeURIComponent(orderId)}/transactions`);
-
-export const refundTransaction = (hid: string, p: { amount: number; reason?: string; product: OenProduct }) =>
-  call<OenTransaction>("POST", `/refunds/${encodeURIComponent(hid)}`, { amount: p.amount, reason: p.reason, productDetails: [p.product] });
+export const refundTransaction = (hid: string, p: { amount: number; reason?: string; product: OenProduct }, sandbox: boolean) =>
+  call<OenTransaction>("POST", `/refunds/${encodeURIComponent(hid)}`, { amount: p.amount, reason: p.reason, productDetails: [p.product] }, sandbox);
 
 // ───────────── saved cards (token checkout) ─────────────
 
 /** Card binding page. Open `url` in the browser; the token comes in a webhook with purpose "token" and this id. */
-export async function createCardBinding(p: { customId: string; payerEmail?: string; successUrl: string; failureUrl: string; note?: string }) {
-  const data = await call<{ id: string }>("POST", "/checkout-token", {
-    successUrl: p.successUrl,
-    failureUrl: p.failureUrl,
-    customId: p.customId,
-    note: p.note,
-    ...(p.payerEmail ? { payerEmail: p.payerEmail } : {}),
-  });
-  return { id: data.id, url: `${config.oen.checkoutBase}/checkout/subscription/create/${data.id}` };
+export async function createCardBinding(p: { customId: string; payerEmail?: string; successUrl: string; failureUrl: string; note?: string }, sandbox: boolean) {
+  const data = await call<{ id: string }>(
+    "POST",
+    "/checkout-token",
+    { successUrl: p.successUrl, failureUrl: p.failureUrl, customId: p.customId, note: p.note, ...(p.payerEmail ? { payerEmail: p.payerEmail } : {}) },
+    sandbox,
+  );
+  return { id: data.id, url: `${config.oen.for(sandbox).checkoutBase}/checkout/subscription/create/${data.id}` };
 }
 
 /** Errors after which the card itself is the problem (expired, declined…): ask the backer for another card */
@@ -143,6 +119,7 @@ export async function chargeToken(p: {
   userName?: string;
   userEmail?: string;
   invoiceInfo?: OenInvoice;
+  sandbox: boolean;
 }) {
   return call<{ id: string; authCode?: string }>(
     "POST",
@@ -158,6 +135,7 @@ export async function chargeToken(p: {
       userEmail: p.userEmail,
       invoiceInfo: p.invoiceInfo,
     },
+    p.sandbox,
     { "Idempotency-Key": p.idempotencyKey },
   );
 }

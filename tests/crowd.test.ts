@@ -54,11 +54,10 @@ after(() => oen.stop());
 
 const txOf = async (paymentId: string) => oen.txs.get((await db.payment.findUniqueOrThrow({ where: { id: paymentId } })).oenId!)!;
 
-/** Pay a proposal fee through the (stub) Oen checkout */
+/** Pay a proposal fee with a saved card (charged right away) */
 async function payFee(userId: string, taskId: string) {
-  const c = await proposal.buyProposalFee(userId, taskId, buyer);
-  oen.pay((await txOf(c.id)).transactionId);
-  await pay.syncPayment(c.id);
+  const c = await proposal.buyProposalFee(userId, taskId, buyer, await anyCard(userId));
+  assert.equal(c.status, "CONFIRMED");
 }
 
 /** Save a card for a user through the token checkout + token notification */
@@ -107,7 +106,7 @@ test("proposal: fee credit, spec dialogue charged to it, files, opening checks",
   assert.equal(Number(row.budget), 0);
   const p = await db.payment.findFirstOrThrow({ where: { taskId: t.id, purpose: "CROWD_PROPOSAL" } });
   assert.equal(await pay.refundable(p), 0, "the proposal fee is non-refundable");
-  assert.deepEqual((await txOf(p.id)).body.productDetails, [{ productionCode: "CROWD-PROPOSAL", description: "眾籌提案費", quantity: 1, unit: "式", unitPrice: 30 }]);
+  assert.deepEqual([...oen.txs.values()].find((x) => x.orderId === p.id)!.body.productDetails, [{ productionCode: "CROWD-PROPOSAL", description: "眾籌提案費", quantity: 1, unit: "式", unitPrice: 30 }]);
 
   const r = await spec.specTurn(ann.id, t.id, "請幫我起草規格");
   assert.ok(r.reply.length > 0);
@@ -333,4 +332,14 @@ async function screened(p: Promise<{ id: string }>) {
   await screeningTick();
   const { db: d } = await import("../src/lib/db");
   return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}
+
+/** A saved card of the user (bound through the stub Oen when there is none): every payment charges one */
+async function anyCard(userId: string) {
+  const have = await db.savedCard.findFirst({ where: { userId, status: "active" } });
+  if (have) return have.id;
+  const b = await cards.startBinding(userId, { returnTo: "/account" });
+  const card = await db.savedCard.findUniqueOrThrow({ where: { id: b.id } });
+  await pay.handleWebhook(oen.bindCard(card.bindingId));
+  return card.id;
 }

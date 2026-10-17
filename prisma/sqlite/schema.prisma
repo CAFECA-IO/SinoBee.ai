@@ -559,6 +559,10 @@ model Payment {
   /// TWDC: treasury address. OEN: merchant id
   recipient   String
   provider    PaymentProvider @default(TWDC)
+  /// made while the site was in test mode (Oen testing environment; excluded from revenue)
+  sandbox     Boolean        @default(false)
+  /// the saved card charged (every Oen payment is a card token charge)
+  cardId      String?
   /// integer TWD charged through Oen
   amountTwd   Int?
   /// Oen internal transaction id (27 chars, used for GET /transactions/:id and in webhooks)
@@ -1087,6 +1091,8 @@ model SavedCard {
   last4       String?
   /// pending | active | failed | removed
   status      String    @default("pending")
+  /// bound in test mode (Oen testing environment): only usable while the site is in test mode
+  sandbox     Boolean   @default(false)
   error       String?
   createdAt   DateTime  @default(now())
   activatedAt DateTime?

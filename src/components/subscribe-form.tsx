@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { PayForm, postJson, type Buyer } from "./checkout";
+import { PayForm, postJson, type Buyer, type CardOpt } from "./checkout";
+import { useRouter } from "@/i18n/navigation";
 
 type PlanOpt = { id: string; code: string; name: string; fee: number; mult: number; l6: string; l168: string; concurrency: number };
 
-/** Pick a plan, fill in the invoice details, go to Oen */
-export function SubscribeForm({ plans, initial, buyer, startsLabel }: { plans: PlanOpt[]; initial?: string; buyer?: Partial<Buyer> | null; startsLabel: string }) {
+/** Pick a plan and a saved card; the card is charged right away */
+export function SubscribeForm({ plans, initial, buyer, startsLabel, cards, pendingCard = false, test = false }: { plans: PlanOpt[]; initial?: string; buyer?: Partial<Buyer> | null; startsLabel: string; cards: CardOpt[]; pendingCard?: boolean; test?: boolean }) {
   const t = useTranslations("subscribe");
+  const router = useRouter();
   const [planId, setPlanId] = useState(plans.find((p) => p.code === initial)?.id ?? plans[0]?.id);
   const plan = plans.find((p) => p.id === planId)!;
   // radiogroup keyboard: arrow keys move the selection (and focus) to the previous / next plan
@@ -23,6 +25,10 @@ export function SubscribeForm({ plans, initial, buyer, startsLabel }: { plans: P
   return (
     <PayForm
       buyer={buyer}
+      cards={cards}
+      pendingCard={pendingCard}
+      test={test}
+      returnTo={`/subscribe${initial ? `?plan=${initial}` : ""}`}
       label={t("pay", { fee: plan.fee.toLocaleString("en-US") })}
       extra={
         <div className="space-y-3">
@@ -55,7 +61,11 @@ export function SubscribeForm({ plans, initial, buyer, startsLabel }: { plans: P
           <p className="text-sm text-muted">{startsLabel}</p>
         </div>
       }
-      onPay={async (b) => (await postJson<{ payment: { checkoutUrl: string } }>("/api/subscription", { planId, buyer: b })).payment.checkoutUrl}
+      onPay={async (b, cardId) => {
+        await postJson("/api/subscription", { planId, buyer: b, cardId });
+        router.push("/account#subscription");
+        router.refresh();
+      }}
     />
   );
 }

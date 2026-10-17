@@ -38,13 +38,15 @@ export const PAYMENT_PROVIDERS = [{ id: "oen", name: "Oen 應援科技（oen.tw�
 const L = (zh: string, en: string) => ({ zh, en });
 
 export const SETTINGS: SettingDef[] = [
+  { key: "site.testMode", env: "SITE_TEST_MODE", type: "bool", group: "payments", default: "0", label: L("測試模式", "Test mode"), help: L("開啟後首頁與管理後台顯示「測試版」緞帶，所有付款與綁卡改走 Oen 測試環境，測試期間的款項不計入營收", "Shows a TEST ribbon on the home page and in the admin, and sends every payment and card binding to Oen's testing environment; test payments are left out of revenue") },
   // ───── payments ─────
   { key: "payments.provider", env: "PAYMENT_PROVIDER", type: "select", group: "payments", default: "oen", options: ["oen"], label: L("金流服務", "Payment provider") },
   { key: "payments.mode", env: "PAYMENT_MODE", type: "select", group: "payments", default: "oen", options: ["oen", "mock"], label: L("模式", "Mode"), help: L("mock：本機模擬結帳頁，只在開發環境有效", "mock: local fake checkout, development only") },
   { key: "oen.env", env: "OEN_ENV", type: "select", group: "payments", provider: "oen", default: "testing", options: ["testing", "production"], label: L("環境", "Environment"), help: L("正式環境需先向 Oen 申請伺服器固定 IP 白名單", "production needs the server IP on Oen's allowlist") },
   { key: "oen.merchantId", env: "OEN_MERCHANT_ID", type: "text", group: "payments", provider: "oen", required: true, label: L("網域名稱（merchantId）", "Domain (merchantId)"), help: L("例如應援頁 https://sinobee.oen.tw 就填 sinobee", "e.g. sinobee for https://sinobee.oen.tw") },
   { key: "oen.token", env: "OEN_API_TOKEN", type: "secret", group: "payments", provider: "oen", required: true, label: L("API Token", "API token"), help: L("CRM「總設定 → 開發者 → 應援金流設定 → 存取 Token」產生", "Generated in the Oen CRM: Settings → Developer → Access token") },
-  { key: "oen.methods", env: "OEN_PAYMENT_METHODS", type: "list", group: "payments", provider: "oen", options: ["cvs", "atm", "linePay"], label: L("加開付款方式", "Extra payment methods"), help: L("信用卡一定提供", "Card is always offered") },
+  { key: "oen.testMerchantId", env: "OEN_TEST_MERCHANT_ID", type: "text", group: "payments", provider: "oen", label: L("測試模式網域名稱（留空沿用正式）", "Test mode domain (empty = same)"), help: L("測試模式一律使用 Oen 測試環境（testing.oen.tw）", "Test mode always uses Oen's testing environment (testing.oen.tw)") },
+  { key: "oen.testToken", env: "OEN_TEST_API_TOKEN", type: "secret", group: "payments", provider: "oen", label: L("測試模式 API Token（留空沿用正式）", "Test mode API token (empty = same)") },
   { key: "oen.apiBase", env: "OEN_API_BASE", type: "url", group: "payments", provider: "oen", label: L("API 網址（留空用預設）", "API URL (empty = default)") },
   { key: "oen.checkoutBase", env: "OEN_CHECKOUT_BASE", type: "url", group: "payments", provider: "oen", label: L("結帳頁網址（留空用預設）", "Checkout URL (empty = default)") },
 

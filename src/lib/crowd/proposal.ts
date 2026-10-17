@@ -81,10 +81,10 @@ export async function ownDraft(userId: string, taskId: string): Promise<Task> {
 
 export const creditLeft = (t: Pick<Task, "proposalCreditTwd" | "proposalUsedTwd">) => Number(t.proposalCreditTwd) - Number(t.proposalUsedTwd);
 
-/** Checkout for one proposal fee (the first one, or another when the credit ran out) */
-export async function buyProposalFee(userId: string, taskId: string, buyer: Buyer) {
+/** Charge one proposal fee to a saved card (the first one, or another when the credit ran out) */
+export async function buyProposalFee(userId: string, taskId: string, buyer: Buyer, cardId: string) {
   await ownDraft(userId, taskId);
-  return createPayment({ userId, purpose: "CROWD_PROPOSAL", amountTwd: Math.round(config.crowd.proposalFee), taskId, buyer });
+  return createPayment({ userId, purpose: "CROWD_PROPOSAL", amountTwd: Math.round(config.crowd.proposalFee), taskId, buyer, cardId });
 }
 
 /** Called once per confirmed CROWD_PROPOSAL payment */

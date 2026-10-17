@@ -15,7 +15,7 @@ import { reputation } from "@/lib/crowd/reputation";
 import { normalizeAcceptance, normalizeSpec } from "@/lib/crowd/rules";
 import { pledgeTotals } from "@/lib/crowd/pledges";
 import { crowdMetadata, crowdShare } from "@/lib/crowd/share";
-import { activeCards } from "@/lib/crowd/cards";
+import { activeCards, pendingBinding } from "@/lib/crowd/cards";
 import { pointBalance } from "@/lib/crowd/points";
 import { canReadFile } from "@/lib/crowd/proposal";
 import { sharePrice } from "@/lib/crowd/rules";
@@ -73,6 +73,7 @@ export default async function TaskPage({ params }: P) {
           backer: mine.some((p) => ["ACTIVE", "CHARGED"].includes(p.status)),
           files: visible,
           cards: me ? (await activeCards(me.id)).map((c) => ({ id: c.id, last4: c.last4 })) : [],
+          pendingCard: me ? !!(await pendingBinding(me.id)) : false,
           points: me ? await pointBalance(me.id) : 0,
           hasQuota: me ? !!(await activeSubscription(me.id)) : false,
           spec: task.spec ? normalizeSpec(task.spec) : null,
@@ -321,7 +322,7 @@ export default async function TaskPage({ params }: P) {
             <div className="card space-y-3 p-5">
               <div className="font-semibold">{tc("panel.back")}</div>
               {me ? (
-                <PledgePanel taskId={task.id} status={task.status} price={sharePrice()} cards={crowd.cards} points={crowd.points} hasQuota={crowd.hasQuota} buyer={(me.billing ?? null) as Buyer | null} mine={crowd.mine} />
+                <PledgePanel taskId={task.id} status={task.status} price={sharePrice()} cards={crowd.cards} pendingCard={crowd.pendingCard} test={config.testMode} points={crowd.points} hasQuota={crowd.hasQuota} buyer={(me.billing ?? null) as Buyer | null} mine={crowd.mine} />
               ) : (
                 <p className="text-sm text-muted">{tc("panel.login")}</p>
               )}

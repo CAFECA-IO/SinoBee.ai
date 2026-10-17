@@ -78,26 +78,38 @@ export const config = {
   },
 
   /** Oen payments (https://developer.oen.tw) */
+  /** Test mode (admin switch): TEST ribbon, Oen testing environment for every new payment and card */
+  get testMode() {
+    return svBool("site.testMode");
+  },
+
   oen: {
+    /** environment for new payments and cards: always "testing" in test mode */
     get env() {
-      return (sv("oen.env") === "production" ? "production" : "testing") as "production" | "testing";
+      return (svBool("site.testMode") || sv("oen.env") !== "production" ? "testing" : "production") as "production" | "testing";
     },
     /** your Oen domain, e.g. "sinobee" for https://sinobee.oen.tw */
     get merchantId() {
-      return sv("oen.merchantId");
+      return this.for(svBool("site.testMode")).merchantId;
     },
     get token() {
-      return sv("oen.token");
+      return this.for(svBool("site.testMode")).token;
     },
     get apiBase() {
-      return (sv("oen.apiBase") || (this.env === "production" ? "https://payment-api.oen.tw" : "https://payment-api.testing.oen.tw")).replace(/\/$/, "");
+      return this.for(svBool("site.testMode")).apiBase;
     },
     get checkoutBase() {
-      return (sv("oen.checkoutBase") || `https://${this.merchantId}.${this.env === "production" ? "" : "testing."}oen.tw`).replace(/\/$/, "");
+      return this.for(svBool("site.testMode")).checkoutBase;
     },
-    /** extra payment methods besides card */
-    get methods() {
-      return svList("oen.methods");
+    /** Credentials and URLs for a record made in test mode (sandbox) or not */
+    for(sandbox: boolean) {
+      const env = sandbox || sv("oen.env") !== "production" ? "testing" : "production";
+      const merchantId = (sandbox && sv("oen.testMerchantId")) || sv("oen.merchantId");
+      const token = (sandbox && sv("oen.testToken")) || sv("oen.token");
+      // an explicit API / checkout URL (tests, proxies) applies to both
+      const apiBase = (sv("oen.apiBase") || (env === "production" ? "https://payment-api.oen.tw" : "https://payment-api.testing.oen.tw")).replace(/\/$/, "");
+      const checkoutBase = (sv("oen.checkoutBase") || `https://${merchantId}.${env === "production" ? "" : "testing."}oen.tw`).replace(/\/$/, "");
+      return { env, merchantId, token, apiBase, checkoutBase };
     },
   },
 

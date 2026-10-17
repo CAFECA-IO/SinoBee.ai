@@ -18,6 +18,7 @@ let db: typeof import("../src/lib/db").db;
 let pay: typeof import("../src/lib/payments");
 let proposal: typeof import("../src/lib/crowd/proposal");
 let spec: typeof import("../src/lib/crowd/spec-agent");
+let cards: typeof import("../src/lib/crowd/cards");
 let ann: Awaited<ReturnType<typeof import("../src/lib/db").db.user.create>>;
 const buyer = { name: "王小明", email: "ming@example.com" };
 const MODEL = "anthropic/claude-sonnet-5-5";
@@ -29,16 +30,14 @@ before(async () => {
   pay = await import("../src/lib/payments");
   proposal = await import("../src/lib/crowd/proposal");
   spec = await import("../src/lib/crowd/spec-agent");
+  cards = await import("../src/lib/crowd/cards");
   ann = await db.user.create({ data: { account: "0x" + "a".repeat(40), handle: "ann" } });
 });
 after(() => oen.stop());
 
 async function paidDraft(input: Parameters<typeof proposal.createDraft>[1]) {
   const t = await proposal.createDraft(ann.id, input);
-  const c = await proposal.buyProposalFee(ann.id, t.id, buyer);
-  const p = await db.payment.findUniqueOrThrow({ where: { id: c.id } });
-  oen.pay(oen.txs.get(p.oenId!)!.transactionId);
-  await pay.syncPayment(c.id);
+  await proposal.buyProposalFee(ann.id, t.id, buyer, await anyCard(ann.id));
   return t;
 }
 
@@ -49,9 +48,7 @@ test("one description is enough: the model drafts title, category, spec and esti
   assert.equal(t.category, null);
   await assert.rejects(spec.generateSpec(ann.id, t.id), /pay the proposal fee/);
 
-  const c = await proposal.buyProposalFee(ann.id, t.id, buyer);
-  oen.pay(oen.txs.get((await db.payment.findUniqueOrThrow({ where: { id: c.id } })).oenId!)!.transactionId);
-  await pay.syncPayment(c.id);
+  await proposal.buyProposalFee(ann.id, t.id, buyer, await anyCard(ann.id));
 
   const g = await spec.generateSpec(ann.id, t.id);
   assert.equal(g.generated, true);
@@ -115,3 +112,13 @@ test("commissioned tasks are gone: no budget or top-up payments", async () => {
   assert.equal(t.status, "DRAFT");
   assert.equal(t.crowdfund, true);
 });
+
+/** A saved card of the user (bound through the stub Oen when there is none): every payment charges one */
+async function anyCard(userId: string) {
+  const have = await db.savedCard.findFirst({ where: { userId, status: "active" } });
+  if (have) return have.id;
+  const b = await cards.startBinding(userId, { returnTo: "/account" });
+  const card = await db.savedCard.findUniqueOrThrow({ where: { id: b.id } });
+  await pay.handleWebhook(oen.bindCard(card.bindingId));
+  return card.id;
+}

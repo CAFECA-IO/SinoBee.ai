@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
+import { config } from "@/lib/config";
 import { OenError, orderTransactions } from "@/lib/oen";
 
 /**
@@ -9,7 +10,8 @@ import { OenError, orderTransactions } from "@/lib/oen";
 export const POST = handle(async () => {
   await requireAdmin();
   try {
-    await orderTransactions(`connectivity-check-${Date.now()}`);
+    // the credentials in use now (the test ones while the site is in test mode)
+    await orderTransactions(`connectivity-check-${Date.now()}`, config.testMode);
     return json({ ok: true });
   } catch (e) {
     if (e instanceof OenError && e.code === "V0001") return json({ ok: true });

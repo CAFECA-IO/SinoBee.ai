@@ -78,6 +78,13 @@ export class StubOen {
             amount: body.amount, orderId: body.orderId, status: behaviour === "ok" ? "charged" : "failed", createdAt: new Date().toISOString(), refundAmount: 0, body,
             paidAt: behaviour === "ok" ? new Date().toISOString() : undefined,
           };
+          // "lost": the bank charged the card but the answer never came back (the caller must look the order up)
+          if (behaviour === "lost") {
+            tx.status = "charged";
+            tx.paidAt = new Date().toISOString();
+            this.txs.set(tx.transactionId, tx);
+            return send(504, { code: "C026", message: "timeout" });
+          }
           this.txs.set(tx.transactionId, tx);
           if (behaviour !== "ok") return remember(400, { code: behaviour, message: "declined" });
           return remember(200, { code: "S0000", data: { id: tx.id, authCode: "123456" }, message: "" });

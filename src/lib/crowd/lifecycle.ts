@@ -59,6 +59,7 @@ async function sendCharge(pay: Payment, token: string, task: Task, shares: numbe
       userName: buyer?.name,
       userEmail: buyer?.email,
       invoiceInfo: buyer?.invoice,
+      sandbox: pay.sandbox,
     });
     return { ok: true, hid: r.id };
   } catch (e) {
@@ -100,7 +101,7 @@ async function resolvePending(pay: Payment): Promise<"settled" | "pending"> {
     return "settled";
   }
   try {
-    const txs = (await orderTransactions(pay.id)).filter((t) => t.orderId === pay.id);
+    const txs = (await orderTransactions(pay.id, pay.sandbox)).filter((t) => t.orderId === pay.id);
     const paid = txs.find((t) => PAID.has(t.status));
     if (paid) {
       await chargeSucceeded(pay, paid.id);
@@ -129,7 +130,10 @@ export async function chargeBacker(taskId: string, userId: string) {
   // pledges of a top-up round that is still collecting wait for its goal
   const pledges = await db.pledge.findMany({ where: { taskId, userId, source: "CARD", status: { in: ["ACTIVE", "FAILED"] }, ...(task.topupGoalTwd ? { topup: false } : {}) } });
   if (!pledges.length) return;
-  const card = await latestCard(userId);
+  // the card chosen when pledging; a newer card of the same mode if that one is gone
+  const chosen = pledges.find((p) => p.cardId)?.cardId;
+  const picked = chosen ? await db.savedCard.findFirst({ where: { id: chosen, status: "active" } }) : null;
+  const card = picked ?? (await latestCard(userId));
   if (!card) {
     await db.pledge.updateMany({ where: { id: { in: pledges.map((p) => p.id) } }, data: { status: "FAILED", error: "NO_CARD" } });
     return;
@@ -142,8 +146,8 @@ export async function chargeBacker(taskId: string, userId: string) {
   const mock = mockAllowed() || card.bindingId.startsWith("mock_");
   const pay = await db.payment.create({
     data: {
-      userId, taskId, purpose: "CROWD_PLEDGE", provider: mock ? "MOCK" : "OEN",
-      amount, amountTwd: amount, amountBase: String(amount), token: "TWD", recipient: mock ? "mock" : config.oen.merchantId,
+      userId, taskId, purpose: "CROWD_PLEDGE", provider: mock ? "MOCK" : "OEN", sandbox: card.sandbox, cardId: card.id,
+      amount, amountTwd: amount, amountBase: String(amount), token: "TWD", recipient: mock ? "mock" : config.oen.for(card.sandbox).merchantId,
       buyer: (buyer ?? undefined) as object | undefined, meta: { card: card.id, last4: card.last4 },
     },
   });
@@ -260,7 +264,7 @@ async function failCampaign(task: Task, reason: string, opts: { takedown?: boole
     try {
       if (pay.provider === "OEN" && pay.transactionHid) {
         const shares = (await db.pledge.aggregate({ where: { paymentId: pay.id }, _sum: { shares: true } }))._sum.shares ?? 0;
-        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task.title, pay.amountTwd!, shares) });
+        await refundTransaction(pay.transactionHid, { amount: pay.amountTwd!, reason: "crowdfunding did not reach its goal", product: pledgeProduct(task.title, pay.amountTwd!, shares) }, pay.sandbox);
       }
       await db.payment.update({ where: { id: pay.id }, data: { status: "REFUNDED", refundedTwd: pay.amountTwd ?? 0, refundedAt: new Date(), refundReason: "crowdfunding not funded" } });
       await db.pledge.updateMany({ where: { paymentId: pay.id }, data: { status: "REFUNDED" } });

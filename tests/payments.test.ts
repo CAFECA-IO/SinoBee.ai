@@ -14,6 +14,8 @@ let db: typeof import("../src/lib/db").db;
 let pay: typeof import("../src/lib/payments");
 let subs: typeof import("../src/lib/subscriptions");
 let plans: typeof import("../src/lib/plans");
+let cards: typeof import("../src/lib/crowd/cards");
+let overview: typeof import("../src/lib/admin-overview");
 type U = Awaited<ReturnType<typeof import("../src/lib/db").db.user.create>>;
 let alice: U, admin: U;
 let high: { id: string; feeTwd: number }, low: { id: string; feeTwd: number };
@@ -27,6 +29,8 @@ before(async () => {
   pay = await import("../src/lib/payments");
   subs = await import("../src/lib/subscriptions");
   plans = await import("../src/lib/plans");
+  cards = await import("../src/lib/crowd/cards");
+  overview = await import("../src/lib/admin-overview");
   alice = await db.user.create({ data: { account: "0x" + "1".repeat(40), handle: "alice" } });
   admin = await db.user.create({ data: { account: "0x" + "9".repeat(40), role: "ADMIN", isAdmin: true } });
   const ps = await plans.listPlans();
@@ -35,104 +39,102 @@ before(async () => {
 });
 after(() => oen.stop());
 
-const txOf = async (paymentId: string) => {
-  const p = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
-  return oen.txs.get(p.oenId!)!;
-};
+/** Bind a card through the stub Oen (token checkout + token notification) */
+async function bind(userId: string, behaviour = "ok") {
+  const b = await cards.startBinding(userId, { returnTo: "/subscribe" });
+  const card = await db.savedCard.findUniqueOrThrow({ where: { id: b.id } });
+  assert.match(b.url, /\/checkout\/subscription\/create\//);
+  await pay.handleWebhook(oen.bindCard(card.bindingId, true, behaviour));
+  return card.id;
+}
+const txOfOrder = (paymentId: string) => [...oen.txs.values()].find((t) => t.orderId === paymentId)!;
 
-test("checkout: whole TWD, product lines match the amount, buyer and invoice sent to Oen", async () => {
-  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: high.feeTwd, planId: high.id, buyer: { ...buyer, invoice: { invoiceType: "company", buyerIdentifier: "12345678", buyerName: "CAFECA" } } });
-  assert.match(c.checkoutUrl, new RegExp(`^https://sinobee\\.testing\\.oen\\.tw/checkout/`));
-  const tx = await txOf(c.id);
+let card = "";
+
+test("checkout charges the chosen saved card at once: product line, buyer and invoice sent to Oen, period granted", async () => {
+  card = await bind(alice.id);
+  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: high.feeTwd, planId: high.id, cardId: card, buyer: { ...buyer, invoice: { invoiceType: "company", buyerIdentifier: "12345678", buyerName: "CAFECA" } } });
+  assert.equal(c.status, "CONFIRMED", "no redirect: the response decides");
+  assert.equal(c.cardId, card);
+  assert.equal(c.sandbox, false);
+  const tx = txOfOrder(c.id);
   assert.equal(tx.body.amount, 3675);
-  assert.equal(tx.body.orderId, c.id);
+  assert.equal(c.transactionHid, tx.id);
   assert.deepEqual(tx.body.productDetails, [{ productionCode: "SUB-HIGH", description: "SinoBee.ai 訂閱（Ultra，30 天）", quantity: 1, unit: "期", unitPrice: 3675 }]);
   assert.deepEqual(tx.body.invoiceInfo, { invoiceType: "company", buyerIdentifier: "12345678", buyerName: "CAFECA", email: "ming@example.com" });
-  assert.equal((await db.user.findUniqueOrThrow({ where: { id: alice.id } })).billing && true, true, "buyer details remembered");
-  await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 10.5, buyer }), /whole TWD/);
-  await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 50, buyer: { name: "x", email: "nope" } }), /valid email/);
+  assert.ok(oen.calls.includes("POST /token/transactions"));
+  assert.ok(!oen.calls.includes("POST /checkout"), "no hosted checkout page");
+  assert.ok(await db.subscription.findUnique({ where: { paymentId: c.id } }), "the period was granted");
+  assert.ok((await db.user.findUniqueOrThrow({ where: { id: alice.id } })).billing, "buyer details remembered");
+  await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 10.5, cardId: card, buyer }), /whole TWD/);
+  await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 50, cardId: card, buyer: { name: "x", email: "nope" } }), /valid email/);
+  await assert.rejects(pay.createPayment({ userId: admin.id, purpose: "CROWD_PROPOSAL", amountTwd: 50, cardId: card, buyer }), /choose a saved card/, "someone else's card");
 });
 
-test("success: webhook → GET /transactions → one period; duplicate and late webhooks change nothing", async () => {
-  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, buyer });
-  const tx = oen.pay((await db.payment.findUniqueOrThrow({ where: { id: c.id } })).oenId!);
-  const r = await pay.handleWebhook(oen.webhook(tx));
-  assert.equal(r.status, "CONFIRMED");
-  await pay.handleWebhook(oen.webhook(tx));
-  await pay.syncPayment(c.id);
-  await pay.handleWebhook({ ...oen.webhook(tx), status: "charging" }); // out-of-order notification
-  const periods = await db.subscription.findMany({ where: { paymentId: c.id } });
-  assert.equal(periods.length, 1);
-  const st = await subs.subscriptionState(alice.id);
-  assert.equal(st.current?.plan, "low");
-  assert.ok(Math.abs(st.endsAt!.getTime() - Date.now() - 30 * DAY) < 60_000);
-  assert.ok(Math.abs(st.graceEndsAt!.getTime() - st.endsAt!.getTime() - 30 * DAY) < 1000, "30-day grace");
+test("a second payment reuses the card (no new binding) and stacks the next period", async () => {
+  const bindings = oen.calls.filter((c) => c === "POST /checkout-token").length;
+  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, cardId: card, buyer });
+  assert.equal(c.status, "CONFIRMED");
+  assert.equal(oen.calls.filter((x) => x === "POST /checkout-token").length, bindings);
+  assert.equal((await subs.subscriptionState(alice.id)).upcoming.length, 1);
 });
 
-test("extensions stack after the current period", async () => {
-  const before = (await subs.subscriptionState(alice.id)).endsAt!;
-  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: high.feeTwd, planId: high.id, buyer });
-  oen.pay((await txOf(c.id)).transactionId);
+test("a declined card: 402, FAILED, nothing granted; another card goes through", async () => {
+  const bad = await bind(alice.id, "T0005");
+  const task = await db.task.create({ data: { userId: alice.id, title: "Sales report", prompt: "Summarise the sales data for Q3", model: "anthropic/claude-sonnet-5-5" } });
+  await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, taskId: task.id, cardId: bad, buyer }), (e: Error & { status?: number }) => /declined \(T0005\)/.test(e.message));
+  const failed = await db.payment.findFirstOrThrow({ where: { taskId: task.id, cardId: bad } });
+  assert.equal(failed.status, "FAILED");
+  assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).proposalCreditTwd), 0);
+  const ok = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, taskId: task.id, cardId: card, buyer });
+  assert.equal(ok.status, "CONFIRMED");
+  assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).proposalCreditTwd), 30);
+});
+
+test("no answer from Oen: the payment waits, reconciliation finds the charge and grants it once", async () => {
+  const lost = await bind(alice.id, "lost");
+  const task = await db.task.create({ data: { userId: alice.id, title: "Lost answer", prompt: "x", model: "anthropic/claude-sonnet-5-5" } });
+  const c = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, taskId: task.id, cardId: lost, buyer });
+  assert.equal(c.status, "PENDING");
+  assert.match(c.error ?? "", /C026/);
+  await db.payment.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 5 * 60_000) } });
+  const r = await pay.reconcilePayments();
+  assert.equal(r.settled, 1);
+  assert.equal((await db.payment.findUniqueOrThrow({ where: { id: c.id } })).status, "CONFIRMED");
+  await pay.reconcilePayments();
   await pay.syncPayment(c.id);
-  const st = await subs.subscriptionState(alice.id);
-  assert.equal(st.upcoming.length, 1);
-  assert.equal(st.upcoming[0].startsAt.getTime(), before.getTime(), "starts when the current one ends");
-  assert.equal(st.upcoming[0].plan, "high");
-  assert.equal(st.endsAt!.getTime(), before.getTime() + 30 * DAY);
+  assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).proposalCreditTwd), 30, "granted once");
 });
 
 test("forged webhooks: unknown ids never reach Oen; the body is never trusted", async () => {
   const calls = oen.calls.length;
   assert.equal((await pay.handleWebhook({ id: "x".repeat(27), status: "charged", amount: 3675 })).ignored, "unknown transaction");
   assert.equal((await pay.handleWebhook({ hello: 1 })).ignored, "no transaction id");
+  assert.equal((await pay.handleWebhook({ purpose: "token", id: "y".repeat(27), success: true, token: "forged-token" })).ignored, "unknown binding");
   assert.equal(oen.calls.length, calls, "no API call for unknown ids");
-  // a real id, but the customer has not paid: the body says charged, Oen says initiated
-  const c = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 50, buyer });
-  const tx = await txOf(c.id);
-  const r = await pay.handleWebhook({ ...oen.webhook(tx), status: "charged", success: true });
-  assert.equal(r.status, "PENDING");
-  // amount tampering on Oen's side is caught too (transaction must match order and amount)
-  tx.amount = 1;
-  tx.status = "charged";
-  await assert.rejects(pay.syncPayment(c.id), /does not match/);
-  assert.equal((await db.payment.findUniqueOrThrow({ where: { id: c.id } })).status, "PENDING");
-  assert.ok(await db.adminAudit.findFirst({ where: { action: "payment.mismatch", targetId: c.id } }));
 });
 
-test("failure: declined payment → FAILED, nothing granted; paying again grants the proposal credit once", async () => {
-  const task = await db.task.create({ data: { userId: alice.id, title: "Sales report", prompt: "Summarise the sales data for Q3", model: "anthropic/claude-sonnet-5-5" } });
-  assert.equal(task.status, "DRAFT");
-  assert.equal(task.crowdfund, true);
-  const c = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, taskId: task.id, buyer });
-  oen.pay((await txOf(c.id)).transactionId, "failed");
-  await pay.handleWebhook(oen.webhook(await txOf(c.id)));
-  assert.equal((await db.payment.findUniqueOrThrow({ where: { id: c.id } })).status, "FAILED");
-  assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).proposalCreditTwd), 0);
-
-  // paying again (new checkout) grants the credit, once
-  const c2 = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, taskId: task.id, buyer });
-  oen.pay((await txOf(c2.id)).transactionId);
-  await pay.syncPayment(c2.id);
-  await pay.handleWebhook(oen.webhook(await txOf(c2.id)));
-  assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).proposalCreditTwd), 30);
-});
-
-test("reconciliation settles a payment whose webhook never came and expires abandoned checkouts", async () => {
-  const paid = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, buyer });
-  const gone = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 40, buyer });
-  const cvs = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 60, buyer });
-  oen.pay((await txOf(paid.id)).transactionId);
-  oen.pay((await txOf(cvs.id)).transactionId, "charging");
-  await db.payment.updateMany({ where: { id: { in: [paid.id, gone.id, cvs.id] } }, data: { createdAt: new Date(Date.now() - 30 * 60_000), checkoutExpiresAt: new Date(Date.now() - 25 * 60_000) } });
-  await pay.reconcilePayments();
-  const st = async (id: string) => (await db.payment.findUniqueOrThrow({ where: { id } })).status;
-  assert.equal(await st(paid.id), "CONFIRMED");
-  assert.equal(await st(gone.id), "EXPIRED");
-  assert.equal(await st(cvs.id), "PENDING", "convenience-store payments get 3 days");
-  // the customer pays at the store later: still accepted
-  oen.pay((await txOf(cvs.id)).transactionId);
-  await pay.handleWebhook(oen.webhook(await txOf(cvs.id)));
-  assert.equal(await st(cvs.id), "CONFIRMED");
+test("test mode: cards and payments go to the testing environment, stay apart from real ones and are not revenue", async () => {
+  const before = (await overview.adminStats()).revenue30;
+  process.env.SITE_TEST_MODE = "1";
+  try {
+    assert.equal((await cards.activeCards(alice.id)).length, 0, "real cards are not offered in test mode");
+    await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, cardId: card, buyer }), /real cards cannot be used in test mode/);
+    const test = await bind(alice.id);
+    assert.equal((await db.savedCard.findUniqueOrThrow({ where: { id: test } })).sandbox, true);
+    const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, cardId: test, buyer });
+    assert.equal(c.status, "CONFIRMED");
+    assert.equal(c.sandbox, true);
+    assert.equal((await overview.adminStats()).revenue30, before, "test payments are not revenue");
+    process.env.SITE_TEST_MODE = "0";
+    assert.deepEqual((await cards.activeCards(alice.id)).map((x) => x.id).includes(test), false, "test cards are hidden again");
+    await assert.rejects(pay.createPayment({ userId: alice.id, purpose: "CROWD_PROPOSAL", amountTwd: 30, cardId: test, buyer }), /test card cannot be used/);
+    // a test payment is still refunded in the testing environment after test mode is off
+    const r = await pay.refundPayment(admin.id, c.id, { reason: "test" });
+    assert.equal(r.status, "REFUNDED");
+  } finally {
+    delete process.env.SITE_TEST_MODE;
+  }
 });
 
 test("refund: once per transaction; subscription refund cancels the period and later ones move up", async () => {
@@ -141,7 +143,7 @@ test("refund: once per transaction; subscription refund cancels the period and l
   const upcoming = st0.upcoming[0];
   const r = await pay.refundPayment(admin.id, current.paymentId, { reason: "changed mind" });
   assert.equal(r.status, "REFUNDED");
-  assert.equal(r.refundedTwd, 840);
+  assert.equal(r.refundedTwd, 3675);
   await assert.rejects(pay.refundPayment(admin.id, current.paymentId, {}), /already refunded/);
   const st = await subs.subscriptionState(alice.id);
   assert.equal(st.current?.id, upcoming.id, "the prepaid period starts now");
@@ -151,23 +153,18 @@ test("refund: once per transaction; subscription refund cancels the period and l
 
 test("pledge refunds on a funded task are limited to the unspent budget and reduce it", async () => {
   const task = await db.task.create({ data: { userId: alice.id, title: "Another one", prompt: "Draft the weekly newsletter", model: "anthropic/claude-haiku-5-5", status: "COMPLETED", fundedAt: new Date(), budget: 200, charged: 57.2 } });
-  const c = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PLEDGE", amountTwd: 200, taskId: task.id, buyer });
-  oen.pay((await txOf(c.id)).transactionId);
-  await pay.syncPayment(c.id);
-  const p = await db.payment.findUniqueOrThrow({ where: { id: c.id } });
-  assert.equal(await pay.refundable(p), 142, "200 − ceil(57.2)");
+  const c = await pay.createPayment({ userId: alice.id, purpose: "CROWD_PLEDGE", amountTwd: 200, taskId: task.id, cardId: card, buyer });
+  assert.equal(await pay.refundable(c), 142, "200 − ceil(57.2)");
   await assert.rejects(pay.refundPayment(admin.id, c.id, { amount: 150 }), /between 1 and 142/);
   const r = await pay.refundPayment(admin.id, c.id, { amount: 142, reason: "unused budget" });
   assert.equal(r.status, "CONFIRMED", "partial refund keeps the payment confirmed");
   assert.equal(Number((await db.task.findUniqueOrThrow({ where: { id: task.id } })).budget), 58);
-  assert.equal((await txOf(c.id)).refundAmount, 142);
+  assert.equal(txOfOrder(c.id).refundAmount, 142);
 });
 
 test("a refund made in the Oen CRM is picked up by sync", async () => {
-  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, buyer });
-  oen.pay((await txOf(c.id)).transactionId);
-  await pay.syncPayment(c.id);
-  const tx = await txOf(c.id);
+  const c = await pay.createPayment({ userId: alice.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, cardId: card, buyer });
+  const tx = txOfOrder(c.id);
   tx.status = "refunded";
   tx.refundAmount = tx.amount;
   const p = await pay.syncPayment(c.id);

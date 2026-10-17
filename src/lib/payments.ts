@@ -5,23 +5,21 @@ import { notify } from "./notify";
 import { audit } from "./roles";
 import { mockAllowed } from "./payment-mode";
 export { mockAllowed };
-import { DEAD, PAID, REFUNDED, createCheckout, getTransaction, orderTransactions, refundTransaction, type OenInvoice, type OenProduct, type OenTransaction } from "./oen";
+import { CARD_ERRORS, DEAD, OenError, PAID, REFUNDED, chargeToken, getTransaction, orderTransactions, refundTransaction, type OenInvoice, type OenProduct, type OenTransaction } from "./oen";
 import { addPeriod, assertPlanBuyable, cancelPeriod } from "./subscriptions";
 import type { Payment, PaymentPurpose, Prisma } from "@/generated/prisma/client";
 
 /**
- * Payments through Oen (TWD, whole dollars).
+ * Payments through Oen (TWD, whole dollars), always with a saved card.
  *
- *  1. createPayment: a PENDING Payment row (its id is Oen's orderId) and an Oen checkout (valid 5 minutes); the
- *     browser is sent to the checkout page.
- *  2. Oen redirects back to /pay/return/:id and POSTs an unsigned webhook. Neither is trusted: both only trigger
- *     syncPayment, which reads GET /transactions/:id and applies the result when orderId, amount and the
- *     transaction id all match our row.
- *  3. Applying is idempotent: the PENDING → CONFIRMED update succeeds once, and only that caller grants the proposal
- *     credit or the subscription period (card pledges are booked by the crowdfunding charge itself).
- *  4. reconcilePayments (worker, every few minutes) settles payments whose webhook never arrived, through
- *     GET /order/:orderId/transactions, and expires abandoned checkouts.
- *  5. refundPayment (admin): one Oen refund per transaction; returns a pledge or cancels the period.
+ *  1. The buyer binds a card once (src/lib/crowd/cards.ts, Oen token checkout with 3-D Secure).
+ *  2. createPayment: a PENDING Payment row (its id is Oen's orderId) charged right away with the chosen card's token
+ *     (POST /token/transactions, Idempotency-Key = payment id). The response decides: charged → CONFIRMED and
+ *     granted; declined → FAILED; no answer → stays PENDING and reconcilePayments looks the order up.
+ *  3. Granting is idempotent: the PENDING → CONFIRMED update succeeds once, and only that caller grants the proposal
+ *     credit or the subscription period (card pledges are charged by the crowdfunding lifecycle).
+ *  4. refundPayment (admin): one Oen refund per transaction; returns a pledge or cancels the period.
+ * Payments made in test mode (sandbox) go to Oen's testing environment and stay there for lookups and refunds.
  */
 
 export type Buyer = { name: string; email: string; invoice?: OenInvoice };
@@ -65,13 +63,18 @@ export function cleanBuyer(b: Buyer): Buyer {
   return { name, email, invoice: { invoiceType: "cloud", carrierType: "", email } };
 }
 
-/** Create a payment and its checkout. Returns the URL to send the browser to. */
-export async function createPayment(p: { userId: string; purpose: PaymentPurpose; amountTwd: number; taskId?: string; planId?: string; buyer: Buyer }) {
+/**
+ * Create a payment and charge the chosen saved card. Resolves with the payment once the charge is confirmed (or
+ * still unknown: status PENDING); rejects with 402 when the card is declined.
+ */
+export async function createPayment(p: { userId: string; purpose: PaymentPurpose; amountTwd: number; taskId?: string; planId?: string; buyer: Buyer; cardId: string }) {
   if (!Number.isInteger(p.amountTwd) || p.amountTwd < 1) throw new HttpError(400, "amount must be a whole TWD amount");
   const buyer = cleanBuyer(p.buyer);
   const plan = p.planId ? await db.plan.findUnique({ where: { id: p.planId } }) : null;
   if (p.purpose === "SUBSCRIPTION") assertPlanBuyable(plan && { active: plan.active, feeTwd: Number(plan.feeTwd) });
-  const mock = mockAllowed();
+  const { usableCard, cardToken } = await import("./crowd/cards");
+  const card = await usableCard(p.userId, p.cardId);
+  const mock = mockAllowed() || card.bindingId.startsWith("mock_");
   const pay = await db.payment.create({
     data: {
       userId: p.userId,
@@ -79,43 +82,58 @@ export async function createPayment(p: { userId: string; purpose: PaymentPurpose
       taskId: p.taskId ?? null,
       planId: plan?.id ?? null,
       provider: mock ? "MOCK" : "OEN",
+      sandbox: card.sandbox,
+      cardId: card.id,
       amount: p.amountTwd,
       amountTwd: p.amountTwd,
       amountBase: String(p.amountTwd),
       token: "TWD",
-      recipient: mock ? "mock" : config.oen.merchantId,
+      recipient: mock ? "mock" : config.oen.for(card.sandbox).merchantId,
       buyer: buyer as Prisma.InputJsonValue,
+      meta: { card: card.id, last4: card.last4 },
     },
   });
   await db.user.update({ where: { id: p.userId }, data: { billing: buyer as Prisma.InputJsonValue } });
-  const back = `${config.origin}/pay/return/${pay.id}`;
-  if (mock) {
-    const url = `${config.origin}/pay/mock/${pay.id}`;
-    await db.payment.update({ where: { id: pay.id }, data: { checkoutUrl: url, checkoutExpiresAt: new Date(Date.now() + 5 * 60_000) } });
-    return { id: pay.id, checkoutUrl: url };
+  const token = cardToken(card);
+  let result: { ok: true; hid: string } | { ok: false; code: string; message: string; unknown?: boolean };
+  if (mock) result = token.startsWith("mock_decline") ? { ok: false, code: "T0005", message: "declined (mock)" } : { ok: true, hid: `PMOCK${pay.id.slice(-12)}` };
+  else {
+    try {
+      const r = await chargeToken({
+        token,
+        amount: p.amountTwd,
+        orderId: pay.id,
+        product: product({ purpose: p.purpose, planCode: plan?.code, planName: plan?.name, days: plan?.days }, p.amountTwd),
+        idempotencyKey: `pay-${pay.id}`,
+        userId: p.userId,
+        userName: buyer.name,
+        userEmail: buyer.email,
+        invoiceInfo: buyer.invoice,
+        sandbox: card.sandbox,
+      });
+      result = { ok: true, hid: r.id };
+    } catch (e) {
+      const declined = e instanceof OenError && (CARD_ERRORS.has(e.code) || e.code.startsWith("V"));
+      result = { ok: false, code: e instanceof OenError ? e.code : "NETWORK", message: (e as Error).message, unknown: !declined };
+    }
   }
-  try {
-    const c = await createCheckout({
-      amount: p.amountTwd,
-      orderId: pay.id,
-      successUrl: back,
-      failureUrl: back,
-      product: product({ purpose: p.purpose, planCode: plan?.code, planName: plan?.name, days: plan?.days }, p.amountTwd),
-      userId: p.userId,
-      userName: buyer.name,
-      userEmail: buyer.email,
-      invoiceInfo: buyer.invoice,
-      customId: pay.id,
-    });
-    await db.payment.update({
-      where: { id: pay.id },
-      data: { oenId: c.id, transactionHid: c.transactionHid, checkoutUrl: c.url, checkoutExpiresAt: new Date(Date.now() + 5 * 60_000), providerStatus: "initiated" },
-    });
-    return { id: pay.id, checkoutUrl: c.url };
-  } catch (e) {
-    await db.payment.update({ where: { id: pay.id }, data: { status: "FAILED", error: (e as Error).message.slice(0, 500) } });
-    throw e instanceof HttpError ? e : new HttpError(502, `could not start the payment: ${(e as Error).message}`);
+  if (result.ok) {
+    await confirmCharge(pay.id, result.hid);
+    return db.payment.findUniqueOrThrow({ where: { id: pay.id } });
   }
+  if (result.unknown) {
+    // the outcome is unknown: reconcilePayments looks the order up (never charge twice)
+    return db.payment.update({ where: { id: pay.id }, data: { error: `${result.code}: ${result.message}`.slice(0, 500) } });
+  }
+  await db.payment.update({ where: { id: pay.id }, data: { status: "FAILED", providerStatus: "failed", error: `${result.code}: ${result.message}`.slice(0, 500) } });
+  throw new HttpError(402, `the card was declined (${result.code}); try another card`);
+}
+
+/** A token charge went through: confirm once and grant what it buys */
+async function confirmCharge(paymentId: string, hid: string) {
+  const now = new Date();
+  const won = await db.payment.updateMany({ where: { id: paymentId, status: { in: ["PENDING", "EXPIRED", "FAILED"] } }, data: { status: "CONFIRMED", transactionHid: hid, providerStatus: "charged", paidAt: now, confirmedAt: now, error: null } });
+  if (won.count === 1) await grant(paymentId);
 }
 
 /** Does this Oen transaction belong to this payment? (webhooks are unsigned, so every field is checked) */
@@ -185,9 +203,12 @@ async function grant(paymentId: string) {
 export async function syncPayment(paymentId: string): Promise<Payment> {
   const pay = await db.payment.findUnique({ where: { id: paymentId } });
   if (!pay) throw new HttpError(404, "payment not found");
-  if (pay.provider !== "OEN" || !pay.oenId) return pay;
-  const tx = await getTransaction(pay.oenId);
-  return applyTransaction(pay, tx);
+  if (pay.provider !== "OEN") return pay;
+  if (pay.oenId) return applyTransaction(pay, await getTransaction(pay.oenId, pay.sandbox));
+  // card token charges have no transaction id of their own: find the order's transaction
+  const txs = (await orderTransactions(pay.id, pay.sandbox)).filter((t) => t.orderId === pay.id);
+  const tx = txs.find((t) => pay.transactionHid && t.id === pay.transactionHid) ?? txs.find((t) => PAID.has(t.status) || REFUNDED.has(t.status)) ?? txs[0];
+  return tx ? applyTransaction(pay, tx) : pay;
 }
 
 /**
@@ -215,10 +236,10 @@ export async function handleWebhook(body: unknown): Promise<{ payment?: string; 
 }
 
 /**
- * Settle payments the webhook missed and expire abandoned checkouts:
+ * Settle card charges whose outcome was unknown (timeouts, 5xx):
  *  - any charged/claimed transaction for the order → paid
- *  - charging (CVS / ATM waiting for the customer) → wait up to 3 days
- *  - otherwise, 15 minutes after the checkout page expired → EXPIRED
+ *  - still being processed → wait up to 3 days
+ *  - otherwise, 15 minutes after the attempt → EXPIRED (nothing was charged)
  */
 export async function reconcilePayments(now = new Date()) {
   // card pledge charges have no checkout; src/lib/crowd/lifecycle.ts resolves their unknown outcomes
@@ -231,7 +252,7 @@ export async function reconcilePayments(now = new Date()) {
       continue;
     }
     try {
-      const txs = (await orderTransactions(pay.id)).filter((t) => t.orderId === pay.id);
+      const txs = (await orderTransactions(pay.id, pay.sandbox)).filter((t) => t.orderId === pay.id);
       const paid = txs.find((t) => PAID.has(t.status) || REFUNDED.has(t.status));
       if (paid) {
         await applyTransaction(pay, paid);
@@ -246,19 +267,6 @@ export async function reconcilePayments(now = new Date()) {
     }
   }
   return { checked: pending.length, settled };
-}
-
-// ───────────── mock checkout (development) ─────────────
-
-export async function completeMockPayment(userId: string, paymentId: string, ok: boolean) {
-  if (!mockAllowed()) throw new HttpError(404, "not found");
-  const pay = await db.payment.findUnique({ where: { id: paymentId } });
-  if (!pay || pay.userId !== userId || pay.provider !== "MOCK") throw new HttpError(404, "payment not found");
-  const tx: OenTransaction = {
-    id: `PMOCK${pay.id.slice(-12)}`, transactionId: `mock_${pay.id}`, amount: pay.amountTwd ?? 0, orderId: pay.id,
-    status: ok ? "charged" : "failed", createdAt: pay.createdAt.toISOString(), paidAt: ok ? new Date().toISOString() : undefined, reason: ok ? undefined : "declined (mock)",
-  };
-  return applyTransaction(pay, tx);
 }
 
 // ───────────── refunds ─────────────
@@ -292,7 +300,7 @@ export async function refundPayment(actorId: string, paymentId: string, opts: { 
     if (!pay.transactionHid) throw new HttpError(400, "missing Oen transaction number");
     const plan = pay.planId ? await db.plan.findUnique({ where: { id: pay.planId } }) : null;
     try {
-      await refundTransaction(pay.transactionHid, { amount, reason: opts.reason, product: product({ purpose: pay.purpose, planCode: plan?.code, planName: plan?.name, days: plan?.days }, amount) });
+      await refundTransaction(pay.transactionHid, { amount, reason: opts.reason, product: product({ purpose: pay.purpose, planCode: plan?.code, planName: plan?.name, days: plan?.days }, amount) }, pay.sandbox);
     } catch (e) {
       await db.payment.update({ where: { id: pay.id }, data: { refundedAt: null } });
       throw new HttpError(502, `refund failed: ${(e as Error).message}`);

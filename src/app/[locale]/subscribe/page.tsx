@@ -1,3 +1,4 @@
+import { checkoutCards } from "@/lib/crowd/cards";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { currentUser } from "@/lib/auth";
 import { redirect } from "@/i18n/navigation";
@@ -48,6 +49,7 @@ export default async function SubscribePage({ params, searchParams }: { params: 
           plans={plans.map((p) => ({ id: p.id, code: p.code, name: zh ? p.name : p.nameEn, fee: p.feeTwd, mult: p.multiplier, l6: tok(p.l6Twd), l168: tok(p.l168Twd), concurrency: p.concurrency }))}
           initial={plan}
           buyer={(me!.billing ?? null) as Buyer | null}
+          {...await checkoutCards(me!.id)}
           startsLabel={stacks ? t("stacks", { date: st.endsAt!.toISOString().slice(0, 10) }) : t("startsNow")}
         />
       </section>

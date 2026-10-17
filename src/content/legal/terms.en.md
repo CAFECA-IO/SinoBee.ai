@@ -19,7 +19,7 @@ We may change the Service for operational or legal reasons or because third-part
 ## 3. Fees and payment
 
 1. Prices are in New Taiwan dollars (TWD) as published on the [pricing page](/pricing). Published model price = vendor USD list price × base FX rate × buffer. Price changes are announced there with an effective date and do not affect crowdfunds already funded or subscription periods already bought.
-2. Payments are processed by 應援科技股份有限公司 (Oen, [https://oen.tw/](https://oen.tw/), "Oen"). We never receive your full card number. Oen issues the e-invoice and emails it to you.
+2. Payments are processed by 應援科技股份有限公司 (Oen, [https://oen.tw/](https://oen.tw/), "Oen"). You first save a card with Oen (3-D Secure, nothing charged); each payment then charges the card you choose. We never receive your full card number. Oen issues the e-invoice and emails it to you.
 3. **Crowdfunded tasks:** the money raised is the task budget; usage (model tokens, VM time, storage) is charged to it as it accrues and never exceeds it. When the budget runs out the task pauses and the proposer can open a top-up round or close it; see "Crowdfunded tasks" below.
 4. **Subscriptions:** each period lasts 30 days from payment and **does not renew automatically**. A new purchase starts after your existing periods. Each plan has 6-hour and 7-day usage limits; when a limit is reached you wait for it to free up or use another model source.
 5. The Service starts as soon as you pay. Under Taiwan's rules on exceptions to the cooling-off right for distance sales, online services begun with your prior consent are not subject to the 7-day withdrawal right; refunds follow the [Refund Policy](/refunds).

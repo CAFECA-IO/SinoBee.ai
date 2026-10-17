@@ -64,9 +64,7 @@ async function submit(title: string, opts: { goal?: number; category?: "data" | 
   const goal = opts.goal ?? 150;
   const t = await proposal.createDraft(ann.id, { title, description: opts.description ?? "Collect public bus timetables and compare them", model: MODEL });
   await db.task.update({ where: { id: t.id }, data: { category: opts.category ?? "data" } });
-  const c = await proposal.buyProposalFee(ann.id, t.id, buyer);
-  oen.pay((await txOf(c.id)).transactionId);
-  await pay.syncPayment(c.id);
+  await proposal.buyProposalFee(ann.id, t.id, buyer, await anyCard(ann.id));
   await proposal.saveSpec(ann.id, t.id, { summary: "s", deliverables: ["report.md"], method: ["collect"], acceptance: ["covers every route"], estimate: { p50Twd: 50, p90Twd: goal * 0.9 } });
   return screened(proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false }));
 }
@@ -225,4 +223,14 @@ async function screened(p: Promise<{ id: string }>) {
   await screeningTick();
   const { db: d } = await import("../src/lib/db");
   return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}
+
+/** A saved card of the user (bound through the stub Oen when there is none): every payment charges one */
+async function anyCard(userId: string) {
+  const have = await db.savedCard.findFirst({ where: { userId, status: "active" } });
+  if (have) return have.id;
+  const b = await cards.startBinding(userId, { returnTo: "/account" });
+  const card = await db.savedCard.findUniqueOrThrow({ where: { id: b.id } });
+  await pay.handleWebhook(oen.bindCard(card.bindingId));
+  return card.id;
 }

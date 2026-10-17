@@ -6,7 +6,7 @@ import { cleanBuyer, type Buyer } from "../payments";
 import { BuyerInput } from "../buyer-schema";
 import { headroom, quotaContext } from "../llm/quota";
 import type { Prisma } from "@/generated/prisma/client";
-import { latestCard } from "./cards";
+import { latestCard, usableCard } from "./cards";
 import { bookPoints, pointBalance, spendPoints } from "./points";
 import { SHARE_OPTIONS, sharePrice } from "./rules";
 
@@ -27,6 +27,8 @@ export const PledgeInput = z.object({
   buyer: BuyerInput.optional(),
   /** CARD: pay part with points (the card is charged the rest, at least 1 TWD) */
   usePoints: z.boolean().default(false),
+  /** CARD: the saved card to charge (the newest card of the current mode when omitted) */
+  cardId: z.string().max(40).optional(),
 });
 
 /** Tasks that accept pledges, and whether a pledge is collected right away */
@@ -86,7 +88,7 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
   const topup = task.status === "NEEDS_FUNDING" && !!task.topupGoalTwd;
 
   if (input.source === "CARD") {
-    const card = await latestCard(userId);
+    const card = input.cardId ? await usableCard(userId, input.cardId) : await latestCard(userId);
     if (!card) throw new HttpError(400, "save a card first");
     cardId = card.id;
     if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");

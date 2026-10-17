@@ -1,4 +1,6 @@
 import { ScreeningActions, ScreeningResult } from "@/components/crowd";
+import { TestRibbon } from "@/components/test-ribbon";
+import { TestModeSwitch } from "@/components/test-mode-switch";
 import { ChecklistEditor } from "@/components/checklist-editor";
 import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -48,7 +50,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   const counts = await adminCounts();
   const superAdmin = me.role === "SUPERADMIN";
   let body: React.ReactNode;
-  if (tab === "overview") body = <Overview counts={counts} />;
+  if (tab === "overview") body = <Overview counts={counts} superAdmin={superAdmin} />;
   else if (tab === "pending" || tab === "approved") body = <SkillReviews tab={tab} />;
   else if (tab === "tools") body = <ToolReviews />;
   else if (tab === "storage") body = <StorageStatus />;
@@ -64,6 +66,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else body = <Audit />;
   return (
     <div className="container-x grid grid-cols-1 gap-8 py-10 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <TestRibbon />
       <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
         <div className="mb-4 flex items-center gap-2">
           <Icon name="shield" />
@@ -510,7 +513,7 @@ async function Payments({ status }: { status?: string }) {
   const st = (PAY_STATUSES as readonly string[]).includes(status ?? "") ? (status as (typeof PAY_STATUSES)[number]) : undefined;
   const rows = await db.payment.findMany({ where: st ? { status: st } : {}, include: { user: true }, orderBy: { createdAt: "desc" }, take: 100 });
   const since = new Date(Date.now() - 30 * 86400_000);
-  const sums = await db.payment.aggregate({ where: { status: { in: ["CONFIRMED", "REFUNDED"] }, provider: { not: "TWDC" }, confirmedAt: { gte: since } }, _sum: { amountTwd: true, refundedTwd: true }, _count: { _all: true } });
+  const sums = await db.payment.aggregate({ where: { status: { in: ["CONFIRMED", "REFUNDED"] }, provider: { not: "TWDC" }, sandbox: false, confirmedAt: { gte: since } }, _sum: { amountTwd: true, refundedTwd: true }, _count: { _all: true } });
   const refundables = await Promise.all(rows.map((p) => refundable(p)));
   return (
     <div className="space-y-4">
@@ -534,7 +537,7 @@ async function Payments({ status }: { status?: string }) {
                 <td className="p-3 text-xs">@{p.user.handle ?? p.user.publisher ?? p.user.account.slice(0, 10)}</td>
                 <td className="p-3 text-xs">{ta(`purpose.${p.purpose}`)}{p.taskId && <> · <Link href={`/tasks/${p.taskId}`} className="text-accent">task</Link></>}</td>
                 <td className="p-3 text-right font-mono">{p.amountTwd ?? Number(p.amount).toFixed(2)}{p.refundedTwd > 0 && <div className="text-xs text-warn">−{p.refundedTwd}</div>}</td>
-                <td className="p-3 text-xs">{ta(`pstatus.${p.status}`)}<div className="text-muted">{p.provider}{p.providerStatus ? ` · ${p.providerStatus}` : ""}</div>{p.error && <div className="text-err">{p.error.slice(0, 80)}</div>}</td>
+                <td className="p-3 text-xs">{ta(`pstatus.${p.status}`)}<div className="text-muted">{p.provider}{p.sandbox ? " · TEST" : ""}{p.providerStatus ? ` · ${p.providerStatus}` : ""}</div>{p.error && <div className="text-err">{p.error.slice(0, 80)}</div>}</td>
                 <td className="p-3 font-mono text-xs">{p.transactionHid ?? p.txHash?.slice(0, 12) ?? "—"}</td>
                 <td className="p-3"><PaymentActions id={p.id} refundable={refundables[i]} provider={p.provider} status={p.status} /></td>
               </tr>
@@ -581,7 +584,7 @@ async function SiteSettings({ superAdmin, locale }: { superAdmin: boolean; local
   );
 }
 
-async function Overview({ counts }: { counts: Awaited<ReturnType<typeof adminCounts>> }) {
+async function Overview({ counts, superAdmin }: { counts: Awaited<ReturnType<typeof adminCounts>>; superAdmin: boolean }) {
   const t = await getTranslations("admin.overview");
   const stats = await adminStats();
   const checks = settingsHealth();
@@ -600,6 +603,7 @@ async function Overview({ counts }: { counts: Awaited<ReturnType<typeof adminCou
   ] as const;
   return (
     <div className="space-y-6">
+      <TestModeSwitch on={config.testMode} canChange={superAdmin} />
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {tiles.map(([k, v]) => (
           <div key={k} className="card p-4">

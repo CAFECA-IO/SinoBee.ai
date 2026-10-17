@@ -7,13 +7,15 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Buyer } from "@/components/checkout";
 import { AutoDraft, CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecDoc, TitleEdit, type SpecView } from "@/components/crowd";
 import { creditLeft } from "@/lib/crowd/proposal";
+import { checkoutCards } from "@/lib/crowd/cards";
 import type { Screening } from "@/lib/crowd/screening";
 import { CATEGORIES, durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
 
 export const dynamic = "force-dynamic";
 
-export default async function CrowdEditPage({ params }: { params: Promise<{ locale: string; id: string }> }) {
+export default async function CrowdEditPage({ params, searchParams }: { params: Promise<{ locale: string; id: string }>; searchParams: Promise<{ fee?: string }> }) {
   const { locale, id } = await params;
+  const sp = await searchParams;
   setRequestLocale(locale);
   const me = await currentUser();
   if (!me) redirect({ href: `/login?next=/crowd/${id}/edit`, locale });
@@ -29,6 +31,8 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
   const mb = (b: number) => Math.round(b / 1048576);
   const chat = ((task.specChat ?? []) as { role: "user" | "assistant"; content: string }[]).map(({ role, content }) => ({ role, content }));
   const step = !paid ? 1 : !spec ? 2 : 3;
+  const pay = await checkoutCards(me!.id);
+  const feeError = typeof sp.fee === "string" ? sp.fee.slice(0, 200) : null;
   return (
     <div className="container-x py-10">
       <nav className="text-sm text-muted">
@@ -79,7 +83,8 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
             <h2 className="h3">{t("draft.payTitle")}</h2>
             <p className="whitespace-pre-wrap rounded-xl bg-panel-2 p-4 text-sm">{task.prompt}</p>
             <p className="text-sm text-muted">{t("edit.feeNote")}</p>
-            <ProposalFee taskId={task.id} fee={fee} paid={false} buyer={(me!.billing ?? null) as Buyer | null} />
+            {feeError && <p className="text-sm text-err" role="alert">{feeError}</p>}
+            <ProposalFee taskId={task.id} fee={fee} paid={false} buyer={(me!.billing ?? null) as Buyer | null} {...pay} />
           </section>
           <DiscardProposal taskId={task.id} />
         </div>
@@ -112,7 +117,7 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
                 <span className="font-mono text-xs text-muted">{t("edit.creditLeft", { amount: left.toFixed(2) })}</span>
               </div>
               <SpecChat taskId={task.id} chat={chat} canChat={left > 0.01} outOfCredit={left <= 0.01} />
-              {left <= 1 && <ProposalFee taskId={task.id} fee={fee} paid buyer={(me!.billing ?? null) as Buyer | null} />}
+              {left <= 1 && <ProposalFee taskId={task.id} fee={fee} paid buyer={(me!.billing ?? null) as Buyer | null} {...pay} />}
             </section>
             <section className="card space-y-3 p-5">
               <h2 className="font-semibold">{t("open.title")}</h2>

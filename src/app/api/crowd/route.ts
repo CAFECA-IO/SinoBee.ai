@@ -5,8 +5,8 @@ import { BuyerInput } from "@/lib/buyer-schema";
 import { DraftInput, buyProposalFee, createDraft } from "@/lib/crowd/proposal";
 
 /**
- * Start a crowdfunding proposal (DRAFT) from a description. With `buyer` the proposal fee checkout is created in the
- * same step; once it is paid the model drafts the spec.
+ * Start a crowdfunding proposal (DRAFT) from a description. With `buyer` and `cardId` the proposal fee is charged to
+ * that saved card in the same step; the model then drafts the spec.
  */
 export const POST = handle(async (req: Request) => {
   const user = await requireUser();
@@ -14,7 +14,10 @@ export const POST = handle(async (req: Request) => {
   // the proposer must agree to the crowdfunding terms, including every screening item
   const input = DraftInput.extend({ agreeTerms: z.literal(true, { message: "agree to the crowdfunding terms first" }) }).parse(body);
   const task = await createDraft(user.id, input);
-  // a checkout failure leaves the draft: the fee can be paid from the proposal page
-  const payment = body.buyer ? await buyProposalFee(user.id, task.id, BuyerInput.parse(body.buyer)).catch((e) => ({ error: (e as Error).message })) : null;
+  // a declined card leaves the draft: the fee can be paid from the proposal page
+  const payment =
+    body.buyer && typeof body.cardId === "string"
+      ? await buyProposalFee(user.id, task.id, BuyerInput.parse(body.buyer), body.cardId).then((p) => ({ status: p.status }), (e) => ({ error: (e as Error).message }))
+      : null;
   return json({ task: { id: task.id, status: task.status }, payment });
 });

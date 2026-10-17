@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
 import { Link } from "@/i18n/navigation";
-import { AgreeCheck, AgreeTerms, BuyerFields, PayForm, emptyBuyer, postJson, useCheckout, type Buyer } from "./checkout";
+import { AgreeCheck, AgreeTerms, BuyerFields, CardPicker, PayForm, emptyBuyer, postJson, useCheckout, type Buyer, type CardOpt } from "./checkout";
 
 type ModelOpt = { id: string; label: string; vendor: string };
 
@@ -41,6 +41,9 @@ export function CrowdNewForm({
   evalMethods,
   fee,
   buyer: initialBuyer,
+  cards,
+  pendingCard = false,
+  test = false,
 }: {
   models: ModelOpt[];
   skill: { id: string; label: string } | null;
@@ -48,6 +51,9 @@ export function CrowdNewForm({
   evalMethods: readonly string[];
   fee: number;
   buyer?: Partial<Buyer> | null;
+  cards: CardOpt[];
+  pendingCard?: boolean;
+  test?: boolean;
 }) {
   const t = useTranslations("crowd.form");
   const tm = useTranslations("taskForm.methods");
@@ -60,6 +66,7 @@ export function CrowdNewForm({
   const [useSkill, setUseSkill] = useState(!!skill);
   const [method, setMethod] = useState("");
   const [buyer, setBuyer] = useState(() => emptyBuyer(initialBuyer));
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const { go, busy, err } = useCheckout();
   return (
     <form
@@ -67,7 +74,7 @@ export function CrowdNewForm({
       onSubmit={(e) => {
         e.preventDefault();
         void go(async () => {
-          const r = await postJson<{ task: { id: string }; payment: { checkoutUrl?: string; error?: string } | null }>("/api/crowd", {
+          const r = await postJson<{ task: { id: string }; payment: { status?: string; error?: string } | null }>("/api/crowd", {
             title: title.trim() || null,
             description,
             model,
@@ -76,11 +83,10 @@ export function CrowdNewForm({
             evalMethod: kind === "EVALUATION" && method ? method : null,
             agreeTerms: true,
             buyer,
+            cardId,
           });
-          if (r.payment?.checkoutUrl) return r.payment.checkoutUrl;
-          // the checkout could not be created: pay from the proposal page
-          router.push(`/crowd/${r.task.id}/edit`);
-          return null;
+          // paid: the proposal page drafts the spec; declined: the fee can be paid there with another card
+          router.push(`/crowd/${r.task.id}/edit${r.payment?.error ? `?fee=${encodeURIComponent(r.payment.error)}` : ""}`);
         });
       }}
     >
@@ -141,12 +147,13 @@ export function CrowdNewForm({
       </details>
       <div className="space-y-3 rounded-xl bg-panel-2 p-4">
         <p className="text-sm">{t("feeLine", { fee })}</p>
+        <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo="/crowd/new" email={buyer.email} test={test} />
         <BuyerFields value={buyer} onChange={setBuyer} />
         <AgreeTerms />
         <AgreeCrowdTerms />
       </div>
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary w-full !py-3 text-base" disabled={busy}>{busy ? tk("redirecting") : t("create", { fee })}</button>
+      <button className="btn-primary w-full !py-3 text-base" disabled={busy || !cardId}>{busy ? tk("charging") : t("create", { fee })}</button>
       <p className="text-center text-xs text-muted">{t("after")}</p>
     </form>
   );
@@ -154,13 +161,21 @@ export function CrowdNewForm({
 
 // ───────────── proposal fee ─────────────
 
-export function ProposalFee({ taskId, fee, paid, buyer }: { taskId: string; fee: number; paid: boolean; buyer?: Partial<Buyer> | null }) {
+export function ProposalFee({ taskId, fee, paid, buyer, cards, pendingCard = false, test = false }: { taskId: string; fee: number; paid: boolean; buyer?: Partial<Buyer> | null; cards: CardOpt[]; pendingCard?: boolean; test?: boolean }) {
   const t = useTranslations("crowd.edit");
+  const router = useRouter();
   return (
     <PayForm
       buyer={buyer}
+      cards={cards}
+      pendingCard={pendingCard}
+      test={test}
+      returnTo={`/crowd/${taskId}/edit`}
       label={paid ? t("buyMore", { fee }) : t("buyFee", { fee })}
-      onPay={async (b) => (await postJson<{ payment: { checkoutUrl: string } }>(`/api/crowd/${taskId}/proposal-fee`, { buyer: b })).payment.checkoutUrl}
+      onPay={async (b, cardId) => {
+        await postJson(`/api/crowd/${taskId}/proposal-fee`, { buyer: b, cardId });
+        router.refresh();
+      }}
     />
   );
 }
@@ -708,11 +723,15 @@ export function PledgePanel({
   hasQuota,
   buyer: savedBuyer,
   mine,
+  pendingCard = false,
+  test = false,
 }: {
   taskId: string;
   status: string;
   price: number;
-  cards: { id: string; last4: string | null }[];
+  pendingCard?: boolean;
+  test?: boolean;
+  cards: CardOpt[];
   points: number;
   hasQuota: boolean;
   buyer?: Partial<Buyer> | null;
@@ -724,19 +743,11 @@ export function PledgePanel({
   const [source, setSource] = useState<"CARD" | "POINTS" | "QUOTA">(cards.length ? "CARD" : points >= price ? "POINTS" : hasQuota ? "QUOTA" : "CARD");
   const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
   const [usePoints, setUsePoints] = useState(false);
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const amount = shares * price;
   const open = ["FUNDING", "CHARGING", "QUEUED", "RUNNING", "NEEDS_FUNDING"].includes(status);
-  const addCard = async () => {
-    setErr("");
-    try {
-      const r = await send("/api/cards", "POST", { returnTo: `/tasks/${taskId}`, email: buyer.email || undefined });
-      window.location.href = r.url;
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  };
   return (
     <div className="space-y-4">
       {open && (
@@ -747,7 +758,7 @@ export function PledgePanel({
             setBusy(true);
             setErr("");
             try {
-              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, agreeTerms: true, ...(source === "CARD" ? { buyer, usePoints } : {}) });
+              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, agreeTerms: true, ...(source === "CARD" ? { buyer, usePoints, cardId } : {}) });
               router.refresh();
             } catch (e) {
               setErr((e as Error).message);
@@ -767,7 +778,7 @@ export function PledgePanel({
             <legend className="label">{t("source")}</legend>
             <label className="flex items-center gap-2">
               <input type="radio" checked={source === "CARD"} onChange={() => setSource("CARD")} />
-              {cards.length ? t("cardLast4", { last4: cards[0].last4 ?? "????" }) : t("card")}
+              {t("card")}
             </label>
             <label className={`flex items-center gap-2 ${points < price ? "opacity-50" : ""}`}>
               <input type="radio" checked={source === "POINTS"} disabled={points < price} onChange={() => setSource("POINTS")} />
@@ -782,14 +793,8 @@ export function PledgePanel({
           </fieldset>
           {source === "CARD" && (
             <>
-              {cards.length === 0 ? (
-                <div className="space-y-2 rounded-xl border border-line p-3 text-sm">
-                  <p className="text-muted">{t("noCard")}</p>
-                  <button type="button" className="btn-ghost w-full" onClick={addCard}>{t("addCard")}</button>
-                </div>
-              ) : (
-                <BuyerFields value={buyer} onChange={setBuyer} />
-              )}
+              <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo={`/tasks/${taskId}`} email={buyer.email} test={test} />
+              {cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
               {cards.length > 0 && points > 0 && (
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
@@ -802,7 +807,7 @@ export function PledgePanel({
           {source === "POINTS" && <p className="text-xs text-muted">{t("pointsNote")}</p>}
           {source === "QUOTA" && <p className="text-xs text-muted">{t("quotaNote")}</p>}
           <AgreeCrowdTerms />
-          <button className="btn-primary w-full" disabled={busy || (source === "CARD" && cards.length === 0) || (source === "POINTS" && points < amount)}>
+          <button className="btn-primary w-full" disabled={busy || (source === "CARD" && !cardId) || (source === "POINTS" && points < amount)}>
             {busy ? t("pledging") : t("pledge", { amount })}
           </button>
           {err && <p className="text-sm text-err" role="alert">{err}</p>}

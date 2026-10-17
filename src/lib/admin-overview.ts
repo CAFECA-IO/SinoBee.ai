@@ -44,8 +44,9 @@ export async function adminStats() {
   const day = new Date(now.getTime() - 86400_000);
   const [subs, revenue, refunds, relay, users] = await Promise.all([
     db.subscription.count({ where: { cancelledAt: null, startsAt: { lte: now }, endsAt: { gt: now } } }),
-    db.payment.aggregate({ where: { status: { in: ["CONFIRMED", "REFUNDED"] }, provider: { not: "TWDC" }, confirmedAt: { gte: since } }, _sum: { amountTwd: true } }),
-    db.payment.aggregate({ where: { refundedAt: { gte: since } }, _sum: { refundedTwd: true } }),
+    // test-mode payments are not revenue
+    db.payment.aggregate({ where: { status: { in: ["CONFIRMED", "REFUNDED"] }, provider: { not: "TWDC" }, sandbox: false, confirmedAt: { gte: since } }, _sum: { amountTwd: true } }),
+    db.payment.aggregate({ where: { refundedAt: { gte: since }, sandbox: false }, _sum: { refundedTwd: true } }),
     db.usageLedger.aggregate({ where: { settledAt: { gte: day } }, _sum: { settledTwd: true }, _count: { _all: true } }),
     db.user.count(),
   ]);

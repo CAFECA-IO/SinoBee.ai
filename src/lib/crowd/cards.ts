@@ -14,18 +14,22 @@ import { open, seal } from "../settings/box";
  *  2. Oen POSTs a notification with purpose "token". It is unsigned and the token cannot be looked up later, so it
  *     is accepted only for a pending binding we created (the 27-character id is known to Oen, us and the buyer's
  *     browser) and only once. A forged token would simply fail when charged.
- *  3. The token is sealed with the settings key (it works like a password) and used by the crowdfunding charges.
+ *  3. The token is sealed with the settings key (it works like a password). Every payment on the site charges a
+ *     saved card: proposal fees and subscriptions right away, crowdfunding pledges when the goal is reached.
+ * Cards bound in test mode (sandbox, Oen testing environment) are only offered while the site is in test mode, and
+ * the other way round.
  */
 
 export async function startBinding(userId: string, opts: { returnTo: string; email?: string }) {
   const back = `${config.origin}${opts.returnTo.startsWith("/") ? opts.returnTo : "/account"}`;
+  const sandbox = config.testMode;
   if (mockAllowed()) {
     const bindingId = `mock_${randomBytes(12).toString("hex")}`;
-    const card = await db.savedCard.create({ data: { userId, bindingId } });
+    const card = await db.savedCard.create({ data: { userId, bindingId, sandbox } });
     return { id: card.id, url: `${config.origin}/pay/mock-card/${card.id}?back=${encodeURIComponent(opts.returnTo)}` };
   }
-  const b = await createCardBinding({ customId: userId, payerEmail: opts.email, successUrl: back, failureUrl: back, note: "SinoBee.ai crowdfunding" });
-  const card = await db.savedCard.create({ data: { userId, bindingId: b.id } });
+  const b = await createCardBinding({ customId: userId, payerEmail: opts.email, successUrl: back, failureUrl: back, note: "SinoBee.ai" }, sandbox);
+  const card = await db.savedCard.create({ data: { userId, bindingId: b.id, sandbox } });
   return { id: card.id, url: b.url };
 }
 
@@ -61,11 +65,24 @@ async function retryFailedPledges(userId: string) {
 }
 
 export async function activeCards(userId: string) {
-  return db.savedCard.findMany({ where: { userId, status: "active" }, orderBy: { activatedAt: "desc" }, select: { id: true, last4: true, activatedAt: true } });
+  return db.savedCard.findMany({ where: { userId, status: "active", sandbox: config.testMode }, orderBy: { activatedAt: "desc" }, select: { id: true, last4: true, activatedAt: true } });
 }
 
 export async function latestCard(userId: string) {
-  return db.savedCard.findFirst({ where: { userId, status: "active" }, orderBy: { activatedAt: "desc" } });
+  return db.savedCard.findFirst({ where: { userId, status: "active", sandbox: config.testMode }, orderBy: { activatedAt: "desc" } });
+}
+
+/** A card the user picked at checkout: theirs, active, and from the current mode */
+export async function usableCard(userId: string, cardId: string) {
+  const card = await db.savedCard.findUnique({ where: { id: cardId } });
+  if (!card || card.userId !== userId || card.status !== "active") throw new HttpError(400, "choose a saved card (or bind one first)");
+  if (card.sandbox !== config.testMode) throw new HttpError(400, card.sandbox ? "this test card cannot be used now that test mode is off" : "real cards cannot be used in test mode; bind a test card");
+  return card;
+}
+
+/** A binding the user just started and Oen has not confirmed yet (the checkout page waits for it) */
+export async function pendingBinding(userId: string) {
+  return db.savedCard.findFirst({ where: { userId, status: "pending", sandbox: config.testMode, createdAt: { gt: new Date(Date.now() - 15 * 60_000) } }, select: { id: true } });
 }
 
 /** The card's token (server side only) */
@@ -89,4 +106,10 @@ export async function completeMockBinding(userId: string, cardId: string, ok: bo
   const card = await db.savedCard.findUnique({ where: { id: cardId } });
   if (!card || card.userId !== userId) throw new HttpError(404, "card not found");
   return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "4242" : undefined, customId: userId });
+}
+
+/** What a checkout form needs: the cards of the current mode, whether a binding is waiting, test mode */
+export async function checkoutCards(userId: string) {
+  const [cards, pending] = await Promise.all([activeCards(userId), pendingBinding(userId)]);
+  return { cards: cards.map((c) => ({ id: c.id, last4: c.last4 })), pendingCard: !!pending, test: config.testMode };
 }

@@ -1105,19 +1105,26 @@
     "taxId": "Tax ID (8 digits)",
     "companyName": "Company name (optional)",
     "agree": "I have read and agree to the <terms>Terms of Service</terms>, <refunds>Refund Policy</refunds> and <privacy>Privacy Policy</privacy>, and ask for the service to start right after payment (online services are not subject to the 7-day withdrawal right; refunds follow the Refund Policy).",
-    "redirecting": "Going to Oen…",
-    "oenNote": "Payments are processed by Oen (應援科技股份有限公司) in TWD (card and more). SinoBee.ai never sees your card number. The payment page is valid for 5 minutes."
+    "oenNote": "Oen (應援科技) charges the card you pick in TWD and issues the e-invoice.",
+    "card": "Card",
+    "noCard": "No saved card yet. Bind a card once; every later payment just charges the card you pick.",
+    "bindCard": "Bind a card",
+    "addAnother": "Bind another card",
+    "bindNote": "Binding happens on Oen's secure page (3-D Secure) and charges nothing; SinoBee.ai never sees your card number.",
+    "bindingPending": "Waiting for Oen to confirm the card…",
+    "testCards": "Test mode: bind an Oen test card; nothing is really charged.",
+    "charging": "Charging…"
   },
   "subscribe": {
     "title": "Subscribe to SinoBee.ai",
     "lead": "30-day periods, no auto-renewal. Buying again adds a period after the current one.",
     "plan": "Plan",
     "limits": "About {l6} tokens per 6 h, {l168} per 7 days · {n} requests at a time",
-    "pay": "Pay NT${fee}",
+    "pay": "Pay NT${fee} by card",
     "current": "Current plan: {plan}, until",
     "grace": "Your subscription has ended; the grace period lasts until",
     "stacks": "The new period starts on {date}, after your current one.",
-    "startsNow": "Starts as soon as the payment completes; 30 days from then.",
+    "startsNow": "Starts as soon as the charge goes through; 30 days from payment.",
     "usage": "Use up to {mult}× the fee"
   },
   "payReturn": {
@@ -1549,5 +1556,15 @@
       "feasibility": "Feasibility",
       "spec": "Spec and acceptance"
     }
+  },
+  "test": {
+    "ribbon": "TEST",
+    "banner": "Test mode: every payment goes to Oen's testing environment; nothing is really charged.",
+    "switch": "Test mode",
+    "on": "On",
+    "off": "Off",
+    "help": "Shows a TEST ribbon on the home page and in the admin, and sends payments and card bindings to Oen's testing environment (test cards only); test payments are left out of revenue.",
+    "confirmOn": "Turn test mode on? Payments will go to Oen's testing environment and people need to bind test cards.",
+    "confirmOff": "Turn test mode off? Payments will be real again; cards bound during the test cannot be used."
   }
 }

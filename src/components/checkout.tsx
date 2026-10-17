@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 
 export type Buyer = {
   name: string;
@@ -124,19 +124,72 @@ export function AgreeTerms() {
   );
 }
 
-/** Submit → server creates the payment → browser goes to the Oen checkout page */
+export type CardOpt = { id: string; last4: string | null };
+
+/**
+ * Pick a saved card, or bind a new one with Oen (3-D Secure). After binding, Oen confirms the card in the background:
+ * while a binding is pending the list refreshes itself until the card shows up.
+ */
+export function CardPicker({ cards, value, onChange, pending = false, returnTo, email, test = false }: { cards: CardOpt[]; value: string; onChange: (id: string) => void; pending?: boolean; returnTo: string; email?: string; test?: boolean }) {
+  const t = useTranslations("checkout");
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (!pending) return;
+    const id = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(id);
+  }, [pending, router]);
+  useEffect(() => {
+    if (!cards.some((c) => c.id === value) && cards[0]) onChange(cards[0].id);
+  }, [cards, value, onChange]);
+  return (
+    <fieldset className="space-y-2">
+      <legend className="label">{t("card")}</legend>
+      {test && <p className="text-xs text-warn">{t("testCards")}</p>}
+      {cards.length === 0 && !pending && <p className="text-sm text-muted">{t("noCard")}</p>}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {cards.map((c) => (
+          <label key={c.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${c.id === value ? "border-accent bg-accent-soft" : "border-line"}`}>
+            <input type="radio" name="card" className="checkbox-plain" checked={c.id === value} onChange={() => onChange(c.id)} />
+            <span className="font-mono">💳 •••• {c.last4 ?? "????"}</span>
+          </label>
+        ))}
+      </div>
+      {pending && <p className="text-sm text-muted" aria-live="polite">{t("bindingPending")}</p>}
+      <button
+        type="button"
+        className="btn-ghost !py-2 text-sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setErr("");
+          try {
+            const r = await postJson<{ url: string }>("/api/cards", { returnTo, email: email || undefined });
+            window.location.href = r.url;
+          } catch (e) {
+            setErr((e as Error).message);
+            setBusy(false);
+          }
+        }}
+      >
+        {cards.length ? t("addAnother") : t("bindCard")}
+      </button>
+      <p className="text-xs text-muted">{t("bindNote")}</p>
+      {err && <p className="text-sm text-err" role="alert">{err}</p>}
+    </fieldset>
+  );
+}
+
+/** Submit → the server charges the chosen saved card; `onPay` resolves when the payment went through */
 export function useCheckout() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  async function go(create: () => Promise<string | null | undefined>) {
+  async function go(pay: () => Promise<void>) {
     setErr("");
     setBusy(true);
     try {
-      const url = await create();
-      if (url) {
-        window.location.href = url;
-        return;
-      }
+      await pay();
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -145,23 +198,43 @@ export function useCheckout() {
   return { go, busy, err };
 }
 
-/** A standalone pay form: buyer fields + consent + button (subscriptions, top-ups) */
-export function PayForm({ buyer: initial, label, extra, onPay }: { buyer?: Partial<Buyer> | null; label: string; extra?: React.ReactNode; onPay: (b: Buyer) => Promise<string | null | undefined> }) {
+/** A standalone pay form: saved card + buyer fields + consent + button (subscriptions, proposal fees) */
+export function PayForm({
+  buyer: initial,
+  cards,
+  pendingCard = false,
+  returnTo,
+  test = false,
+  label,
+  extra,
+  onPay,
+}: {
+  buyer?: Partial<Buyer> | null;
+  cards: CardOpt[];
+  pendingCard?: boolean;
+  returnTo: string;
+  test?: boolean;
+  label: string;
+  extra?: React.ReactNode;
+  onPay: (b: Buyer, cardId: string) => Promise<void>;
+}) {
   const t = useTranslations("checkout");
   const [buyer, setBuyer] = useState(() => emptyBuyer(initial));
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const { go, busy, err } = useCheckout();
   return (
     <form
       className="space-y-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void go(() => onPay(buyer));
+        void go(() => onPay(buyer, cardId));
       }}
     >
       {extra}
+      <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo={returnTo} email={buyer.email} test={test} />
       <BuyerFields value={buyer} onChange={setBuyer} />
       <AgreeTerms />
-      <button className="btn-primary w-full !py-3" disabled={busy}>{busy ? t("redirecting") : label}</button>
+      <button className="btn-primary w-full !py-3" disabled={busy || !cardId}>{busy ? t("charging") : label}</button>
       <p className="text-xs text-muted">{t("oenNote")}</p>
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
     </form>
