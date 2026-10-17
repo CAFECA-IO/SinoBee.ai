@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
+import { Link } from "@/i18n/navigation";
 import { BuyerFields, PayForm, emptyBuyer, postJson, type Buyer } from "./checkout";
 
 type ModelOpt = { id: string; label: string; vendor: string };
@@ -13,6 +14,25 @@ async function send(url: string, method: string, body?: unknown) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error ?? (j.issues ? j.issues.map((i: { message: string }) => i.message).join("; ") : `HTTP ${r.status}`));
   return j;
+}
+
+/** Required consent to the crowdfunding terms (which list every screening item) */
+export function AgreeCrowdTerms() {
+  const t = useTranslations("crowd");
+  return (
+    <label className="flex items-start gap-2 text-xs text-muted">
+      <input type="checkbox" className="mt-0.5" required name="agreeCrowd" />
+      <span>
+        {t.rich("agreeTerms", {
+          terms: (c) => (
+            <Link href="/crowd-terms" target="_blank" className="text-accent underline">
+              {c}
+            </Link>
+          ),
+        })}
+      </span>
+    </label>
+  );
 }
 
 // ───────────── new proposal ─────────────
@@ -36,7 +56,7 @@ export function CrowdNewForm({ models, skill, categories }: { models: ModelOpt[]
         setBusy(true);
         setErr("");
         try {
-          const r = await postJson<{ task: { id: string } }>("/api/crowd", { title, description, model, category, skillVersionId: useSkill && skill ? skill.id : null });
+          const r = await postJson<{ task: { id: string } }>("/api/crowd", { title, description, model, category, skillVersionId: useSkill && skill ? skill.id : null, agreeTerms: true });
           router.push(`/crowd/${r.task.id}/edit`);
         } catch (e) {
           setErr((e as Error).message);
@@ -72,6 +92,7 @@ export function CrowdNewForm({ models, skill, categories }: { models: ModelOpt[]
         </select>
       </div>
       {skill && <Toggle checked={useSkill} onChange={setUseSkill} label={t("useSkill", { skill: skill.label })} />}
+      <AgreeCrowdTerms />
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
       <button className="btn-primary" disabled={busy}>{busy ? t("creating") : t("create")}</button>
     </form>
@@ -369,7 +390,7 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
         setBusy(true);
         setErr("");
         try {
-          await send(`/api/crowd/${taskId}/open`, "POST", { durationDays: days, goalTwd: goal ? Number(goal) : undefined, startEarly: early });
+          await send(`/api/crowd/${taskId}/open`, "POST", { durationDays: days, goalTwd: goal ? Number(goal) : undefined, startEarly: early, agreeTerms: true });
           router.push(`/tasks/${taskId}`);
         } catch (e) {
           setErr((e as Error).message);
@@ -394,6 +415,7 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
         <p className="mt-1 text-xs text-muted">{t("minGoal", { min, price })}</p>
       </div>
       <Toggle checked={early} onChange={setEarly} label={t("startEarly")} description={t("startEarlyHint")} />
+      <AgreeCrowdTerms />
       {!paid && <p className="text-sm text-warn">{t("needFee")}</p>}
       {gaps.length > 0 && <p className="text-sm text-warn">{t("missing", { list: gaps.map((g) => (g === "spec" ? ts("title") : g === "estimate" ? ts("estimate") : ts(g as "summary"))).join("、") })}</p>}
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
@@ -454,7 +476,7 @@ export function PledgePanel({
             setBusy(true);
             setErr("");
             try {
-              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, ...(source === "CARD" ? { buyer, usePoints } : {}) });
+              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, agreeTerms: true, ...(source === "CARD" ? { buyer, usePoints } : {}) });
               router.refresh();
             } catch (e) {
               setErr((e as Error).message);
@@ -508,6 +530,7 @@ export function PledgePanel({
           )}
           {source === "POINTS" && <p className="text-xs text-muted">{t("pointsNote")}</p>}
           {source === "QUOTA" && <p className="text-xs text-muted">{t("quotaNote")}</p>}
+          <AgreeCrowdTerms />
           <button className="btn-primary w-full" disabled={busy || (source === "CARD" && cards.length === 0) || (source === "POINTS" && points < amount)}>
             {busy ? t("pledging") : t("pledge", { amount })}
           </button>
@@ -776,23 +799,27 @@ export function ReportButton({ taskId }: { taskId: string }) {
 export function ScreeningActions({ taskId }: { taskId: string }) {
   const t = useTranslations("crowd.screening");
   const router = useRouter();
-  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const decide = async (approve: boolean) => {
-    if (!confirm(t("confirm"))) return;
-    setErr("");
-    try {
-      await send(`/api/admin/crowd/${taskId}/screening`, "POST", { approve, note: note || undefined });
-      router.refresh();
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <input className="input min-w-48 flex-1" placeholder={t("note")} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
-      <button className="btn-primary !py-2" onClick={() => decide(true)}>{t("approve")}</button>
-      <button className="btn-ghost !py-2 text-err" onClick={() => decide(false)}>{t("sendBack")}</button>
+      <button
+        className="btn-ghost !py-2"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setErr("");
+          try {
+            await send(`/api/admin/crowd/${taskId}/screening`, "POST", {});
+            router.refresh();
+          } catch (e) {
+            setErr((e as Error).message);
+          }
+          setBusy(false);
+        }}
+      >
+        {t("rerun")}
+      </button>
       {err && <p className="w-full text-sm text-err">{err}</p>}
     </div>
   );

@@ -96,7 +96,9 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
     usageLedgerId = await quotaPledge(userId, taskId, amount, task.goalTwd ?? amount);
   }
 
-  const p = await db.pledge.create({ data: { taskId, userId, source: input.source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup } });
+  const { currentChecklist } = await import("./checklist");
+  const termsVersion = (await currentChecklist()).version;
+  const p = await db.pledge.create({ data: { taskId, userId, source: input.source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup, termsVersion } });
   if (input.source === "POINTS" || pointsTwd > 0) {
     try {
       await spendPoints(userId, input.source === "POINTS" ? amount : pointsTwd, `pledge:${p.id}`, taskId);

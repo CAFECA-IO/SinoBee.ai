@@ -29,7 +29,8 @@
     "hubApi": "Skill Hub API",
     "terms": "Terms",
     "privacy": "Privacy",
-    "refunds": "Refunds"
+    "refunds": "Refunds",
+    "crowdTerms": "Crowdfunding Terms"
   },
   "home": {
     "badge": "Open source · MIT · mix cloud and local models",
@@ -470,7 +471,8 @@
       "settings": "Settings",
       "overview": "Overview",
       "disputes": "Crowdfunding disputes",
-      "screening": "Proposal review"
+      "screening": "Proposal review",
+      "checklist": "Screening checklist"
     },
     "st": {
       "enabled": "Enabled",
@@ -1211,6 +1213,17 @@
     },
     "refunds": {
       "title": "Refund Policy"
+    },
+    "crowd": {
+      "title": "Crowdfunding Terms"
+    },
+    "notary": {
+      "title": "Notarized on Boltchain",
+      "version": "Version {v} · SHA-256 {sha}",
+      "pending": "Notarization pending",
+      "off": "Boltchain notarization is not enabled",
+      "markdown": "Download the markdown",
+      "verify": "The SHA-256 of the downloaded text matches the certificate."
     }
   },
   "crowd": {
@@ -1484,13 +1497,45 @@
       "done": "Thanks, the platform will look at it."
     },
     "screening": {
-      "pending": "Under review: the campaign opens as soon as it is approved, and its period starts then.",
-      "rejected": "Sent back: {reason}. Fix it and submit again.",
+      "pending": "Under screening: an AI is checking every item of the Crowdfunding Terms; the campaign opens as soon as all are met, and its period starts then.",
+      "rejected": "The proposal did not pass screening ({passed}/{total} items met, checklist version {v}). Fix the following and submit again:",
       "reasons": "Review notes",
-      "approve": "Approve and open",
-      "sendBack": "Send back",
-      "note": "Note for the proposer",
-      "confirm": "Submit this decision?"
+      "rerun": "Run the AI screening again",
+      "waiting": "Waiting for the screening model (retried automatically)",
+      "result": "Screening: {passed}/{total} items met (version {v})"
+    },
+    "agreeTerms": "I have read and agree to the <terms>Crowdfunding Terms</terms>, including every proposal screening item."
+  },
+  "checklist": {
+    "ai": "Change with AI",
+    "aiHint": "Describe the items to add, remove or change; the AI updates the draft (it does not publish).",
+    "aiPlaceholder": "e.g. add an item under safety confirming the task gives no medical diagnosis",
+    "aiApply": "Apply to draft",
+    "thinking": "Working…",
+    "total": "{n} items (at least {min})",
+    "draftBadge": "Draft (public version: {v})",
+    "new": "new",
+    "remove": "Remove",
+    "add": "Add item",
+    "save": "Save draft",
+    "discard": "Discard draft",
+    "confirmDiscard": "Discard the draft and go back to the public version?",
+    "note": "Version note (public in the Crowdfunding Terms)",
+    "publish": "Publish new version",
+    "confirmPublish": "Once published it is public in the Crowdfunding Terms, notarized on Boltchain and applies to proposals submitted afterwards. Publish?",
+    "published": "Version {v} published",
+    "saveFirst": "Save the draft before publishing.",
+    "needMin": "At least {min} items are required (now {n})",
+    "emptyDim": "“{d}” has no items",
+    "current": "Public version: {v} ({n} items)",
+    "history": "Versions",
+    "dim": {
+      "legal": "Legality",
+      "privacy": "Privacy and personal data",
+      "ip": "Intellectual property",
+      "safety": "Safety and ethics",
+      "feasibility": "Feasibility",
+      "spec": "Spec and acceptance"
     }
   }
 }

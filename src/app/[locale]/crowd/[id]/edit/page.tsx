@@ -7,6 +7,7 @@ import { Link, redirect } from "@/i18n/navigation";
 import type { Buyer } from "@/components/checkout";
 import { CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecEditor, type SpecView } from "@/components/crowd";
 import { creditLeft } from "@/lib/crowd/proposal";
+import type { Screening } from "@/lib/crowd/screening";
 import { CATEGORIES, durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
   if (!task || !task.crowdfund || task.userId !== me!.id) notFound();
   if (task.status !== "DRAFT") redirect({ href: `/tasks/${id}`, locale });
   const t = await getTranslations("crowd");
+  const screening = task.screening as Screening | null;
   const spec = task.spec ? normalizeSpec(task.spec) : null;
   const paid = Number(task.proposalCreditTwd) > 0;
   const left = creditLeft(task);
@@ -38,8 +40,15 @@ export default async function CrowdEditPage({ params }: { params: Promise<{ loca
           {t("form.category")} <CategorySelect taskId={task.id} value={task.category} categories={CATEGORIES} />
         </span>
       </div>
-      {(task.screening as { decision?: string } | null)?.decision === "rejected" && (
-        <p className="mt-4 rounded-xl bg-err-soft p-3 text-sm text-err">{t("screening.rejected", { reason: ((task.screening as { reasons?: string[] }).reasons ?? []).join("；") })}</p>
+      {screening?.decision === "rejected" && (
+        <div className="mt-4 space-y-2 rounded-xl bg-err-soft p-4 text-sm text-err">
+          <p>{t("screening.rejected", { passed: screening.passed ?? 0, total: screening.total ?? 0, v: screening.checklistVersion ?? 0 })}</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {screening.reasons.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-8">

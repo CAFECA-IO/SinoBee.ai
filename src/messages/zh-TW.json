@@ -29,7 +29,8 @@
     "hubApi": "Skill Hub API",
     "terms": "服務條款",
     "privacy": "隱私權政策",
-    "refunds": "退款政策"
+    "refunds": "退款政策",
+    "crowdTerms": "眾籌服務條款"
   },
   "home": {
     "badge": "開源 · MIT 授權 · 雲端模型與本機模型可混用",
@@ -470,7 +471,8 @@
       "settings": "系統設定",
       "overview": "總覽",
       "disputes": "眾籌爭議",
-      "screening": "提案審核"
+      "screening": "提案審核",
+      "checklist": "審核清單"
     },
     "st": {
       "enabled": "啟用",
@@ -1211,6 +1213,17 @@
     },
     "refunds": {
       "title": "退款政策"
+    },
+    "crowd": {
+      "title": "眾籌服務條款"
+    },
+    "notary": {
+      "title": "Boltchain 存證",
+      "version": "第 {v} 版 · SHA-256 {sha}",
+      "pending": "存證處理中",
+      "off": "尚未啟用 Boltchain 存證",
+      "markdown": "下載 Markdown 原文",
+      "verify": "下載的原文雜湊值應與證書記錄的 SHA-256 相同。"
     }
   },
   "crowd": {
@@ -1484,13 +1497,45 @@
       "done": "已收到檢舉，平台會盡快處理。"
     },
     "screening": {
-      "pending": "提案審核中：通過後立即開始眾籌，期限從開始時起算。",
-      "rejected": "提案被退回：{reason}。修改後可再次送出。",
+      "pending": "提案審核中：AI 正依眾籌服務條款的審核項目逐題審核，全部符合即開始眾籌，期限從開始時起算。",
+      "rejected": "提案未通過審核（{passed}/{total} 項符合，第 {v} 版審核項目）。請依下列說明修改後再送出：",
       "reasons": "審核意見",
-      "approve": "核准並開始眾籌",
-      "sendBack": "退回修改",
-      "note": "給發起人的說明",
-      "confirm": "確定送出審核結果？"
+      "rerun": "重新執行 AI 審核",
+      "waiting": "等待審核模型（會自動重試）",
+      "result": "審核結果：{passed}/{total} 項符合（第 {v} 版）"
+    },
+    "agreeTerms": "我已閱讀並同意<terms>眾籌服務條款</terms>（含全部提案審核項目）。"
+  },
+  "checklist": {
+    "ai": "用 AI 對話調整",
+    "aiHint": "描述要新增、刪除或修改的審核項目，AI 會更新草稿（不會直接發布）。",
+    "aiPlaceholder": "例如：在安全與倫理新增一題，確認任務不涉及醫療診斷",
+    "aiApply": "套用到草稿",
+    "thinking": "AI 處理中…",
+    "total": "共 {n} 題（至少 {min} 題）",
+    "draftBadge": "草稿（目前公開版本：第 {v} 版）",
+    "new": "新",
+    "remove": "刪除",
+    "add": "新增一題",
+    "save": "儲存草稿",
+    "discard": "放棄草稿",
+    "confirmDiscard": "放棄草稿並回到目前公開版本？",
+    "note": "版本說明（會公開於眾籌服務條款）",
+    "publish": "發布新版本",
+    "confirmPublish": "發布後立即公開於眾籌服務條款、在 Boltchain 存證，並套用於之後送出的提案。確定？",
+    "published": "已發布第 {v} 版",
+    "saveFirst": "請先儲存草稿再發布。",
+    "needMin": "至少需要 {min} 題（目前 {n} 題）",
+    "emptyDim": "「{d}」沒有任何題目",
+    "current": "目前公開版本：第 {v} 版（{n} 題）",
+    "history": "版本紀錄",
+    "dim": {
+      "legal": "合法性",
+      "privacy": "個資與隱私",
+      "ip": "智慧財產權",
+      "safety": "安全與倫理",
+      "feasibility": "技術可行性",
+      "spec": "規格完整與可驗收"
     }
   }
 }

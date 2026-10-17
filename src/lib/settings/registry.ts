@@ -154,7 +154,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.maxReworks", env: "CROWD_MAX_REWORKS", type: "number", group: "crowd", default: "1", label: L("驗收未通過時最多重做次數", "Reworks after a rejected review") },
   { key: "crowd.exitHours", env: "CROWD_EXIT_HOURS", type: "number", group: "crowd", default: "72", label: L("規格修訂後的撤回期（小時）", "Withdrawal window after a spec revision (hours)") },
   { key: "crowd.topupDays", env: "CROWD_TOPUP_DAYS", type: "number", group: "crowd", default: "7", label: L("追加眾籌天數", "Top-up round (days)") },
-  { key: "crowd.screening", env: "CROWD_SCREENING", type: "select", group: "crowd", default: "ai", options: ["ai", "manual", "off"], label: L("提案審核", "Proposal screening"), help: L("ai：AI 初篩，有疑慮才轉人工；manual：全部人工；off：不審核", "ai: AI first, admins only when flagged; manual: admins review all; off: none") },
+  { key: "crowd.screening", env: "CROWD_SCREENING", type: "select", group: "crowd", default: "ai", options: ["ai", "off"], label: L("提案審核", "Proposal screening"), help: L("ai：AI 依公開的審核清單逐題審核，全部符合才開放；off：不審核（僅限開發）", "ai: a model checks every item of the public checklist and the campaign opens only if all pass; off: none (development only)") },
   { key: "crowd.pledgeMinKyc", env: "CROWD_PLEDGE_MIN_KYC", type: "number", group: "crowd", default: "0", label: L("出資最低實名等級", "Minimum KYC level to pledge"), help: L("0 = 不限制", "0 = no limit") },
   { key: "crowd.voteMinKyc", env: "CROWD_VOTE_MIN_KYC", type: "number", group: "crowd", default: "0", label: L("驗收投票最低實名等級", "Minimum KYC level to vote"), help: L("0 = 不限制", "0 = no limit") },
   { key: "crowd.resultsDays", env: "CROWD_RESULTS_DAYS", type: "number", group: "crowd", default: "90", label: L("眾籌成果保存天數", "Crowdfunded results kept (days)") },

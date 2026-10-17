@@ -251,6 +251,7 @@ async function onAnchored(targetType: string, targetId: string, code: string) {
   if (targetType === "tool-version") await db.toolVersion.updateMany({ where: { id: targetId }, data: { anchorCode: code } });
   if (targetType === "share") await db.conversationShare.updateMany({ where: { id: targetId }, data: { anchorCode: code } });
   if (targetType === "skill-version") await db.skillVersion.updateMany({ where: { id: targetId }, data: { anchorCode: code } });
+  if (targetType === "legal") await db.legalVersion.updateMany({ where: { id: targetId }, data: { anchorCode: code } });
 }
 
 /** One pass of every job; each job's failure is logged and does not stop the others. */

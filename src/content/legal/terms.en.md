@@ -27,6 +27,8 @@ We may change the Service for operational or legal reasons or because third-part
 
 ### Crowdfunded tasks
 
+The full rules and every proposal screening item are in the [Crowdfunding Terms](/crowd-terms).
+
 - Any user can pay the proposal fee to start a crowdfunded task, draft its spec, method and acceptance criteria with AI, and open it for pledges. Crowdfunded tasks are always public.
 - Pledges are made in shares (NT$30 each; 1, 5 or 20 at a time) with a card, platform points or subscription quota. Cards are kept by our payment provider Oen with 3-D Secure; this site stores only an encrypted charge token. Nothing is charged during the campaign; you authorize us to charge your saved card the amount you pledged once the task reaches its goal.
 - A platform service fee depending on the campaign period (none for 7 days) is deducted from the amount collected when the goal is reached.

@@ -33,6 +33,8 @@ export async function createDraft(userId: string, input: z.infer<typeof DraftInp
     if (!sv || sv.status === "REVOKED" || sv.status === "REJECTED") throw new HttpError(400, "skill version not available");
   }
   const { fx, buffer } = await pricingSettings();
+  const { currentChecklist } = await import("./checklist");
+  const termsVersion = (await currentChecklist()).version;
   return db.task.create({
     data: {
       userId,
@@ -43,6 +45,7 @@ export async function createDraft(userId: string, input: z.infer<typeof DraftInp
       isPublic: true,
       title: input.title,
       category: input.category ?? null,
+      termsVersion,
       prompt: input.description,
       model: input.model,
       skillVersionId: input.skillVersionId || null,
@@ -169,6 +172,7 @@ export async function openFunding(userId: string, taskId: string, input: z.infer
     where: { id: taskId, status: "DRAFT" },
     data: {
       status: "SCREENING",
+      termsVersion: (await (await import("./checklist")).currentChecklist()).version,
       goalTwd: goal,
       durationDays: input.durationDays,
       deadlineAt: null,

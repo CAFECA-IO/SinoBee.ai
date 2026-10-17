@@ -24,6 +24,8 @@ import { sweepHolds } from "../src/lib/llm/quota";
 import { purgeNonces } from "../src/lib/device-sign";
 import { DockerExecutor, containerName, crowdContainerName, volumeName } from "./docker-executor";
 import { enterReview } from "../src/lib/crowd/review";
+import { screeningTick } from "../src/lib/crowd/screening";
+import { snapshotAllLegal } from "../src/lib/legal-versions";
 import { MockExecutor } from "./mock-executor";
 import { keeperTick } from "../src/lib/boltchain/keeper";
 import { loadSettings } from "../src/lib/settings/store";
@@ -349,11 +351,14 @@ async function loop() {
       if (Date.now() - lastCrowd > 60_000) {
         lastCrowd = Date.now();
         const c = await crowdTick().catch((e) => (log("crowdfunding error", e), null));
+        await screeningTick().catch((e) => log("screening error", e));
         if (c && (c.ended || c.settled)) log("crowdfunding", c);
       }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();
         await cleanup();
+        // record and notarize any legal text that changed (settings, checklist, deploys)
+        await snapshotAllLegal().catch((e) => log("legal snapshot error", e));
       }
     } catch (e) {
       log("loop error", e);

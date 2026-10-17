@@ -444,6 +444,8 @@ model Task {
   screening         Json?
   /// set when an admin takes the campaign down after a report
   takenDownAt       DateTime?
+  /// version of the crowdfunding terms (with the screening checklist) the proposer agreed to
+  termsVersion      Int?
   /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
   stretchUnlocked   Int       @default(0)
   /// top-up round after the budget ran out: goal (whole TWD) and deadline; pledges wait until it is met
@@ -1079,6 +1081,8 @@ model Pledge {
   pointsTwd     Int          @default(0)
   /// pledged during a top-up round (waits for that round's goal)
   topup         Boolean      @default(false)
+  /// version of the crowdfunding terms the backer agreed to
+  termsVersion  Int?
   error         String?
   createdAt     DateTime     @default(now())
   chargedAt     DateTime?
@@ -1180,4 +1184,41 @@ model SpecRevision {
   createdAt DateTime @default(now())
 
   @@unique([taskId, version])
+}
+
+/**
+ * The proposal screening checklist: yes/no items grouped in dimensions. Every item must be answered "yes" for a
+ * proposal to open. Published versions are public (crowdfunding terms) and never change; publishedAt = null is the
+ * admins' working draft.
+ */
+model ChecklistVersion {
+  id          String    @id @default(cuid())
+  /// 1, 2, … for published versions; 0 for the draft
+  version     Int       @default(0)
+  /// [{id, dimension, text}]
+  items       Json
+  note        String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  @@index([publishedAt, version])
+}
+
+/** Every published text of a legal document, as the exact markdown shown, notarized on Boltchain */
+model LegalVersion {
+  id         String   @id @default(cuid())
+  /// terms | privacy | refunds | crowd
+  doc        String
+  locale     String
+  version    Int
+  markdown   String
+  sha256     String
+  /// Boltchain certificate code once issued
+  anchorCode String?
+  createdAt  DateTime @default(now())
+
+  @@unique([doc, locale, version])
+  @@unique([doc, locale, sha256])
 }

@@ -286,8 +286,7 @@ export const config = {
       return svNum("crowd.topupDays");
     },
     get screening() {
-      const v = sv("crowd.screening");
-      return (v === "manual" || v === "off" ? v : "ai") as "ai" | "manual" | "off";
+      return (sv("crowd.screening") === "off" ? "off" : "ai") as "ai" | "off";
     },
     get pledgeMinKyc() {
       return svNum("crowd.pledgeMinKyc");

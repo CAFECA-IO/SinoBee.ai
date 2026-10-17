@@ -70,41 +70,40 @@ async function submit(title: string, opts: { goal?: number; category?: "data" | 
   return proposal.openFunding(ann.id, t.id, { durationDays: 7, goalTwd: goal, startEarly: false });
 }
 
-test("screening: AI approves clear proposals; flagged ones wait for an admin and the period starts on approval", async () => {
+test("screening: every checklist item must pass; a failed item sends the proposal back with the reasons", async () => {
   const ok = await submit("Bus timetables");
   assert.equal(ok.status, "FUNDING");
-  assert.equal((ok.screening as { by: string }).by, "ai");
+  const sc = ok.screening as { by: string; passed: number; total: number; checklistVersion: number };
+  assert.equal(sc.by, "ai");
+  assert.equal(sc.checklistVersion, 1);
+  assert.ok(sc.total >= 100);
+  assert.equal(sc.passed, sc.total, "all items passed");
   assert.ok(ok.deadlineAt);
+  assert.equal(ok.termsVersion, 1, "the proposer agreed to checklist version 1");
 
   const flagged = await submit("Scrape everyone's phone numbers [review]");
-  assert.equal(flagged.status, "SCREENING");
+  assert.equal(flagged.status, "DRAFT", "decided by the AI, no admin step");
   assert.equal(flagged.deadlineAt, null, "the period has not started");
-  assert.ok(await db.notification.findFirst({ where: { userId: admin.id, type: "crowd.screening" } }));
+  const fs = flagged.screening as { decision: string; failed: { id: string }[]; reasons: string[]; passed: number; total: number };
+  assert.equal(fs.decision, "rejected");
+  assert.deepEqual(fs.failed.map((f) => f.id), ["L01"]);
+  assert.match(fs.reasons[0], /^L01 任務目的與內容符合中華民國法令/);
+  assert.equal(fs.passed, fs.total - 1);
+  assert.ok(await db.notification.findFirst({ where: { userId: ann.id, type: "crowd.screening_rejected" } }));
   await assert.rejects(pledges.pledge(bob.id, flagged.id, { shares: 1, source: "CARD", buyer }), /not taking pledges/);
-  // not listed while screening
   assert.ok(!(await explore.listCampaigns({})).some((c) => c.id === flagged.id));
+  await assert.rejects(screening.rerunScreening(admin.id, flagged.id), /not waiting/);
 
-  // admin sends it back: draft again, with the reason; it can be fixed and resubmitted
-  await screening.decideScreening(admin.id, flagged.id, false, "collects personal data");
-  let row = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
-  assert.equal(row.status, "DRAFT");
-  assert.deepEqual((row.screening as { reasons: string[] }).reasons, ["collects personal data"]);
+  // fixed and resubmitted: screened again, opens, the period starts now
   await proposal.updateDraft(ann.id, flagged.id, { title: "Bus stop accessibility survey" });
-  await db.task.update({ where: { id: flagged.id }, data: { prompt: "Survey bus stop accessibility from public data [review]" } });
+  await db.task.update({ where: { id: flagged.id }, data: { prompt: "Survey bus stop accessibility from public data" } });
   await proposal.openFunding(ann.id, flagged.id, { durationDays: 30, startEarly: false });
-  row = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
-  assert.equal(row.status, "SCREENING");
+  const row = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
+  assert.equal(row.status, "FUNDING");
   assert.match(row.prompt, /Survey bus stop accessibility/, "description kept on resubmission");
   assert.equal(await db.specRevision.count({ where: { taskId: flagged.id } }), 1);
-  await screening.decideScreening(admin.id, flagged.id, true);
-  row = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
-  assert.equal(row.status, "FUNDING");
-  assert.ok(Math.abs(row.deadlineAt!.getTime() - Date.now() - 30 * DAY) < 60_000, "30 days from approval");
-  assert.ok(await db.adminAudit.findFirst({ where: { action: "crowd.screening.approve", targetId: flagged.id } }));
+  assert.ok(Math.abs(row.deadlineAt!.getTime() - Date.now() - 30 * DAY) < 60_000, "30 days from opening");
 
-  // manual and off
-  process.env.CROWD_SCREENING = "manual";
-  assert.equal((await submit("Manual one")).status, "SCREENING");
   process.env.CROWD_SCREENING = "off";
   assert.equal((await submit("Unscreened [review]")).status, "FUNDING");
   delete process.env.CROWD_SCREENING;

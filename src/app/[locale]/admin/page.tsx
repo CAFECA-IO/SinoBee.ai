@@ -1,4 +1,6 @@
 import { ScreeningActions } from "@/components/crowd";
+import { ChecklistEditor } from "@/components/checklist-editor";
+import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -28,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 const NAV = [
   { group: "start", items: [{ id: "overview", icon: "grid" }] },
-  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }, { id: "screening", icon: "eye", count: "screening" }] },
+  { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }, { id: "screening", icon: "eye", count: "screening" }, { id: "checklist", icon: "list" }] },
   { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
   { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
@@ -53,6 +55,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else if (tab === "reports") body = <Reports />;
   else if (tab === "disputes") body = <Disputes />;
   else if (tab === "screening") body = <Screening />;
+  else if (tab === "checklist") body = <ChecklistAdmin />;
   else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
   else if (tab === "payments") body = <Payments status={sp.status} />;
   else if (tab === "prices") body = <Prices />;
@@ -248,25 +251,69 @@ async function Reports() {
   );
 }
 
-/** Crowdfunding proposals the AI screening (or manual mode) left for an admin */
+/** The public screening checklist: edit the draft by hand or with AI, publish versions */
+async function ChecklistAdmin() {
+  const t = await getTranslations("checklist");
+  const [cur, draft, versions] = await Promise.all([currentChecklist(), draftChecklist(), publishedVersions()]);
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <span className="font-semibold">{t("current", { v: cur.version, n: cur.items.length })}</span>
+        <Link href="/crowd-terms" className="text-accent underline">/crowd-terms</Link>
+      </div>
+      <ChecklistEditor items={draft.items} dimensions={DIMENSIONS} min={MIN_ITEMS} version={cur.version} changed={draft.changed} />
+      <div className="card space-y-2 p-5 text-sm">
+        <div className="font-semibold">{t("history")}</div>
+        {versions.map((v) => (
+          <div key={v.version} className="flex flex-wrap gap-3">
+            <span className="chip">v{v.version}</span>
+            <span className="text-muted">{(v.items as unknown[]).length}</span>
+            <span>{v.note}</span>
+            {v.publishedAt && <span className="ml-auto text-xs text-muted"><LocalDate value={v.publishedAt} /></span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Proposals waiting for the AI screening, and the latest screening results */
 async function Screening() {
   const t = await getTranslations("admin");
   const tc = await getTranslations("crowd.screening");
-  const rows = await db.task.findMany({ where: { status: "SCREENING" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
-  if (!rows.length) return <p className="text-muted">{t("empty")}</p>;
+  const waiting = await db.task.findMany({ where: { status: "SCREENING" }, include: { user: true }, orderBy: { updatedAt: "asc" }, take: 100 });
+  const recent = await db.taskEvent.findMany({ where: { type: { in: ["screening.rejected", "funding.opened"] }, task: { crowdfund: true } }, include: { task: { select: { id: true, title: true, screening: true } } }, orderBy: { createdAt: "desc" }, take: 30 });
   return (
-    <div className="space-y-3">
-      {rows.map((r) => (
-        <div key={r.id} className="card space-y-2 p-5 text-sm">
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
-            <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+    <div className="space-y-6">
+      {waiting.length === 0 ? (
+        <p className="text-muted">{t("empty")}</p>
+      ) : (
+        waiting.map((r) => (
+          <div key={r.id} className="card space-y-2 p-5 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
+              <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.durationDays}d · <LocalDate value={r.updatedAt} /></span>
+            </div>
+            <p className="text-xs text-muted">{tc("waiting")}</p>
+            <ScreeningActions taskId={r.id} />
           </div>
-          <p className="line-clamp-4 whitespace-pre-wrap text-muted">{r.prompt.slice(0, 800)}</p>
-          {((r.screening as { reasons?: string[] } | null)?.reasons ?? []).length > 0 && <p className="text-xs text-warn">{tc("reasons")}: {((r.screening as { reasons?: string[] }).reasons ?? []).join("；")}</p>}
-          <ScreeningActions taskId={r.id} />
+        ))
+      )}
+      {recent.length > 0 && (
+        <div className="card divide-y divide-line text-sm">
+          {recent.map((e) => {
+            const sc = e.task.screening as { passed?: number; total?: number; checklistVersion?: number } | null;
+            return (
+              <div key={e.id} className="flex flex-wrap items-center gap-3 p-3">
+                <span className={e.type === "funding.opened" ? "text-ok" : "text-err"}>{e.type === "funding.opened" ? "✓" : "✗"}</span>
+                <Link href={`/tasks/${e.task.id}`} className="text-accent">{e.task.title}</Link>
+                {sc?.total ? <span className="text-xs text-muted">{tc("result", { passed: sc.passed ?? 0, total: sc.total, v: sc.checklistVersion ?? 0 })}</span> : null}
+                <span className="ml-auto text-xs text-muted"><LocalDate value={e.createdAt} /></span>
+              </div>
+            );
+          })}
         </div>
-      ))}
+      )}
     </div>
   );
 }
