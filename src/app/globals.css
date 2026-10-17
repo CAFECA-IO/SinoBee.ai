@@ -222,3 +222,26 @@ input[type="checkbox"]:not(.checkbox-plain):user-invalid {
   .agree[data-mood] .agree-mark { animation: none; }
   .agree[data-mood="disagree"] .agree-x { animation: none; stroke-dashoffset: 0; opacity: 0.8; }
 }
+
+/* press feedback for every button (ClickGuard adds .pressed on click) and a spinner while aria-busy */
+:is(.btn, .btn-primary, .btn-ghost, .btn-danger, .icon-btn) {
+  transition-property: color, background-color, border-color, box-shadow, transform, filter, opacity;
+  transition-duration: .15s;
+}
+:is(.btn, .btn-primary, .btn-ghost, .btn-danger, .icon-btn):active:not(:disabled) { transform: scale(.96); transition-duration: .06s; }
+.pressed { animation: press-ring .45s ease-out; }
+@keyframes press-ring {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent); }
+  to { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+:is(.btn, .btn-primary, .btn-ghost, .btn-danger)[aria-busy="true"] { cursor: progress; }
+:is(.btn, .btn-primary, .btn-ghost, .btn-danger)[aria-busy="true"]::before {
+  content: ""; width: 1em; height: 1em; flex: none; border-radius: 9999px;
+  border: 2px solid currentColor; border-right-color: transparent; animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pressed { animation: none; }
+  :is(.btn, .btn-primary, .btn-ghost, .btn-danger, .icon-btn):active:not(:disabled) { transform: none; }
+  :is(.btn, .btn-primary, .btn-ghost, .btn-danger)[aria-busy="true"]::before { animation-duration: 2s; }
+}

@@ -1003,7 +1003,8 @@
       "skills_publish": "發佈技能到 Skill Hub",
       "tools_write": "登錄與更新你的工具（例如資料庫瀏覽器）",
       "vault_rw": "讀寫你的加密保險箱（伺服器看不到內容）",
-      "shares_write": "建立與撤回對話分享"
+      "shares_write": "建立與撤回對話分享",
+      "llm": "用你的訂閱額度透過 SinoBee.ai 使用雲端模型"
     },
     "approve": "授權",
     "deny": "拒絕",

@@ -1003,7 +1003,8 @@
       "skills_publish": "Publish skills to the Skill Hub",
       "tools_write": "Register and update your tools (e.g. database browsers)",
       "vault_rw": "Read and write your encrypted vault (the server cannot see its contents)",
-      "shares_write": "Create and revoke conversation shares"
+      "shares_write": "Create and revoke conversation shares",
+      "llm": "Use cloud models through SinoBee.ai on your subscription"
     },
     "approve": "Approve",
     "deny": "Deny",

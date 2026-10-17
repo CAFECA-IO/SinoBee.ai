@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 
@@ -12,6 +12,7 @@ export function DeviceApprove({ account, initialCode, request }: { account: stri
   const [code, setCode] = useState(initialCode);
   const [state, setState] = useState<"idle" | "busy" | "approved" | "denied">("idle");
   const [err, setErr] = useState("");
+  const sending = useRef(false);
 
   if (state === "approved" || state === "denied")
     return (
@@ -35,17 +36,22 @@ export function DeviceApprove({ account, initialCode, request }: { account: stri
           {t("enterCode")}
           <input className="input mt-1 text-center font-mono text-xl tracking-widest uppercase" value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXX-XXXX" maxLength={9} autoFocus required />
         </label>
-        <button className="btn w-full">{t("continue")}</button>
+        <button className="btn-primary w-full">{t("continue")}</button>
       </form>
     );
 
+  const [choice, setChoice] = useState<boolean | null>(null);
   const decide = async (approve: boolean) => {
+    if (sending.current) return; // one decision per page
+    sending.current = true;
+    setChoice(approve);
     setState("busy");
     setErr("");
     const r = await fetch("/api/device/approve", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, approve }) });
     if (r.ok) setState(approve ? "approved" : "denied");
     else {
       setErr((await r.json().catch(() => ({}))).error ?? r.statusText);
+      sending.current = false;
       setState("idle");
     }
   };
@@ -78,10 +84,10 @@ export function DeviceApprove({ account, initialCode, request }: { account: stri
       </div>
       {err && <p className="text-err">{err}</p>}
       <div className="flex gap-2">
-        <button className="btn flex-1" disabled={state === "busy"} onClick={() => decide(true)}>
+        <button className="btn-primary flex-1 !py-3" disabled={state === "busy"} aria-busy={state === "busy" && choice === true} onClick={() => decide(true)}>
           {t("approve")}
         </button>
-        <button className="btn-ghost flex-1" disabled={state === "busy"} onClick={() => decide(false)}>
+        <button className="btn-ghost flex-1 !py-3" disabled={state === "busy"} aria-busy={state === "busy" && choice === false} onClick={() => decide(false)}>
           {t("deny")}
         </button>
       </div>

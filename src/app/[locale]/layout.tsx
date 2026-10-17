@@ -7,6 +7,7 @@ import { config } from "@/lib/config";
 import { CafecaProvider } from "@/components/cafeca-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { ClickGuard } from "@/components/click-guard";
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -42,6 +43,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
               <main className="flex-1">{children}</main>
               <Footer />
             </div>
+            <ClickGuard />
           </CafecaProvider>
         </NextIntlClientProvider>
       </body>
