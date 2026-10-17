@@ -18,7 +18,7 @@ These Crowdfunding Terms set out how crowdfunded tasks on {{site}} are proposed 
 
 ## 3. Screening items
 
-Before a proposal opens for pledges, an AI checks it against every item below. Each item is a yes/no question where "yes" means the proposal complies. **The campaign opens only if all {{checklistCount}} items are met**; if any item is not met the proposal goes back to draft with the failed items and notes, and the proposer can fix it and submit again. The campaign period starts when it opens.
+Before a proposal opens for pledges, an AI checks it against every item below and our staff confirm the result before the proposer is told. Each item is a yes/no question where "yes" means the proposal complies. **The campaign opens only if all {{checklistCount}} items are met**; if any item is not met the proposal goes back to draft with the failed items and notes, and the proposer can fix it and submit again. Our staff never change the AI's individual answers; they only confirm the result or add a note and ask the AI to check again. The campaign period starts when it opens.
 
 We may change the screening items; a change is published on this page as a new version and applies to proposals submitted after it. Current version: {{checklistVersion}} (published {{checklistDate}}).
 

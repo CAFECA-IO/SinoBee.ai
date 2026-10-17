@@ -1,4 +1,4 @@
-import { ScreeningActions, ScreeningResult } from "@/components/crowd";
+import { AutoRefresh, ScreeningActions, ScreeningProgress, ScreeningResult } from "@/components/crowd";
 import { TestModeSwitch } from "@/components/test-mode-switch";
 import { ChecklistEditor } from "@/components/checklist-editor";
 import { DIMENSIONS, MIN_ITEMS, currentChecklist, draftChecklist, publishedVersions } from "@/lib/crowd/checklist";
@@ -297,8 +297,10 @@ async function Screening() {
   const latest = recent.filter((e) => !(e.type === "funding.opened" && (e.data as { by?: string } | null)?.by === "ai") && !seen.has(e.taskId) && (seen.add(e.taskId), true));
   const sentBack = latest.filter((e) => e.type === "screening.rejected" && e.task.status === "DRAFT" && (e.task.screening as ScreeningData | null)?.decision === "rejected");
   const others = latest.filter((e) => !sentBack.includes(e));
+  const busy = waiting.some((r) => ["queued", "running", "pending"].includes((r.screening as ScreeningData | null)?.decision ?? "queued"));
   return (
     <div className="space-y-6">
+      <AutoRefresh active={busy} />
       <section className="space-y-3">
         <h2 className="h3">{tc("inProgress")} · {waiting.length}</h2>
         {waiting.length === 0 ? (
@@ -312,9 +314,19 @@ async function Screening() {
                   <Link href={`/tasks/${r.id}`} className="font-semibold text-accent">{r.title}</Link>
                   <span className="text-xs text-muted">@{r.user.handle ?? r.user.account} · NT${r.goalTwd ?? 0} · {r.selfFunded ? t("screening.self") : `${r.durationDays}d`} · <LocalDate value={r.updatedAt} /></span>
                 </div>
-                <p className="text-xs text-muted">{sc?.decision === "pending" ? tc("waiting") : tc("queued")}</p>
-                {sc && <ScreeningResult screening={sc} />}
-                <ScreeningActions taskId={r.id} />
+                {sc?.decision === "running" && sc.progress ? (
+                  <ScreeningProgress done={sc.progress.done} total={sc.progress.total} items={sc.progress.items} />
+                ) : sc?.decision === "review" ? (
+                  <p className={`font-semibold ${sc.aiDecision === "approve" ? "text-ok" : "text-err"}`}>{sc.aiDecision === "approve" ? tc("aiApprove") : tc("aiReject")}</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted">{sc?.decision === "pending" ? tc("waiting") : tc("queued")}</p>
+                    {sc?.decision === "pending" && sc.error && <p className="break-words font-mono text-xs text-warn">{tc("lastError", { error: sc.error })}</p>}
+                  </div>
+                )}
+                {sc?.decision === "review" && <ScreeningResult screening={sc} />}
+                {sc?.decision !== "review" && sc?.notes && sc.notes.length > 0 && <ScreeningResult screening={{ ...sc, total: undefined, reasons: [] }} />}
+                <ScreeningActions taskId={r.id} stage={sc?.decision === "review" ? "review" : "busy"} aiDecision={sc?.aiDecision} selfFunded={r.selfFunded} />
               </div>
             );
           })
@@ -331,7 +343,7 @@ async function Screening() {
                 <span className="text-xs text-muted">@{e.task.user.handle ?? e.task.user.account} · <LocalDate value={e.createdAt} /></span>
               </div>
               <ScreeningResult screening={e.task.screening as ScreeningData} />
-              <ScreeningActions taskId={e.task.id} />
+              <ScreeningActions taskId={e.task.id} stage="sentBack" />
             </div>
           ))}
         </section>
@@ -358,7 +370,7 @@ async function Screening() {
   );
 }
 
-type ScreeningData = { decision: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] };
+type ScreeningData = { decision: string; aiDecision?: "approve" | "rejected"; progress?: { done: number; total: number; items: number }; error?: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] };
 
 /** Crowdfunded tasks whose acceptance review was rejected with no rework left */
 async function Disputes() {

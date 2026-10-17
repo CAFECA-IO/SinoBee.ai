@@ -1259,55 +1259,115 @@ export function ReportButton({ taskId }: { taskId: string }) {
 }
 
 /** Admin: re-review only (the AI decides), optionally with a note the model reads as context */
-export function ScreeningActions({ taskId }: { taskId: string }) {
+/**
+ * Admin actions on a proposal's screening. While the AI is working nothing can be done; once its result is in the
+ * admin confirms it (the proposer is told at once) or adds a note and asks the AI to screen it again.
+ * stage: busy (queued / running / retrying), review (AI result waiting), sentBack (already back in draft)
+ */
+export function ScreeningActions({ taskId, stage = "review", aiDecision, selfFunded = false }: { taskId: string; stage?: "busy" | "review" | "sentBack"; aiDecision?: "approve" | "rejected"; selfFunded?: boolean }) {
   const t = useTranslations("crowd.screening");
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState("");
+  const run = async (name: string, f: () => Promise<void>) => {
+    setBusy(name);
+    setErr("");
+    try {
+      await f();
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy("");
+  };
+  if (stage === "busy") return <p className="text-xs text-muted">{t("busyHelp")}</p>;
+  const approve = aiDecision === "approve";
   return (
-    <div className="space-y-2">
-      <label className="block text-sm">
-        {t("note")}
-        <textarea className="input mt-1 h-20" maxLength={2000} value={note} placeholder={t("notePlaceholder")} onChange={(e) => setNote(e.target.value)} />
-      </label>
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className="btn-primary !py-2"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            setErr("");
-            try {
-              await send(`/api/admin/crowd/${taskId}/screening`, "POST", note.trim() ? { note: note.trim() } : {});
-              setNote("");
-              setDone(true);
-              router.refresh();
-            } catch (e) {
-              setErr((e as Error).message);
+    <div className="space-y-3">
+      {stage === "review" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className={approve ? "btn-primary !py-2" : "btn-danger !py-2"}
+            disabled={!!busy}
+            onClick={() =>
+              run("confirm", async () => {
+                const msg = approve ? t(selfFunded ? "confirmApproveSelf" : "confirmApprove") : t("confirmReject");
+                if (!(await confirmDialog(msg, { danger: !approve, confirmLabel: approve ? t("approveLabel") : t("rejectLabel") }))) return;
+                await send(`/api/admin/crowd/${taskId}/screening/confirm`, "POST", {});
+                setDone(approve ? t("approved") : t("sentBackDone"));
+              })
             }
-            setBusy(false);
-          }}
-        >
-          {t("rerun")}
-        </button>
-        {done && <span className="text-xs text-ok">{t("requested")}</span>}
+          >
+            {approve ? t(selfFunded ? "approveSelfButton" : "approveButton") : t("rejectButton")}
+          </button>
+          <span className="text-xs text-muted">{t("confirmHelp")}</span>
+        </div>
+      )}
+      <div className="space-y-2 rounded-xl border border-line p-3">
+        <label className="block text-sm">
+          {t("note")}
+          <textarea className="input mt-1 h-20" maxLength={2000} value={note} placeholder={t("notePlaceholder")} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="btn-ghost !py-2"
+            disabled={!!busy}
+            onClick={() =>
+              run("rerun", async () => {
+                await send(`/api/admin/crowd/${taskId}/screening`, "POST", note.trim() ? { note: note.trim() } : {});
+                setNote("");
+                setDone(t("requested"));
+              })
+            }
+          >
+            {t("rerun")}
+          </button>
+          <span className="text-xs text-muted">{t("rerunHelp")}</span>
+        </div>
       </div>
-      <p className="text-xs text-muted">{t("rerunHelp")}</p>
-      {err && <p className="text-sm text-err">{err}</p>}
+      {done && <p className="text-xs text-ok">{done}</p>}
+      {err && <p className="text-sm text-err" role="alert">{err}</p>}
     </div>
   );
 }
 
-/** The latest screening result: counts, items not met, platform notes */
-export function ScreeningResult({ screening }: { screening: { decision: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] } }) {
+/** AI screening progress: dimensions done out of all */
+export function ScreeningProgress({ done, total, items }: { done: number; total: number; items: number }) {
+  const t = useTranslations("crowd.screening");
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="space-y-1" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={t("running", { done, total, items })}>
+      <div className="flex items-center gap-2 text-xs">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden />
+        <span>{t("running", { done, total, items })}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-panel-2">
+        <div className="h-full bg-accent transition-all duration-500" style={{ width: `${Math.max(4, pct)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** Refresh the page every few seconds while something on it is still changing */
+export function AutoRefresh({ active, ms = 3000 }: { active: boolean; ms?: number }) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => router.refresh(), ms);
+    return () => clearInterval(id);
+  }, [active, ms, router]);
+  return null;
+}
+
+export function ScreeningResult({ screening }: { screening: { decision: string; aiDecision?: string; passed?: number; failedCount?: number; total?: number; checklistVersion?: number; reasons: string[]; failed?: unknown[]; notes?: { text: string; at: string }[] } }) {
   const t = useTranslations("crowd.screening");
   const failed = screening.failedCount ?? screening.failed?.length ?? 0;
   return (
     <div className="space-y-2 text-sm">
       {screening.total ? <p className="font-semibold">{t("result", { passed: screening.passed ?? 0, failed, total: screening.total, v: screening.checklistVersion ?? 0 })}</p> : null}
-      {screening.decision === "rejected" && screening.reasons.length > 0 && (
+      {(screening.decision === "rejected" || screening.aiDecision === "rejected") && screening.reasons.length > 0 && (
         <details open={screening.reasons.length <= 5}>
           <summary className="cursor-pointer text-err">{t("reasons")}（{screening.reasons.length}）</summary>
           <ul className="mt-1 list-disc space-y-1 pl-5 text-err">

@@ -141,6 +141,7 @@ export default async function TaskPage({ params }: P) {
             <section className="card space-y-2 p-6">
               <p className="text-sm text-warn">{tc("screening.pending")}</p>
               {(task.screening as { decision?: string } | null)?.decision === "pending" && <p className="text-xs text-muted">{tc("screening.waiting")}</p>}
+              {(task.screening as { decision?: string } | null)?.decision === "review" && <p className="text-xs text-muted">{tc("screening.awaitingReview")}</p>}
               {me?.isAdmin && <ScreeningActions taskId={task.id} />}
             </section>
           )}

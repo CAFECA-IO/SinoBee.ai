@@ -346,6 +346,14 @@
       "skill-authoring": {
         "title": "撰寫技能",
         "body": "把做過的流程寫成符合 Agent Skills 標準的新技能，或改進既有技能。"
+      },
+      "anatomy": {
+        "title": "等角技術插圖",
+        "body": "把技術概念畫成精細的互動式等角 SVG 實物圖，附標題、提示與即時讀數，適合文件、部落格與介紹頁。"
+      },
+      "youtube-analysis": {
+        "title": "YouTube 影片分析",
+        "body": "讀取影片資訊、逐字稿與截圖，產出含時間軸大綱、分類分析與事實查核的 Markdown 報告。"
       }
     },
     "howTitle": "技能怎麼運作",
@@ -1555,20 +1563,37 @@
       "done": "已收到檢舉，平台會盡快處理。"
     },
     "screening": {
-      "pending": "提案審核中：worker 會請 AI 依眾籌服務條款的審核項目逐題審核，全部符合即開始眾籌，期限從開始時起算。",
+      "pending": "提案審核中：AI 依眾籌服務條款的審核項目逐題審核，結果經平台覆核後通知你；全部符合即開始（眾籌期限從那時起算）。",
       "rejected": "提案未通過審核：通過 {passed} 項、未通過 {failed} 項（共 {total} 項，第 {v} 版審核項目）。任何一項未通過即不通過，請依下列說明修改後再送出：",
       "reasons": "未通過原因",
-      "rerun": "覆核",
-      "rerunHelp": "管理員無法直接核准或駁回，只能請 AI 再審一次；可補充說明供 AI 參考，結果仍需全部項目符合。",
+      "rerun": "補充說明並請 AI 重審",
+      "rerunHelp": "管理員不能改變 AI 的答案；可補充說明讓 AI 再審一次，結果仍需全部項目符合。",
       "note": "補充說明（選填）",
       "notePlaceholder": "例如：提案中的資料來源皆為政府開放資料，授權為政府資料開放授權條款。",
       "notes": "平台補充說明",
       "queued": "已排入審核，worker 會在數秒內開始。",
-      "waiting": "等待審核模型（會自動重試）",
+      "waiting": "AI 暫時無法完成審核，會自動重試。",
       "result": "通過 {passed} 項、未通過 {failed} 項（共 {total} 項，第 {v} 版）",
       "sentBack": "已退回，待發起人修改",
-      "requested": "已送出覆核",
-      "inProgress": "審核中"
+      "requested": "已請 AI 重審",
+      "inProgress": "審核中",
+      "running": "AI 審核中：已完成 {done}／{total} 個面向（共 {items} 項）",
+      "busyHelp": "AI 審核完成後才能覆核或請 AI 重審。",
+      "aiApprove": "AI 審核結果：全部符合，建議通過",
+      "aiReject": "AI 審核結果：有項目不符合，建議退回",
+      "approveButton": "確認通過並開始眾籌",
+      "approveSelfButton": "確認通過並扣款執行",
+      "rejectButton": "確認退回修改",
+      "confirmHelp": "確認後立即通知提案者。",
+      "approveLabel": "確認通過",
+      "rejectLabel": "確認退回",
+      "confirmApprove": "確認 AI 的審核結果？提案者會收到通知，眾籌立即開始。",
+      "confirmApproveSelf": "確認 AI 的審核結果？提案者會收到通知，並立即向其信用卡扣款、開始執行。",
+      "confirmReject": "確認 AI 的審核結果？提案會退回草稿，提案者會收到未通過的項目與原因。",
+      "approved": "已通過並通知提案者",
+      "sentBackDone": "已退回並通知提案者",
+      "lastError": "上次錯誤：{error}",
+      "awaitingReview": "AI 審核已完成，等待平台覆核後通知你結果。"
     },
     "agreeTerms": "我已閱讀並同意<terms>眾籌服務條款</terms>（含全部提案審核項目）。",
     "myList": "← 我的眾籌",

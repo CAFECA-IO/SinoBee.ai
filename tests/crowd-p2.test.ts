@@ -81,7 +81,7 @@ test("screening: every checklist item must pass; a failed item sends the proposa
   assert.equal(ok.termsVersion, 1, "the proposer agreed to checklist version 1");
 
   const flagged = await submit("Scrape everyone's phone numbers [review]");
-  assert.equal(flagged.status, "DRAFT", "decided by the AI, no admin step");
+  assert.equal(flagged.status, "DRAFT", "the AI's answers decide; the admin only confirmed them");
   assert.equal(flagged.deadlineAt, null, "the period has not started");
   const fs = flagged.screening as { decision: string; failed: { id: string }[]; reasons: string[]; passed: number; total: number };
   assert.equal(fs.decision, "rejected");
@@ -98,9 +98,21 @@ test("screening: every checklist item must pass; a failed item sends the proposa
   let back = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
   assert.equal(back.status, "SCREENING", "queued for the worker");
   assert.equal((back.screening as { decision: string }).decision, "queued");
+  // while the AI is screening the admin cannot confirm or ask again
+  await assert.rejects(screening.confirmScreening(admin.id, flagged.id), /not finished/);
+  await assert.rejects(screening.rerunScreening(admin.id, flagged.id, "again"), /still screening/);
   await screening.screeningTick();
   back = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
+  assert.equal(back.status, "SCREENING", "the AI's result waits for the admin");
+  const waiting = back.screening as { decision: string; aiDecision: string; progress?: unknown };
+  assert.equal(waiting.decision, "review");
+  assert.equal(waiting.aiDecision, "rejected");
+  assert.equal(await db.notification.count({ where: { userId: ann.id, type: "crowd.screening_rejected" } }), 1, "the proposer is not told before the admin confirms");
+  await screening.confirmScreening(admin.id, flagged.id);
+  back = await db.task.findUniqueOrThrow({ where: { id: flagged.id } });
   assert.equal(back.status, "DRAFT", "still not met: sent back again");
+  assert.equal(await db.notification.count({ where: { userId: ann.id, type: "crowd.screening_rejected" } }), 2, "told when the admin confirmed");
+  assert.ok(await db.adminAudit.findFirst({ where: { action: "crowd.screening.confirm", targetId: flagged.id } }));
   const again = back.screening as { notes: { text: string }[]; failedCount: number };
   assert.equal(again.failedCount, 1);
   assert.match(again.notes[0].text, /public service lines/, "the note is kept with the result");
@@ -122,6 +134,8 @@ test("screening: every checklist item must pass; a failed item sends the proposa
   assert.equal(second.status, "DRAFT");
   await screening.rerunScreening(admin.id, second.id, "The station list is published by the Central Weather Administration [clear]");
   assert.equal(await screening.screeningTick(), 1);
+  assert.equal((await db.task.findUniqueOrThrow({ where: { id: second.id } })).status, "SCREENING");
+  await screening.confirmScreening(admin.id, second.id);
   const opened = await db.task.findUniqueOrThrow({ where: { id: second.id } });
   assert.equal(opened.status, "FUNDING");
   assert.equal((opened.screening as { passed: number; total: number; failedCount: number }).failedCount, 0);
@@ -222,7 +236,18 @@ async function screened(p: Promise<{ id: string }>) {
   const { screeningTick } = await import("../src/lib/crowd/screening");
   await screeningTick();
   const { db: d } = await import("../src/lib/db");
+  await confirmAsAdmin(t.id);
   return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}
+
+/** An admin confirms the AI's screening result (the step between the AI and the proposer) */
+async function confirmAsAdmin(taskId: string) {
+  const { db: d } = await import("../src/lib/db");
+  const { confirmScreening } = await import("../src/lib/crowd/screening");
+  const row = await d.task.findUniqueOrThrow({ where: { id: taskId } });
+  if ((row.screening as { decision?: string } | null)?.decision !== "review") return;
+  const reviewer = (await d.user.findFirst({ where: { handle: "screen-admin" } })) ?? (await d.user.create({ data: { account: "0x" + "9".repeat(39) + "1", handle: "screen-admin", role: "ADMIN", isAdmin: true } }));
+  await confirmScreening(reviewer.id, taskId);
 }
 
 /** A saved card of the user (bound through the stub Oen when there is none): every payment charges one */

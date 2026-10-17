@@ -1,7 +1,7 @@
 import { config } from "./config";
 import { HttpError } from "./errors";
 import { currentModels, pricesAt, type ModelPriceView } from "./models";
-import { modelsForJob, type Job } from "./ai-models";
+import { modelCatalogFromApi, modelsForJob, type Job } from "./ai-models";
 
 export type PlatformModel = { modelId: string; provider: string; api: { kind: "openai" | "anthropic"; base: string; key: string }; upstream: string; price: ModelPriceView | null };
 
@@ -13,7 +13,17 @@ const asPlatform = (modelId: string, price: ModelPriceView | null): PlatformMode
 
 /** Offered models whose provider has an API key set in /admin → Settings, in the admin's order (automatic mode) */
 export async function usableModels(): Promise<PlatformModel[]> {
-  return (await currentModels()).map((m) => asPlatform(m.modelId, m)).filter((x): x is PlatformModel => !!x);
+  const catalog = await modelCatalogFromApi();
+  // a model its provider's synced list does not have would only fail (404): skip it
+  const listed = (id: string) => {
+    const [p, ...rest] = id.split("/");
+    const c = catalog[p];
+    return !c?.models.length || c.models.some((m) => m.id === rest.join("/"));
+  };
+  return (await currentModels())
+    .filter((m) => listed(m.modelId))
+    .map((m) => asPlatform(m.modelId, m))
+    .filter((x): x is PlatformModel => !!x);
 }
 
 /**
@@ -58,7 +68,12 @@ class ModelCallError extends Error {
   }
 }
 
-async function callOnce(pm: PlatformModel, system: string, messages: ChatMessage[], maxTokens: number, timeoutMs: number, webSearch = false): Promise<{ text: string; usage: ChatUsage }> {
+type Extras = { webSearch?: boolean; json?: boolean };
+
+async function callOnce(pm: PlatformModel, system: string, messages: ChatMessage[], maxTokens: number, timeoutMs: number, extras: Extras = {}): Promise<{ text: string; usage: ChatUsage }> {
+  const webSearch = !!extras.webSearch && pm.api.kind === "anthropic";
+  // OpenAI-compatible APIs (OpenAI, Gemini, DeepSeek) can be held to one valid JSON object
+  const json = !!extras.json && pm.api.kind === "openai";
   const { api, upstream, provider } = pm;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -77,7 +92,12 @@ async function callOnce(pm: PlatformModel, system: string, messages: ChatMessage
               method: "POST",
               headers: { "content-type": "application/json", authorization: `Bearer ${api.key}` },
               // OpenAI's reasoning models count their thinking as completion tokens
-              body: JSON.stringify({ model: upstream, messages: [{ role: "system", content: system }, ...messages], ...(provider === "openai" ? { max_completion_tokens: maxTokens * 2 } : { max_tokens: maxTokens }) }),
+              body: JSON.stringify({
+                model: upstream,
+                messages: [{ role: "system", content: system }, ...messages],
+                ...(provider === "openai" ? { max_completion_tokens: maxTokens * 2 } : { max_tokens: maxTokens }),
+                ...(json ? { response_format: { type: "json_object" } } : {}),
+              }),
               signal: ctrl.signal,
             });
     } catch (e) {
@@ -109,9 +129,10 @@ const FAILURE_MS = 10 * 60_000;
  * One request for a platform job. The job's models are tried in order (primary, then fallbacks); a model that fails
  * (e.g. a model ID the provider does not know → 404, a rejected key, the provider down) falls through to the next and
  * is tried last for 10 minutes. Throws 503 when no model can be used, 502 with every model's error when all fail.
- * webSearch: let the model search the web where the provider supports it (Anthropic); retried without on refusal.
+ * webSearch: let the model search the web where the provider supports it (Anthropic); json: ask OpenAI-compatible APIs
+ * for one JSON object (response_format). Both are retried without when the API refuses them.
  */
-export async function platformChat(opts: { job: Job; system: string; messages: ChatMessage[]; maxTokens: number; timeoutMs?: number; webSearch?: boolean }): Promise<{ text: string; usage: ChatUsage; modelId: string; price: ModelPriceView | null }> {
+export async function platformChat(opts: { job: Job; system: string; messages: ChatMessage[]; maxTokens: number; timeoutMs?: number; webSearch?: boolean; json?: boolean }): Promise<{ text: string; usage: ChatUsage; modelId: string; price: ModelPriceView | null }> {
   const { models, configured } = await jobModels(opts.job);
   if (!models.length) throw new HttpError(503, configured.length ? `none of the models set for this job (${configured.join(", ")}) has an API key: /admin → Settings → API keys` : NO_PLATFORM_MODEL);
   const now = Date.now();
@@ -121,12 +142,14 @@ export async function platformChat(opts: { job: Job; system: string; messages: C
   for (const pm of order) {
     try {
       let out: { text: string; usage: ChatUsage };
+      const extras: Extras = { webSearch: opts.webSearch, json: opts.json };
+      const usesExtras = (opts.webSearch && pm.api.kind === "anthropic") || (opts.json && pm.api.kind === "openai");
       try {
-        out = await callOnce(pm, opts.system, opts.messages, opts.maxTokens, opts.timeoutMs ?? 240_000, !!opts.webSearch && pm.api.kind === "anthropic");
+        out = await callOnce(pm, opts.system, opts.messages, opts.maxTokens, opts.timeoutMs ?? 240_000, extras);
       } catch (e) {
-        // the web search tool may not be enabled for the account or the model: ask again without it
-        if (!(opts.webSearch && pm.api.kind === "anthropic" && e instanceof ModelCallError && /^4\d\d/.test(e.message))) throw e;
-        out = await callOnce(pm, opts.system, opts.messages, opts.maxTokens, opts.timeoutMs ?? 240_000, false);
+        // web search or JSON mode may not be available for this account or model: ask again without them
+        if (!(usesExtras && e instanceof ModelCallError && /^4(?!01|03|04)\d\d/.test(e.message))) throw e;
+        out = await callOnce(pm, opts.system, opts.messages, opts.maxTokens, opts.timeoutMs ?? 240_000, {});
       }
       failures.delete(pm.modelId);
       if (!pm.price) console.warn("platform model", pm.modelId, "has no price row; the call is not charged");

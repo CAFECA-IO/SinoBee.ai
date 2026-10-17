@@ -105,7 +105,7 @@ test("tiers only take listed models; each job uses its tier: primary first, then
   // an empty tier is automatic: offered models with a key, Model prices order
   const auto = await pm.jobModels("checklist");
   assert.equal(auto.configured.length, 0);
-  assert.ok(auto.models.length > 0 && auto.models.every((m) => m.price?.enabled));
+  assert.ok(auto.models.every((m) => m.price?.enabled), "offered models only");
 });
 
 test("all models of a tier fail: the error names each one with the provider's message; no key: a clear 503", async () => {
@@ -149,4 +149,35 @@ test("synced models are added to Model prices with AI-looked-up prices, withdraw
   assert.throws(() => ai.startPriceLookup(admin.id, ["gemini/gemini-x"]), /already running/);
   for (let i = 0; i < 100 && ai.priceLookupState().state === "running"; i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(ai.priceLookupState().state, "done");
+});
+
+test("automatic mode skips offered models their provider's synced list does not have (no 404 loop)", async () => {
+  await ai.saveTierConfig(admin.id, { tiers: { high: [], standard: [], light: [] }, jobs: { spec: "high", screening: "standard", checklist: "light", pricing: "standard" } });
+  await models.savePrice(admin.id, { modelId: "openai/gpt-good", label: "GPT good", vendor: "OpenAI", usd: { input: 1, cacheRead: 0.1, cacheWrite: 1, output: 4 }, enabled: true });
+  const auto = await pm.jobModels("screening");
+  const ids = auto.models.map((m) => m.modelId);
+  assert.ok(ids.includes("openai/gpt-good"), "a listed, offered model is used");
+  // the default Model prices list has made-up IDs; only listed ones (or providers never synced) remain
+  const catalog = await ai.modelCatalogFromApi();
+  for (const id of ids) {
+    const [p, ...rest] = id.split("/");
+    assert.ok(!catalog[p]?.models.length || catalog[p].models.some((m) => m.id === rest.join("/")), id);
+  }
+  assert.ok(!ids.includes("gemini/gemini-3.1-pro"));
+});
+
+test("screening answers are read even when the JSON is broken (an unescaped quote in a note)", async () => {
+  const { parseAnswers } = await import("../src/lib/crowd/screening");
+  const broken = `{"results": [
+    {"id": "L01", "pass": true, "note": ""},
+    {"id": "L02", "pass": false, "note": "提案提到 "爬取" 個資"},
+    {"id": "L03", "pass": true}
+  ]}`;
+  const a = parseAnswers(broken)!;
+  assert.equal(a.size, 3);
+  assert.equal(a.get("L02")!.pass, false);
+  assert.equal(a.get("L02")!.note, '提案提到 "爬取" 個資');
+  assert.equal(a.get("L03")!.pass, true);
+  assert.equal(parseAnswers("sorry, I cannot help"), null);
+  assert.equal(parseAnswers(`{"results":[{"id":"P01","pass":true,"note":"ok"}]}`)!.get("P01")!.pass, true);
 });

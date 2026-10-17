@@ -346,6 +346,14 @@
       "skill-authoring": {
         "title": "Skill authoring",
         "body": "Turns a procedure into a new Agent Skills skill, or improves an existing one."
+      },
+      "anatomy": {
+        "title": "Isometric explainers",
+        "body": "Draws a technical idea as a detailed, interactive isometric SVG object with a title, hint and live readout, for docs, blogs and landing pages."
+      },
+      "youtube-analysis": {
+        "title": "YouTube video analysis",
+        "body": "Reads a video's metadata, transcript and stills and writes a Markdown report with a timestamped outline, category analysis and fact-check."
       }
     },
     "howTitle": "How skills work",
@@ -1555,20 +1563,37 @@
       "done": "Thanks, the platform will look at it."
     },
     "screening": {
-      "pending": "Under screening: the worker has an AI check every item of the Crowdfunding Terms; the campaign opens as soon as all are met, and its period starts then.",
+      "pending": "Under screening: an AI checks every item of the Crowdfunding Terms, then the platform confirms the result and notifies you; if all are met it starts (a campaign's period starts then).",
       "rejected": "The proposal did not pass screening: {passed} items met, {failed} not met (of {total}, checklist version {v}). Any item not met fails the proposal. Fix the following and submit again:",
       "reasons": "Items not met",
-      "rerun": "Re-review",
-      "rerunHelp": "Admins cannot approve or reject; they can only have the AI review again, optionally with a note it reads as context. Every item must still be met.",
+      "rerun": "Add a note and ask the AI again",
+      "rerunHelp": "Admins cannot change the AI's answers; add a note and the AI screens it again — every item must still be met.",
       "note": "Note for the AI (optional)",
       "notePlaceholder": "For example: every data source in the proposal is government open data under the Open Government Data License.",
       "notes": "Platform notes",
-      "queued": "Queued: the worker starts within seconds.",
-      "waiting": "Waiting for the screening model (retried automatically)",
+      "queued": "Queued; the worker starts in a few seconds.",
+      "waiting": "The AI could not finish the screening; it retries automatically.",
       "result": "{passed} met, {failed} not met (of {total}, version {v})",
       "sentBack": "Sent back to the proposer",
       "requested": "Re-review requested",
-      "inProgress": "In screening"
+      "inProgress": "In screening",
+      "running": "AI screening: {done} of {total} dimensions done ({items} items)",
+      "busyHelp": "You can confirm or ask for a re-review once the AI has finished.",
+      "aiApprove": "AI result: every item met — approve",
+      "aiReject": "AI result: some items not met — send back",
+      "approveButton": "Confirm and open the campaign",
+      "approveSelfButton": "Confirm, charge and start",
+      "rejectButton": "Confirm and send back",
+      "confirmHelp": "The proposer is told at once.",
+      "approveLabel": "Confirm",
+      "rejectLabel": "Send back",
+      "confirmApprove": "Confirm the AI's result? The proposer is notified and the campaign opens now.",
+      "confirmApproveSelf": "Confirm the AI's result? The proposer is notified, their card is charged and the task starts.",
+      "confirmReject": "Confirm the AI's result? The proposal goes back to draft and the proposer gets the failed items and reasons.",
+      "approved": "Approved; the proposer was notified",
+      "sentBackDone": "Sent back; the proposer was notified",
+      "lastError": "Last error: {error}",
+      "awaitingReview": "The AI has finished; the platform will confirm the result and notify you."
     },
     "agreeTerms": "I have read and agree to the <terms>Crowdfunding Terms</terms>, including every proposal screening item.",
     "myList": "← My crowdfunds",

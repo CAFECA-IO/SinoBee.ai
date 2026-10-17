@@ -187,6 +187,8 @@ test("no 180-day period; the proposer can pay the whole goal instead: no fee, ch
 
   const screening = await import("../src/lib/crowd/screening");
   await screening.screenProposal(t.id);
+  assert.equal(await db.payment.count({ where: { taskId: t.id, purpose: "CROWD_PLEDGE" } }), 0, "nothing is charged before an admin confirms the result");
+  await screening.confirmScreening(ann.id, t.id);
   const row = await db.task.findUniqueOrThrow({ where: { id: t.id } });
   assert.equal(row.status, "QUEUED", "charged and queued right after the screening");
   assert.ok(row.fundedAt);

@@ -263,7 +263,18 @@ async function screened(p: Promise<{ id: string }>) {
   const { screeningTick } = await import("../src/lib/crowd/screening");
   await screeningTick();
   const { db: d } = await import("../src/lib/db");
+  await confirmAsAdmin(t.id);
   return d.task.findUniqueOrThrow({ where: { id: t.id } });
+}
+
+/** An admin confirms the AI's screening result (the step between the AI and the proposer) */
+async function confirmAsAdmin(taskId: string) {
+  const { db: d } = await import("../src/lib/db");
+  const { confirmScreening } = await import("../src/lib/crowd/screening");
+  const row = await d.task.findUniqueOrThrow({ where: { id: taskId } });
+  if ((row.screening as { decision?: string } | null)?.decision !== "review") return;
+  const reviewer = (await d.user.findFirst({ where: { handle: "screen-admin" } })) ?? (await d.user.create({ data: { account: "0x" + "9".repeat(39) + "1", handle: "screen-admin", role: "ADMIN", isAdmin: true } }));
+  await confirmScreening(reviewer.id, taskId);
 }
 
 /** A saved card of the user (bound through the stub Oen when there is none): every payment charges one */
