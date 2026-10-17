@@ -12,7 +12,13 @@ import { signContentHash } from "./signing";
 import type { User } from "@/generated/prisma/client";
 
 export const bundleUrl = (publisher: string, name: string, version: string) =>
-  `${config.origin}/api/v1/bundles/${publisher}/${name}/${version}.tar.gz`;
+  `${config.origin}/api/v1/bundles/${publisher}/${name}/${encodeURIComponent(version)}.tar.gz`;
+
+/** Storage key of a version's bundle. Semver build metadata ("1.1.0+main.e948829") is legal, but "+" is not a
+ * storage key character, so it is stored as "_" (two versions differing only there cannot both exist: "_" is
+ * not allowed in a version). */
+export const bundleKeyOf = (publisher: string, name: string, version: string) =>
+  `skills/${publisher}/${name}/${version.replace(/\+/g, "_")}.tar.gz`;
 
 export type PublishResult = { id: string; version: string; status: "pending_review" | "rejected"; content_hash: string; findings: unknown[] };
 
@@ -61,7 +67,7 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
     client: "sinobee.ai-hub",
   };
   const bundle = await buildBundle(fm.name, up.files, manifest);
-  const key = `skills/${user.publisher}/${fm.name}/${version}.tar.gz`;
+  const key = bundleKeyOf(user.publisher!, fm.name, version);
   await putObject(key, bundle, "application/gzip");
 
   const tags = tagsOf(fm);

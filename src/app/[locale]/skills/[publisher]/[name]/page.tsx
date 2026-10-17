@@ -15,9 +15,6 @@ import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 import { ReportRow } from "@/components/report-row";
 import { modelLabels } from "@/lib/models";
-import { BoltchainBadge } from "@/components/boltchain-badge";
-import { SkillMarks, skillMarks } from "@/components/skill-tag";
-import { skillTag } from "@/lib/skills/official";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +37,6 @@ export default async function SkillPage({ params, searchParams }: P) {
   const { locale, publisher, name } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("skill");
-  const tSkills = await getTranslations("skills");
   const labels = await modelLabels();
   const skill = await load(publisher, name);
   if (!skill) notFound();
@@ -60,7 +56,9 @@ export default async function SkillPage({ params, searchParams }: P) {
     }
   })();
   const meta = ((frontmatter as { metadata?: Record<string, string> }).metadata ?? {}) as Record<string, string>;
-  const tag = skillTag(skill, ver);
+  // where a mirrored skill comes from (metadata.sinobee-source, or a homepage/repository key), shown under the title
+  const sourceUrl = [meta["sinobee-source"], meta.repository, meta.homepage].find((u) => u && isHttpUrl(u));
+  const trustVerified = skill.publisher.publisherVerified && ver.status === "APPROVED" && !!ver.signature;
   const [myRating, reports] = await Promise.all([
     me ? db.skillRating.findUnique({ where: { skillId_userId: { skillId: skill.id, userId: me.id } } }) : null,
     db.evaluationReport.findMany({
@@ -82,15 +80,24 @@ export default async function SkillPage({ params, searchParams }: P) {
           <header>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-mono text-3xl font-bold">{skill.name}</h1>
-              <SkillMarks marks={skillMarks(tag, { ...ver, anchorCode: null }, (k) => tSkills(`mark.${k}`))} size="md" />
-              {!["APPROVED", "PENDING_REVIEW"].includes(ver.status) && <StatusBadge status={ver.status} />}
-              {ver.anchorCode && <BoltchainBadge code={ver.anchorCode} title={t("anchorHelp")} />}
+              <span className={`badge ${trustVerified ? "bg-accent-soft text-ok" : "bg-panel-2 text-muted"}`}>{trustVerified ? t("trustVerified") : t("trustCommunity")}</span>
+              <StatusBadge status={ver.status} />
             </div>
             <p className="mt-3 text-lg text-muted">{skill.description}</p>
             <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-muted">
               <span>
                 {t("by")} <b className="text-ink">{publisher}</b> {skill.publisher.publisherVerified && <span className="text-accent">✔</span>}
               </span>
+              {meta.author && (
+                <span>
+                  {t("author")} <b className="text-ink">{meta.author}</b>
+                </span>
+              )}
+              {sourceUrl && (
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline">
+                  {t("source")} ↗
+                </a>
+              )}
               <Stars value={skill.ratingAvg} count={skill.ratingCount} />
               <span>↓ {skill.downloads.toLocaleString()}</span>
               {skill.license && <span>{skill.license}</span>}
@@ -190,7 +197,11 @@ export default async function SkillPage({ params, searchParams }: P) {
               .map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-3">
                   <span className="text-muted">{k}</span>
-                  <span className="truncate text-right" title={String(v)}>{String(v)}</span>
+                  {isHttpUrl(String(v)) ? (
+                    <a href={String(v)} target="_blank" rel="noopener noreferrer" className="truncate text-right text-accent hover:underline" title={String(v)}>{String(v).replace(/^https?:\/\//, "")}</a>
+                  ) : (
+                    <span className="truncate text-right" title={String(v)}>{String(v)}</span>
+                  )}
                 </div>
               ))}
           </div>
@@ -209,4 +220,9 @@ export default async function SkillPage({ params, searchParams }: P) {
       </div>
     </div>
   );
+}
+
+/** Only plain http(s) links from a skill's metadata become anchors (never javascript: and friends) */
+function isHttpUrl(v: string) {
+  return /^https?:\/\/[^\s"'<>]+$/.test(v);
 }

@@ -163,8 +163,7 @@
         "body": "讀懂專案、找出測試失敗的原因、修改並重跑測試；執行中可以隨時補充需求，完成前自動檢查是否真的修好。",
         "prompt": "找出這個專案測試失敗的原因並修好"
       }
-    },
-    "heroAlt": "一群機器蜜蜂在蜂巢裡分頭工作：查資料、寫文件、分析、寫程式、整理檔案"
+    }
   },
   "download": {
     "title": "下載與安裝 SinoBee",
@@ -370,16 +369,11 @@
     "apiDocs": "Hub API 文件",
     "prev": "上一頁",
     "next": "下一頁",
-    "mark": {
-      "official": "官方技能",
-      "verified": "已驗證發布者・已簽章",
-      "community": "社群技能",
-      "approved": "已審核",
-      "pending": "待審核",
-      "boltchain": "已在 Boltchain 存證"
-    }
+    "officialBadge": "官方"
   },
   "skill": {
+    "trustVerified": "官方驗證",
+    "trustCommunity": "社群",
     "by": "發布者",
     "scan": "安全掃描",
     "versions": "版本",
@@ -399,7 +393,9 @@
     "details": "詳細資訊",
     "files": "檔案",
     "anchor": "Boltchain 存證",
-    "anchorHelp": "技能包與 SKILL.md 的雜湊已在 Boltchain 存證，點開可由第三方驗證"
+    "anchorHelp": "技能包與 SKILL.md 的雜湊已在 Boltchain 存證，點開可由第三方驗證",
+    "author": "原作者",
+    "source": "原始出處"
   },
   "submit": {
     "title": "提交技能",
@@ -524,31 +520,25 @@
         "cacheRead": "快取讀取",
         "cacheWrite": "快取寫入",
         "output": "輸出"
-      },
-      "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響委託任務的 token 價格。"
+      }
     },
     "plans": {
-      "help": "輸入月費與用量倍數（30 天可用量 ÷ 月費，以公告價計），系統自動計算可用量、6 小時（L6）與 7 天（L168）額度。公告價已含緩衝係數，方案的獲利倍數 = 緩衝係數 ÷ 用量倍數；請到「價格」調整緩衝係數確保獲利。",
+      "help": "輸入月費與倍率（月費 ÷ 最大成本），系統自動計算最大成本、6 小時（L6）與 7 天（L168）額度。倍率低於 1.5 無法儲存。",
       "code": "代碼",
       "name": "名稱",
       "nameEn": "英文名稱",
       "fee": "月費（TWD）",
-      "multiplier": "用量倍數",
+      "multiplier": "倍率",
       "concurrency": "併發數",
       "sort": "排序",
       "active": "上架",
-      "maxCost": "30 天最大用量（公告價）",
-      "formula": "可用量 = 月費 × 用量倍數，L168 = 可用量 ÷ 4.8，L6 = L168 ÷ 10；tokens 以 {model} 目前的公告價換算（輸入：輸出 = 3：1）。",
+      "maxCost": "30 天最大成本",
+      "formula": "L168 = 最大成本 ÷ 4.8，L6 = L168 ÷ 10；tokens 以最低價模型 {model} 換算（輸入：輸出 = 3：1）。",
+      "tooLow": "月費 ÷ 最大成本必須至少 {min}。",
       "save": "儲存",
       "add": "新增方案",
       "addPlan": "新增方案",
-      "saved": "已儲存",
-      "vendorCost": "原廠成本約 NT$ {twd}",
-      "margin": "獲利倍數",
-      "marginHow": "緩衝係數 {buffer} ÷ 用量倍數 {mult}",
-      "badMult": "用量倍數必須大於 0 且不超過 {max}。",
-      "loss": "目前的緩衝係數下，用滿額度會虧損。緩衝係數至少需 {need} 才打平，{healthy} 以上可保有 50% 利潤。",
-      "thin": "利潤偏低：緩衝係數 {healthy} 以上可保有 50% 利潤。"
+      "saved": "已儲存"
     },
     "audit": {
       "empty": "還沒有紀錄。",
@@ -901,15 +891,14 @@
     "planL168": "每 7 天額度：約 {tokens} tokens",
     "planConcurrency": "同時執行 {n} 個請求",
     "planNoRenew": "不自動續訂，延長時天數累加",
-    "planNote": "額度為滾動計算；tokens 數以 {model} 目前的公告價換算（輸入：輸出 = 3：1），價格調整時隨之更新。改用較便宜的模型可用量較多，較貴的模型則較少。",
+    "planNote": "額度為滾動計算；tokens 數以目前最低價模型 {model} 換算（輸入：輸出 = 3：1），改用其他模型時可用量會較少。",
     "pIn": "輸入",
     "pCacheRead": "快取讀取",
     "pCacheWrite": "快取寫入",
     "pOut": "輸出",
     "tasksTitle": "委託任務",
     "seePlans": "查看訂閱方案",
-    "planBuy": "訂閱",
-    "planUsage": "可使用月費 {mult} 倍的用量（30 天最多 NT${value}，以公告價計）"
+    "planBuy": "訂閱"
   },
   "account": {
     "title": "帳戶設定",
@@ -1145,8 +1134,7 @@
     "current": "目前方案：{plan}，到",
     "grace": "訂閱已到期，寬限期到",
     "stacks": "新的一期從 {date} 開始（接在目前期間之後）。",
-    "startsNow": "付款完成後立即生效，30 天從付款時起算。",
-    "usage": "可使用月費 {mult} 倍的用量"
+    "startsNow": "付款完成後立即生效，30 天從付款時起算。"
   },
   "payReturn": {
     "title": {

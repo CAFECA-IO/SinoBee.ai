@@ -48,3 +48,10 @@ test("token cost splits uncached input, cache reads, cache writes and output", (
   // the published TWD price of that usage equals the sum of the published per-kind prices
   assert.ok(Math.abs(chargeTwd({ tokenUsd: usd, vmUsd: 0, s3Usd: 0 }, 32.5, 1.08) - (0.3 * 70.2 + 0.6 * 3.51 + 0.1 * 87.75 + 0.05 * 351)) < 1e-5);
 });
+
+test("versions with build metadata get a valid storage key and an encoded bundle URL", async () => {
+  const { bundleKeyOf, bundleUrl } = await import("../src/lib/skills/service");
+  assert.equal(bundleKeyOf("cafeca", "anatomy", "1.1.0+main.e948829"), "skills/cafeca/anatomy/1.1.0_main.e948829.tar.gz");
+  assert.match(bundleKeyOf("cafeca", "anatomy", "1.1.0+main.e948829"), /^[A-Za-z0-9._/-]+$/);
+  assert.ok(bundleUrl("cafeca", "anatomy", "1.1.0+main.e948829").endsWith("/cafeca/anatomy/1.1.0%2Bmain.e948829.tar.gz"));
+});
