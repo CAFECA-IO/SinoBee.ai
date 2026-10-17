@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { HEALTHY_MARGIN, MAX_MULTIPLIER, bufferFor, formatPrice, planLimits, planMargin, publishedTwd } from "@/lib/price-math";
+import { confirmDialog } from "./confirm";
 
 const KINDS = ["input", "cacheRead", "cacheWrite", "output"] as const;
 type Kind = (typeof KINDS)[number];
@@ -113,7 +114,7 @@ export function PricingSettingsForm({ fx, buffer, planMultipliers = [] }: { fx: 
         e.preventDefault();
         setErr("");
         setOk(false);
-        if (!confirm(t("settingsConfirm"))) return;
+        if (!(await confirmDialog(t("settingsConfirm")))) return;
         const e2 = await send("/api/admin/prices/settings", "PUT", { fx: Number(f), buffer: Number(b), effectiveAt: isoOrNow(at) });
         if (e2) return setErr(e2);
         setOk(true);
@@ -336,7 +337,7 @@ export function PaymentActions({ id, refundable, provider, status }: { id: strin
             className="btn-danger !py-1"
             disabled={!(Number(amount) >= 1 && Number(amount) <= refundable)}
             onClick={async () => {
-              if (!confirm(t("confirm", { amount }))) return;
+              if (!(await confirmDialog(t("confirm", { amount }), { danger: true }))) return;
               const e = await send(`/api/admin/payments/${id}/refund`, "POST", { amount: Number(amount), reason: reason || undefined });
               if (e) return setErr(e);
               setOpen(false);

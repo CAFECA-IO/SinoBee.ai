@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { SINOBEE_PORT } from "@/lib/links";
+import { confirmDialog } from "./confirm";
 
 export function ShareOwnerActions({ id, visibility, accounts, description = "", thumbnail = null }: { id: string; visibility: string; accounts: string[]; description?: string; thumbnail?: string | null }) {
   const t = useTranslations("share");
@@ -56,7 +57,7 @@ export function ShareOwnerActions({ id, visibility, accounts, description = "", 
         <button
           className="btn-danger"
           onClick={async () => {
-            if (!confirm(t("confirmRevoke"))) return;
+            if (!(await confirmDialog(t("confirmRevoke"), { danger: true }))) return;
             const r = await fetch(`/api/v1/shares/${id}`, { method: "DELETE" });
             if (r.ok) router.refresh();
           }}

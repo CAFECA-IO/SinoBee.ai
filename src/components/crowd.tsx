@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
+import { Icon, type IconName } from "./icon";
 import { Link } from "@/i18n/navigation";
 import { AgreeCheck, AgreeTerms, BuyerFields, CardPicker, PayForm, emptyBuyer, postJson, useCheckout, type Buyer, type CardOpt } from "./checkout";
+import { confirmDialog } from "./confirm";
 
 type ModelOpt = { id: string; label: string; vendor: string };
 
@@ -187,7 +189,7 @@ export function DiscardProposal({ taskId }: { taskId: string }) {
     <button
       className="btn-ghost w-full text-err"
       onClick={async () => {
-        if (!confirm(t("confirmDiscard"))) return;
+        if (!(await confirmDialog(t("confirmDiscard"), { danger: true }))) return;
         await fetch(`/api/tasks/${taskId}/close`, { method: "POST" });
         router.push("/tasks?mine=1");
       }}
@@ -621,7 +623,10 @@ export function InputFiles({ taskId, files, editable }: { taskId: string; files:
           <li key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-line p-3 text-sm">
             <a className="min-w-0 flex-1 truncate font-mono text-xs text-accent" href={`/api/crowd/${taskId}/files/${f.id}`}>{f.filename}</a>
             <span className="text-xs text-muted">{(f.sizeBytes / 1048576).toFixed(2)} MB</span>
-            <span className="chip">{t(`vis.${f.visibility}`)}</span>
+            <span className="chip inline-flex items-center gap-1" title={t(`visHelp.${f.visibility}`)}>
+              <Icon name={VIS_ICON[f.visibility] ?? "eye"} className="h-3.5 w-3.5" />
+              {t(`vis.${f.visibility}`)}
+            </span>
             {editable && (
               <button
                 className="text-xs text-err"
@@ -656,16 +661,60 @@ export function InputFiles({ taskId, files, editable }: { taskId: string; files:
           }}
         >
           <input type="file" name="file" className="input flex-1" required />
-          <select className="input w-auto" value={vis} onChange={(e) => setVis(e.target.value)}>
-            {["PUBLIC", "BACKERS", "AGENT"].map((v) => (
-              <option key={v} value={v}>{t(`vis.${v}`)}</option>
-            ))}
-          </select>
+          <VisibilityPicker value={vis} onChange={setVis} />
           <button className="btn-primary !py-2" disabled={busy}>{busy ? t("uploading") : t("upload")}</button>
         </form>
       )}
       <p className="text-xs text-muted">{t("used", { used: used.toFixed(1) })}</p>
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
+    </div>
+  );
+}
+
+const VISIBILITIES = ["PUBLIC", "BACKERS", "AGENT"] as const;
+const VIS_ICON: Record<string, IconName> = { PUBLIC: "globe", BACKERS: "users", AGENT: "bot" };
+
+/** Who can see an uploaded file: three icon buttons (a radio group; arrow keys move, the name shows on hover) */
+function VisibilityPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useTranslations("crowd.files");
+  const move = (dir: number) => {
+    const i = VISIBILITIES.indexOf(value as (typeof VISIBILITIES)[number]);
+    const next = VISIBILITIES[(i + dir + VISIBILITIES.length) % VISIBILITIES.length];
+    onChange(next);
+    document.getElementById(`vis-${next}`)?.focus();
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        role="radiogroup"
+        aria-label={t("visLabel")}
+        className="inline-flex gap-1 rounded-xl border border-line bg-panel p-1"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") (e.preventDefault(), move(1));
+          if (e.key === "ArrowLeft" || e.key === "ArrowUp") (e.preventDefault(), move(-1));
+        }}
+      >
+        {VISIBILITIES.map((v) => (
+          <button
+            key={v}
+            id={`vis-${v}`}
+            type="button"
+            role="radio"
+            aria-checked={value === v}
+            aria-label={t(`vis.${v}`)}
+            data-tip={t(`vis.${v}`)}
+            tabIndex={value === v ? 0 : -1}
+            className={`icon-btn ${value === v ? "on" : ""}`}
+            onClick={() => onChange(v)}
+          >
+            <Icon name={VIS_ICON[v]} className="h-5 w-5" />
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-muted" aria-live="polite">
+        <span className="font-semibold text-ink">{t(`vis.${value}`)}</span>
+        <span className="hidden sm:inline">・{t(`visHelp.${value}`)}</span>
+      </span>
     </div>
   );
 }
@@ -690,7 +739,7 @@ export function OpenFunding({ taskId, durations, p90, price, gaps, paid }: { tas
       className="space-y-4"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!confirm(t("confirm"))) return;
+        if (!(await confirmDialog(t("confirm"), { confirmLabel: t("submit") }))) return;
         setBusy(true);
         setErr("");
         try {
@@ -854,7 +903,7 @@ export function PledgePanel({
                 <button
                   className="text-xs text-err"
                   onClick={async () => {
-                    if (!confirm(t("confirmWithdraw"))) return;
+                    if (!(await confirmDialog(t("confirmWithdraw"), { danger: true }))) return;
                     await fetch(`/api/crowd/pledges/${p.id}`, { method: "DELETE" });
                     router.refresh();
                   }}
@@ -885,7 +934,7 @@ export function CardManager({ cards }: { cards: { id: string; last4: string | nu
           <button
             className="text-xs text-err"
             onClick={async () => {
-              if (!confirm(t("confirmRemove"))) return;
+              if (!(await confirmDialog(t("confirmRemove"), { danger: true }))) return;
               setErr("");
               try {
                 await send(`/api/cards/${c.id}`, "DELETE");
@@ -943,7 +992,7 @@ export function CloseCrowdTask({ taskId }: { taskId: string }) {
       className="btn-ghost w-full"
       disabled={busy}
       onClick={async () => {
-        if (!confirm(t("confirmClose"))) return;
+        if (!(await confirmDialog(t("confirmClose"), { danger: true }))) return;
         setBusy(true);
         await fetch(`/api/tasks/${taskId}/close`, { method: "POST" });
         router.refresh();
@@ -997,7 +1046,7 @@ export function DisputeActions({ taskId }: { taskId: string }) {
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const decide = async (decision: "accept" | "refund") => {
-    if (!confirm(t("confirm"))) return;
+    if (!(await confirmDialog(t("confirm"), { danger: decision === "refund" }))) return;
     setErr("");
     try {
       await send(`/api/admin/crowd/${taskId}/resolve`, "POST", { decision, note: note || undefined });

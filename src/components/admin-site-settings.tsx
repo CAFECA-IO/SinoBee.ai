@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Icon } from "./icon";
+import { confirmDialog } from "./confirm";
 
 export type SettingItem = {
   key: string;
@@ -242,7 +243,7 @@ function Field({ item, canEdit, value, error, onChange, onClear }: { item: Setti
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">{input}</div>
           {canEdit && !locked && item.source === "db" && !item.generated && (
-            <button type="button" className="icon-btn" onClick={() => confirm(t("confirmClear")) && onClear()} aria-label={t("clear")} data-tip={t("clear")}>
+            <button type="button" className="icon-btn" onClick={async () => (await confirmDialog(t("confirmClear"), { danger: true })) && onClear()} aria-label={t("clear")} data-tip={t("clear")}>
               <Icon name="x" />
             </button>
           )}
@@ -283,7 +284,7 @@ export function RotateHubKey() {
     <button
       className="btn-ghost !py-1.5"
       onClick={async () => {
-        if (!confirm(t("confirmRotate"))) return;
+        if (!(await confirmDialog(t("confirmRotate"), { danger: true }))) return;
         await post("/api/admin/settings/rotate-hub", {});
         router.refresh();
       }}

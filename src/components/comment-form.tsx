@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { confirmDialog } from "./confirm";
 
 export function CommentForm({ targetType, targetId, parentId, compact, canReference }: { targetType: string; targetId: string; parentId?: string; compact?: boolean; canReference?: boolean }) {
   const t = useTranslations("comments");
@@ -56,7 +57,7 @@ export function DeleteComment({ id }: { id: string }) {
     <button
       className="text-err/80 hover:text-err"
       onClick={async () => {
-        if (!confirm(t("confirmDelete"))) return;
+        if (!(await confirmDialog(t("confirmDelete"), { danger: true }))) return;
         await fetch(`/api/comments?id=${id}`, { method: "DELETE" });
         router.refresh();
       }}

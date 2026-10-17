@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { confirmDialog } from "./confirm";
 
 type Item = { id: string; dimension: string; zh: string; en: string };
 
@@ -112,7 +113,7 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
           <button className="btn-ghost !py-2" disabled={!!busy || !dirty} onClick={() => run("save", async () => { const r = await send("/api/admin/checklist", "PUT", { items }); setItems(r.items); setDirty(false); router.refresh(); })}>
             {t("save")}
           </button>
-          <button className="btn-ghost !py-2 text-err" disabled={!!busy} onClick={() => run("discard", async () => { if (!confirm(t("confirmDiscard"))) return; await send("/api/admin/checklist", "DELETE"); router.refresh(); location.reload(); })}>
+          <button className="btn-ghost !py-2 text-err" disabled={!!busy} onClick={() => run("discard", async () => { if (!(await confirmDialog(t("confirmDiscard"), { danger: true }))) return; await send("/api/admin/checklist", "DELETE"); router.refresh(); location.reload(); })}>
             {t("discard")}
           </button>
         </div>
@@ -123,7 +124,7 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
             disabled={!!busy || dirty || problems.length > 0 || !note.trim()}
             onClick={() =>
               run("publish", async () => {
-                if (!confirm(t("confirmPublish"))) return;
+                if (!(await confirmDialog(t("confirmPublish")))) return;
                 const r = await send("/api/admin/checklist/publish", "POST", { note });
                 setNote("");
                 alert(t("published", { v: r.version }));

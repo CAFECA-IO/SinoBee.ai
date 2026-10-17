@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { confirmDialog } from "./confirm";
 
 export function ToolOwnerActions({ name, visibility }: { name: string; visibility: "PUBLIC" | "PRIVATE" }) {
   const t = useTranslations("tools");
@@ -26,7 +27,7 @@ export function ToolOwnerActions({ name, visibility }: { name: string; visibilit
         <button
           className="btn-ghost text-err"
           onClick={async () => {
-            if (confirm(t("confirmDelete")) && (await call("DELETE"))) router.push("/account#tools");
+            if ((await confirmDialog(t("confirmDelete"), { danger: true })) && (await call("DELETE"))) router.push("/account#tools");
           }}
         >
           {t("delete")}

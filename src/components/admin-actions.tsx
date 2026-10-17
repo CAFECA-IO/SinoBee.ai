@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { confirmDialog } from "./confirm";
 
 export function ReviewActions({ versionId, approved }: { versionId: string; approved: boolean }) {
   const t = useTranslations("admin");
@@ -20,7 +21,7 @@ export function ReviewActions({ versionId, approved }: { versionId: string; appr
       <input className="input max-w-sm" placeholder={t("note")} value={note} onChange={(e) => setNote(e.target.value)} />
       {!approved && <button className="btn-primary" onClick={() => act("approve")}>{t("approve")}</button>}
       {!approved && <button className="btn-ghost" onClick={() => act("reject")}>{t("reject")}</button>}
-      <button className="btn-danger" onClick={() => confirm(t("confirmRevoke")) && act("revoke")}>{t("revoke")}</button>
+      <button className="btn-danger" onClick={async () => (await confirmDialog(t("confirmRevoke"), { danger: true })) && act("revoke")}>{t("revoke")}</button>
       {err && <span className="text-sm text-err">{err}</span>}
     </div>
   );
@@ -72,7 +73,7 @@ export function ReportActions({ reportId, targetType, targetId }: { reportId: st
   };
   return (
     <div className="flex gap-2">
-      <button className="btn-danger" onClick={() => confirm(t("confirmTakedown")) && act(true)}>{t("takedown")}</button>
+      <button className="btn-danger" onClick={async () => (await confirmDialog(t("confirmTakedown"), { danger: true })) && act(true)}>{t("takedown")}</button>
       <button className="btn-ghost" onClick={() => act(false)}>{t("dismiss")}</button>
     </div>
   );

@@ -1325,6 +1325,12 @@
         "PUBLIC": "Public",
         "BACKERS": "Backers only",
         "AGENT": "Agent only"
+      },
+      "visLabel": "Who can see this file",
+      "visHelp": {
+        "PUBLIC": "anyone can download it",
+        "BACKERS": "backers and the agent",
+        "AGENT": "only the agent running the task"
       }
     },
     "open": {
@@ -1618,5 +1624,10 @@
     "help": "Shows a TEST ribbon on the home page and in the admin, and sends payments and card bindings to Oen's testing environment (test cards only); test payments are left out of revenue.",
     "confirmOn": "Turn test mode on? Payments will go to Oen's testing environment and people need to bind test cards.",
     "confirmOff": "Turn test mode off? Payments will be real again; cards bound during the test cannot be used."
+  },
+  "confirmDialog": {
+    "title": "Please confirm",
+    "ok": "Confirm",
+    "cancel": "Cancel"
   }
 }

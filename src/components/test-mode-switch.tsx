@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { confirmDialog } from "./confirm";
 
 /** Admin: turn test mode on or off (super admins; others see the state) */
 export function TestModeSwitch({ on, canChange }: { on: boolean; canChange: boolean }) {
@@ -28,7 +29,7 @@ export function TestModeSwitch({ on, canChange }: { on: boolean; canChange: bool
         disabled={!canChange || busy}
         onChange={async (e) => {
           const next = e.target.checked;
-          if (!confirm(next ? t("confirmOn") : t("confirmOff"))) return;
+          if (!(await confirmDialog(next ? t("confirmOn") : t("confirmOff")))) return;
           setBusy(true);
           setErr("");
           const r = await fetch("/api/admin/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "site.testMode", value: next ? "1" : "0" }) });

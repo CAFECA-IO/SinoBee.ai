@@ -7,6 +7,7 @@ import { config } from "@/lib/config";
 import { CafecaProvider } from "@/components/cafeca-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { ConfirmHost } from "@/components/confirm";
 import { TestRibbon } from "@/components/test-ribbon";
 import { ClickGuard } from "@/components/click-guard";
 import "../globals.css";
@@ -46,6 +47,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
             </div>
             <ClickGuard />
             <TestRibbon />
+            <ConfirmHost />
           </CafecaProvider>
         </NextIntlClientProvider>
       </body>
