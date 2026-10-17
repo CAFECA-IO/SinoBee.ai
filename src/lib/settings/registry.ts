@@ -146,7 +146,6 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.blockMb", env: "CROWD_FILE_BLOCK_MB", type: "number", group: "crowd", default: "50", label: L("超額計費單位（MB）", "Extra space block (MB)"), help: L("每個單位扣 1 份提案額度", "Each block uses one share of proposal credit") },
   { key: "crowd.maxFileMb", env: "CROWD_MAX_FILE_MB", type: "number", group: "crowd", default: "500", label: L("參考檔案上限（MB）", "Reference files limit (MB)") },
   { key: "crowd.chargeGraceDays", env: "CROWD_CHARGE_GRACE_DAYS", type: "number", group: "crowd", default: "3", label: L("扣款失敗寬限天數", "Failed charge grace (days)") },
-  { key: "crowd.specModel", env: "CROWD_SPEC_MODEL", type: "text", group: "crowd", default: "", label: L("平台 AI 模型（規格產生、提案審核、審核清單）", "Platform AI model (specs, screening, checklist)"), help: L("填模型代號，例如 openai/gpt-5；留空或該模型沒有 API 金鑰時，自動使用「模型定價」中第一個已設定 API 金鑰的上架模型", "A model id, e.g. openai/gpt-5. Empty, or when that model's provider has no key: the first offered model (Model prices order) whose provider has an API key") },
   { key: "crowd.quotaPeriodShare", env: "CROWD_QUOTA_PERIOD_SHARE", type: "number", group: "crowd", default: "0.2", label: L("每期額度出資上限（占方案用量比例）", "Quota pledges per period (share of plan usage)") },
   { key: "crowd.quotaTaskShare", env: "CROWD_QUOTA_TASK_SHARE", type: "number", group: "crowd", default: "0.5", label: L("每任務額度出資上限（占目標比例）", "Quota pledges per task (share of goal)") },
   { key: "crowd.reviewDays", env: "CROWD_REVIEW_DAYS", type: "number", group: "crowd", default: "7", label: L("驗收投票天數", "Acceptance vote (days)") },

@@ -3,7 +3,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { currentModels, type ModelPriceView } from "../models";
 import { costTwd } from "../llm/quota";
-import { NO_PLATFORM_MODEL, platformChat, usableModels, type ChatMessage, type ChatUsage } from "../platform-model";
+import { NO_PLATFORM_MODEL, jobHasModel, platformChat, type ChatMessage, type ChatUsage } from "../platform-model";
 import type { Prisma } from "@/generated/prisma/client";
 import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
 import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
@@ -65,14 +65,15 @@ function systemPrompt(task: DraftTask, model: ModelPriceView | undefined, spec: 
 type Usage = ChatUsage;
 
 /** The platform model (falling back to the next usable one on errors); the development stand-in when no key is set */
-async function callModel(system: string, messages: ChatMessage[]): Promise<{ text: string; usage: Usage; model: ModelPriceView | null }> {
-  if (!(await usableModels()).length) {
+async function callModel(system: string, messages: ChatMessage[]): Promise<{ text: string; usage: Usage; price: ModelPriceView | null }> {
+  if (!(await jobHasModel("spec"))) {
     if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
     // the development stand-in answers at once; tests can slow it down to watch a running job
     if (process.env.SPEC_MOCK_DELAY_MS) await new Promise((r) => setTimeout(r, Number(process.env.SPEC_MOCK_DELAY_MS)));
-    return { ...mockReply(messages), model: null };
+    const first = (await currentModels())[0] ?? null;
+    return { ...mockReply(messages), price: first };
   }
-  return platformChat({ system, messages, maxTokens: MAX_OUTPUT });
+  return platformChat({ job: "spec", system, messages, maxTokens: MAX_OUTPUT });
 }
 
 /** Development stand-in when no model key is configured (never in production) */
@@ -196,9 +197,8 @@ async function ask(task: Task, chat: ChatTurn[], message: string) {
   const skill = task.skillVersionId ? (await db.skillVersion.findUnique({ where: { id: task.skillVersionId }, include: { skill: true } }))?.skill.name : null;
   const messages = [...chat.map((c) => ({ role: c.role, content: c.content })), { role: "user" as const, content: message }];
   // the model configured for the platform (or the next one with an API key that works), never a fixed vendor
-  const { text: answer, usage, model } = await callModel(systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
-  const priced = model ?? models[0];
-  const cost = priced ? costTwd(priced.twd, usage) : 0;
+  const { text: answer, usage, price } = await callModel(systemPrompt({ ...task, skill }, models.find((m) => m.modelId === task.model), current), messages);
+  const cost = price ? costTwd(price.twd, usage) : 0;
   // the call already happened: charge it even if it takes the credit slightly below zero
   await useCredit(task.id, cost, { allowOverdraw: true });
   return { parsed: parseAnswer(answer), cost, current };

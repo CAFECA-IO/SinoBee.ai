@@ -2,7 +2,7 @@ import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
 import { notify } from "../notify";
-import { platformChat, usableModels } from "../platform-model";
+import { jobHasModel, platformChat } from "../platform-model";
 import { addDays } from "../retention";
 import { audit } from "../roles";
 import type { Prisma, Task } from "@/generated/prisma/client";
@@ -58,7 +58,7 @@ async function askDimension(task: Task, items: ChecklistItem[], notes: ReviewerN
   ].join("\n");
   const reviewer = notes.length ? `\n\nPlatform reviewer's notes:\n${notes.map((n) => `- ${n.text}`).join("\n")}` : "";
   const user = `Checklist:\n${items.map((i) => `${i.id}: ${i.en}`).join("\n")}\n\nProposal (JSON):\n${proposal}${reviewer}`;
-  const { text: out } = await platformChat({ system, messages: [{ role: "user", content: user }], maxTokens: 4000, timeoutMs: 180_000 });
+  const { text: out } = await platformChat({ job: "screening", system, messages: [{ role: "user", content: user }], maxTokens: 4000, timeoutMs: 180_000 });
   const parsed = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)) as { results?: { id?: unknown; pass?: unknown; note?: unknown }[] };
   const byId = new Map((parsed.results ?? []).map((x) => [String(x.id), x]));
   // an item the model skipped counts as not passed
@@ -70,7 +70,7 @@ async function askDimension(task: Task, items: ChecklistItem[], notes: ReviewerN
 
 /** Every checklist item for this proposal; null when no model can be used right now */
 async function aiScreen(task: Task, items: ChecklistItem[], notes: ReviewerNote[]): Promise<ItemResult[] | null> {
-  if (!(await usableModels()).length) {
+  if (!(await jobHasModel("screening"))) {
     if (process.env.NODE_ENV === "production") return null;
     // development stand-in: everything passes unless the proposal is marked [review] (a reviewer note with [clear] clears it)
     const flagged = `${task.title}\n${task.prompt}`.includes("[review]") && !notes.some((n) => n.text.includes("[clear]"));

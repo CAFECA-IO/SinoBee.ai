@@ -274,9 +274,6 @@ export const config = {
     get chargeGraceDays() {
       return svNum("crowd.chargeGraceDays");
     },
-    get specModel() {
-      return sv("crowd.specModel");
-    },
     get quotaPeriodShare() {
       return svNum("crowd.quotaPeriodShare");
     },

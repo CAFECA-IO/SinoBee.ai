@@ -472,7 +472,8 @@
       "overview": "總覽",
       "disputes": "眾籌爭議",
       "screening": "提案審核",
-      "checklist": "審核清單"
+      "checklist": "審核清單",
+      "ai": "AI 模型"
     },
     "st": {
       "enabled": "啟用",
@@ -545,7 +546,10 @@
         "cacheWrite": "快取寫入",
         "output": "輸出"
       },
-      "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響眾籌任務的 token 價格。"
+      "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響眾籌任務的 token 價格。",
+      "unknownIds": "以下上架模型不在供應商的模型清單中，呼叫會失敗（404）：{models}。請更正代號或下架。",
+      "syncHint": "模型代號請以供應商清單為準：",
+      "syncLink": "AI 模型 → 從供應商同步"
     },
     "plans": {
       "help": "輸入月費與用量倍數（30 天可用量 ÷ 月費，以公告價計），系統自動計算可用量、6 小時（L6）與 7 天（L168）額度。公告價已含緩衝係數，方案的獲利倍數 = 緩衝係數 ÷ 用量倍數；請到「價格」調整緩衝係數確保獲利。",
@@ -721,6 +725,51 @@
           "fix": "用戶都更新 SinoBee 後，開啟「要求裝置簽章」。"
         }
       }
+    },
+    "ai": {
+      "catalogTitle": "供應商模型清單",
+      "catalogHelp": "直接向各家 API（GET /models）取得目前可用的模型代號，等級設定只能選清單中的模型。新增或更換 API 金鑰後請重新同步。",
+      "sync": "從供應商同步",
+      "syncing": "同步中…",
+      "synced": "已同步",
+      "noKey": "未設定 API 金鑰",
+      "notSynced": "尚未同步",
+      "modelCount": "{n} 個模型",
+      "tiersTitle": "平台模型等級",
+      "tiersHelp": "每個等級依序設定主要模型與備援模型：主要模型失敗（例如模型代號不存在、金鑰失效、供應商故障）時依序改用備援。主要模型留空＝自動（使用「模型定價」中第一個有金鑰的上架模型，再依序備援）。",
+      "syncFirst": "請先從供應商同步模型清單。",
+      "tier": {
+        "high": "高階",
+        "standard": "標準",
+        "light": "輕量"
+      },
+      "primary": "主要模型",
+      "fallback": "備援 {n}",
+      "auto": "（自動）",
+      "none": "（無）",
+      "notListed": "（不在供應商清單）",
+      "unpricedMark": "・未定價",
+      "jobsTitle": "各項工作使用的等級",
+      "job": {
+        "spec": "眾籌規格產生與對話",
+        "screening": "提案審核",
+        "checklist": "審核清單 AI 編輯",
+        "pricing": "AI 查詢模型價格"
+      },
+      "save": "儲存",
+      "saved": "已儲存",
+      "missingPrices": "以下模型尚未定價，平台使用時無法計費：{models}",
+      "lookUpThese": "用 AI 查價並加入模型定價",
+      "addTitle": "加入模型定價（AI 查價）",
+      "addHelp": "勾選供應商清單中尚未定價的模型，由平台 AI（「AI 查詢模型價格」的等級，可搜尋網路時會搜尋官方價目）查詢官方價格後加入「模型定價」。新加入的模型先設為下架，請在模型定價核對價格後再上架。",
+      "lookingUp": "AI 查價中：{models}（可能需要一兩分鐘，可離開此頁）",
+      "lookUp": "AI 查價並加入（{n}）",
+      "allPriced": "供應商清單中的模型都已定價。",
+      "model": "模型",
+      "usd": "USD／百萬 tokens（輸入／快取讀／快取寫／輸出）",
+      "note": "說明",
+      "notFound": "AI 查不到價格，已以 0 加入，請手動填寫",
+      "checkPrices": "已加入模型定價（下架）。請到「模型定價」核對後上架。"
     }
   },
   "hubApi": {

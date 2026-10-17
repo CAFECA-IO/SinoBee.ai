@@ -472,7 +472,8 @@
       "overview": "Overview",
       "disputes": "Crowdfunding disputes",
       "screening": "Proposal review",
-      "checklist": "Screening checklist"
+      "checklist": "Screening checklist",
+      "ai": "AI models"
     },
     "st": {
       "enabled": "Enabled",
@@ -545,7 +546,10 @@
         "cacheWrite": "Cache write",
         "output": "Output"
       },
-      "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for crowdfunded tasks."
+      "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for crowdfunded tasks.",
+      "unknownIds": "These offered models are not in their provider's model list and will fail (404): {models}. Fix the IDs or withdraw them.",
+      "syncHint": "Use model IDs from the provider lists:",
+      "syncLink": "AI models → Sync from providers"
     },
     "plans": {
       "help": "Enter the fee and the usage multiplier (30-day usage ÷ fee, at published prices); the allowance and the 6-hour (L6) and 7-day (L168) limits are calculated. Published prices include the buffer, so a plan's margin = buffer ÷ usage multiplier — keep it profitable with the buffer under Prices.",
@@ -721,6 +725,51 @@
           "fix": "Once users have updated SinoBee, turn on Require device signatures."
         }
       }
+    },
+    "ai": {
+      "catalogTitle": "Provider model lists",
+      "catalogHelp": "Model IDs as each provider's API (GET /models) lists them; tiers can only use listed models. Sync again after adding or changing an API key.",
+      "sync": "Sync from providers",
+      "syncing": "Syncing…",
+      "synced": "Synced",
+      "noKey": "No API key",
+      "notSynced": "Not synced yet",
+      "modelCount": "{n} models",
+      "tiersTitle": "Platform model tiers",
+      "tiersHelp": "Each tier has a primary model and fallbacks, tried in order when the primary fails (unknown model ID, rejected key, provider down). Primary left empty = automatic (the first offered model with a key in Model prices, then the next).",
+      "syncFirst": "Sync the provider model lists first.",
+      "tier": {
+        "high": "High",
+        "standard": "Standard",
+        "light": "Light"
+      },
+      "primary": "Primary",
+      "fallback": "Fallback {n}",
+      "auto": "(automatic)",
+      "none": "(none)",
+      "notListed": "(not in the provider's list)",
+      "unpricedMark": "· no price",
+      "jobsTitle": "Tier per job",
+      "job": {
+        "spec": "Crowdfunding spec drafting and dialogue",
+        "screening": "Proposal screening",
+        "checklist": "Checklist AI edits",
+        "pricing": "AI model price lookup"
+      },
+      "save": "Save",
+      "saved": "Saved",
+      "missingPrices": "These models have no price yet, so the platform's calls cannot be charged: {models}",
+      "lookUpThese": "Look up prices with AI and add them",
+      "addTitle": "Add to Model prices (AI price lookup)",
+      "addHelp": "Pick listed models that have no price; the platform AI (the tier for \"AI model price lookup\"; with web search where available) looks up the official prices and adds them to Model prices. New models are added withdrawn: check the prices in Model prices before offering them.",
+      "lookingUp": "Looking up prices: {models} (may take a minute or two; you can leave this page)",
+      "lookUp": "Look up and add ({n})",
+      "allPriced": "Every listed model has a price.",
+      "model": "Model",
+      "usd": "USD per 1M tokens (input / cache read / cache write / output)",
+      "note": "Note",
+      "notFound": "Price not found; added at 0, fill it in by hand",
+      "checkPrices": "Added to Model prices (withdrawn). Check them in Model prices, then offer them."
     }
   },
   "hubApi": {

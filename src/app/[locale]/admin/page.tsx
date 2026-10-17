@@ -25,6 +25,8 @@ import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type
 import { oenConfigured } from "@/lib/oen";
 import { config } from "@/lib/config";
 import { Icon } from "@/components/icon";
+import { AiModelsAdmin } from "@/components/admin-ai";
+import { modelCatalogFromApi, tierConfig } from "@/lib/ai-models";
 import { adminCounts, adminStats, settingsHealth } from "@/lib/admin-overview";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,7 @@ export const dynamic = "force-dynamic";
 const NAV = [
   { group: "start", items: [{ id: "overview", icon: "grid" }] },
   { group: "content", items: [{ id: "pending", icon: "hub", count: "pending" }, { id: "approved", icon: "check" }, { id: "tools", icon: "tool", count: "tools" }, { id: "reports", icon: "flag", count: "reports" }, { id: "disputes", icon: "flag", count: "disputes" }, { id: "screening", icon: "eye", count: "screening" }, { id: "checklist", icon: "list" }] },
-  { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }] },
+  { group: "business", items: [{ id: "users", icon: "users" }, { id: "payments", icon: "card", count: "payments" }, { id: "plans", icon: "layers" }, { id: "prices", icon: "pricing" }, { id: "ai", icon: "brain" }] },
   { group: "system", items: [{ id: "settings", icon: "gear", count: "settings" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
 const TABS = NAV.flatMap((g) => g.items.map((i) => i.id));
@@ -60,6 +62,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else if (tab === "users") body = <Users meId={me.id} superAdmin={superAdmin} q={sp.q} />;
   else if (tab === "payments") body = <Payments status={sp.status} />;
   else if (tab === "prices") body = <Prices />;
+  else if (tab === "ai") body = <AiModels />;
   else if (tab === "plans") body = <Plans />;
   else if (tab === "settings") body = <SiteSettings superAdmin={superAdmin} locale={locale} />;
   else body = <Audit />;
@@ -422,11 +425,38 @@ async function Users({ meId, superAdmin, q }: { meId: string; superAdmin: boolea
   );
 }
 
+async function AiModels() {
+  const [c, catalog, rows] = await Promise.all([tierConfig(), modelCatalogFromApi(), pricesAt(new Date(8.64e15))]);
+  const providers = Object.keys(config.llm.providers);
+  return (
+    <AiModelsAdmin
+      tiers={c.tiers}
+      jobs={c.jobs}
+      catalog={catalog}
+      providers={providers}
+      keyed={providers.filter((p) => !!config.llm.providers[p].key)}
+      priced={Object.fromEntries(rows.map((m) => [m.modelId, m.enabled]))}
+    />
+  );
+}
+
 async function Prices() {
   const t = await getTranslations("admin.prices");
-  const [rows, scheduled, s, plans] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings(), listPlans({ activeOnly: true })]);
+  const [rows, scheduled, s, plans, catalog] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings(), listPlans({ activeOnly: true }), modelCatalogFromApi()]);
+  // offered models the provider's own model list does not have (they would fail with 404)
+  const unknown = rows.filter((m) => {
+    const [p, ...rest] = m.modelId.split("/");
+    const c = catalog[p];
+    return m.enabled && c && c.models.length > 0 && !c.models.some((x) => x.id === rest.join("/"));
+  });
   return (
     <div className="space-y-6">
+      {unknown.length > 0 && (
+        <section className="card border-warn p-5 text-sm" role="alert">
+          <p>{t("unknownIds", { models: unknown.map((m) => m.modelId).join(", ") })}</p>
+        </section>
+      )}
+      <p className="text-sm text-muted">{t("syncHint")} <Link href="/admin?tab=ai" className="text-accent underline">{t("syncLink")}</Link></p>
       <section className="card space-y-3 p-5">
         <h2 className="h3">{t("formulaTitle")}</h2>
         <p className="text-sm text-muted">{t("formula", { fx: s.fx, buffer: s.buffer })}</p>
