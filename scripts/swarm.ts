@@ -12,11 +12,13 @@
  *   6. seed the official skills (idempotent)
  *   7. build the site if needed (production mode)
  *   8. start the web server on :10023 and the task worker, with prefixed logs
- * Missing docker images are built (Boltchain node, H3) or pulled (PostgreSQL, Ollama).
+ * Missing docker images are built (Boltchain node, H3) or pulled (PostgreSQL, Ollama). The SinoBee image that tasks
+ * run in is not built at start-up (a missing one is reported); --build builds the latest one.
  *
  * Options:
  *   npm run swarm -- --dev        next dev instead of a production build (hot reload, DEV_LOGIN works)
- *   npm run swarm -- --build      fresh production build, rebuild the Boltchain and H3 images, pull PostgreSQL / Ollama
+ *   npm run swarm -- --build      fresh production build; build the latest SinoBee image (task containers, from
+ *                                 SINOBEE_SRC); rebuild the Boltchain and H3 images; pull PostgreSQL / Ollama
  *   npm run swarm -- --no-worker  web only
  *   npm run swarm -- --no-boltchain   do not start the Boltchain node (storage stays local/S3)
  *   npm run swarm -- --no-postgres    never start PostgreSQL (SQLite unless DATABASE_URL is set)
@@ -33,7 +35,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_CERTIFICATES, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
-import { NETWORK, SERVICE, minimaxH3, ollama, postgres, stopServices } from "./docker-services";
+import { NETWORK, SERVICE, minimaxH3, ollama, postgres, sinobeeImage, stopServices } from "./docker-services";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = new Set(process.argv.slice(2));
@@ -193,7 +195,14 @@ async function main() {
       delete process.env.BOLT_RPC_URL;
     }
   }
-  if (dockerAvailable()) await aiServices();
+  if (dockerAvailable()) {
+    await aiServices();
+    const { sv } = await import("../src/lib/settings/cache");
+    if (sv("runner.mode") !== "mock")
+      await sinobeeImage(sv("runner.image") || "sinobee:latest", (l) => log("docker", l), { build: args.has("--build") }).catch((e) =>
+        log("docker", `SinoBee image not built: ${e instanceof Error ? e.message : e}`),
+      );
+  }
   await run("swarm", bin("tsx"), ["prisma/seed.ts"]);
 
   if (!dev && (args.has("--build") || !existsSync(path.join(root, ".next", "BUILD_ID")))) {

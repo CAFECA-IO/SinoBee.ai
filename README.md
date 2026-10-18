@@ -51,7 +51,7 @@ Runs the whole stack on **http://localhost:10023**: starts the docker services b
 ```bash
 npm run swarm                     # production build + worker on :10023, with every docker service
 npm run swarm -- --dev            # next dev (hot reload, DEV_LOGIN works) + worker
-npm run swarm -- --build          # fresh site build, rebuild the Boltchain and H3 images, pull PostgreSQL and Ollama again
+npm run swarm -- --build          # fresh site build, latest SinoBee image, rebuild the Boltchain and H3 images, pull PostgreSQL and Ollama again
 npm run swarm -- --no-worker      # web only
 npm run swarm -- --no-boltchain   # do not start the Boltchain node
 npm run swarm -- --no-postgres    # never start PostgreSQL (SQLite unless DATABASE_URL is set)
@@ -72,6 +72,7 @@ SWARM_PORT=12345 npm run swarm
 | `sinobee-h3` | ComfyUI with MiniMax H3 (video), for SinoBee.ai | built from `docker/minimax-h3` | `127.0.0.1:8188` | `COMFYUI_URL` |
 
 - **Images.** A missing image is built from source or pulled the first time. `--build` rebuilds or pulls it again. A container whose image or options changed is recreated, and its data volume is kept.
+- **SinoBee image.** Tasks run in the SinoBee image (`runner.image`, default `sinobee:latest`). swarm does not build it at start-up and only reports when it is missing. `--build` builds the latest one from `SINOBEE_SRC` (default `https://github.com/CAFECA-IO/SinoBee.git#main`; a `#tag` or a local folder also works). When the image changed, stopped task containers are removed so the next task starts from the new image; running ones keep the old image until they are removed.
 - **Data.** Each service keeps its data in a named volume: `sinobee-boltchain-data`, `sinobee-postgres-data`, `sinobee-ollama-data` and `sinobee-h3-models`.
 - **Stopping.** The containers stop with the swarm. Set `SWARM_KEEP=1` (or `BOLT_NODE_KEEP=1`) to leave them running.
 - **Without docker** the site runs with SQLite, local storage and no Ollama or H3.
@@ -144,7 +145,7 @@ Keep the models portable: no scalar lists (`String[]`), no raw SQL; use `icontai
 ## Production
 
 ```bash
-# 1. SinoBee image used for user containers
+# 1. SinoBee image used for user containers (or: npm run swarm -- --build)
 git clone https://github.com/CAFECA-IO/SinoBee && docker build -t sinobee:latest SinoBee
 # 2. configure
 cp .env.example .env   # only bootstrap values: PUBLIC_ORIGIN=https://sinobee.ai, OWNER_ACCOUNT, DATABASE_URL

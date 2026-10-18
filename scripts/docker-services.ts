@@ -242,6 +242,32 @@ export async function minimaxH3(root: string, log: Log, opts: { rebuild?: boolea
   return `http://${H3.container}:8188`;
 }
 
+// ---------------- SinoBee image (task containers) ----------------
+
+/** Where the SinoBee image is built from: a git URL (`#ref` picks the branch or tag) or a local folder */
+export const SINOBEE_SRC = process.env.SINOBEE_SRC || "https://github.com/CAFECA-IO/SinoBee.git#main";
+
+/**
+ * The image the worker runs tasks in (setting runner.image, default sinobee:latest). Not built at start-up: with
+ * `build` (swarm --build) it is built from the latest SINOBEE_SRC; otherwise a missing image is only reported.
+ */
+export async function sinobeeImage(image: string, log: Log, opts: { build?: boolean } = {}) {
+  if (!opts.build) {
+    if (!ok(["image", "inspect", image])) log(`SinoBee image ${image} is missing: tasks cannot run until it exists (npm run swarm -- --build builds it)`);
+    return;
+  }
+  const before = docker(["image", "inspect", "-f", "{{.Id}}", image]).stdout.trim();
+  log(`building ${image} from ${SINOBEE_SRC}…`);
+  await streamed(["build", "--pull", "--progress=plain", "-t", image, SINOBEE_SRC], log, (l) => /^#\d+ (\[|DONE|ERROR)|error/i.test(l));
+  const after = docker(["image", "inspect", "-f", "{{.Id}}", image]).stdout.trim();
+  if (before && after !== before) {
+    // task containers are created per user and reused: idle ones are removed so the next task gets the new image
+    const idle = docker(["ps", "-aq", "--filter", "label=ai.sinobee.managed=1", "--filter", "label=ai.sinobee.user", "--filter", "status=exited"]).stdout.split("\n").filter(Boolean);
+    for (const id of idle) docker(["rm", id]);
+    log(`${image} updated${idle.length ? `; removed ${idle.length} stopped task container(s) so they start from it` : ""} (running task containers keep the old image until they are removed)`);
+  } else log(`${image} is up to date`);
+}
+
 /** Stops the services this run started (volumes are kept) */
 export function stopServices(names: string[], log: Log) {
   for (const n of names) if (ok(["stop", "-t", "20", n])) log(`${n} stopped (data kept)`);
