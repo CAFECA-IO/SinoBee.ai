@@ -15,7 +15,7 @@ import { reputation } from "@/lib/crowd/reputation";
 import { normalizeAcceptance, normalizeSpec } from "@/lib/crowd/rules";
 import { pledgeTotals } from "@/lib/crowd/pledges";
 import { crowdMetadata, crowdShare } from "@/lib/crowd/share";
-import { activeCards, pendingBinding } from "@/lib/crowd/cards";
+import { activeCards, cardOpt, pendingBinding } from "@/lib/crowd/cards";
 import { pointBalance } from "@/lib/crowd/points";
 import { canReadFile } from "@/lib/crowd/proposal";
 import { sharePrice } from "@/lib/crowd/rules";
@@ -72,7 +72,7 @@ export default async function TaskPage({ params }: P) {
           mine: mine.map((p) => ({ id: p.id, shares: p.shares, amountTwd: p.amountTwd, source: p.source, status: p.status, returnedTwd: p.returnedTwd })),
           backer: mine.some((p) => ["ACTIVE", "CHARGED"].includes(p.status)),
           files: visible,
-          cards: me ? (await activeCards(me.id)).map((c) => ({ id: c.id, last4: c.last4 })) : [],
+          cards: me ? (await activeCards(me.id)).map(cardOpt) : [],
           pendingCard: me ? !!(await pendingBinding(me.id)) : false,
           points: me ? await pointBalance(me.id) : 0,
           hasQuota: me ? !!(await activeSubscription(me.id)) : false,

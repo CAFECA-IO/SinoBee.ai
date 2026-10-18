@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { cardBrand, isCardBrand, type CardBrand } from "../card-brand";
 import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
@@ -34,7 +35,7 @@ export async function startBinding(userId: string, opts: { returnTo: string; ema
   return { id: card.id, url: b.url };
 }
 
-type TokenNotice = { purpose?: unknown; id?: unknown; success?: unknown; token?: unknown; paymentInfo?: unknown; customId?: unknown; message?: unknown };
+type TokenNotice = { purpose?: unknown; id?: unknown; success?: unknown; token?: unknown; paymentInfo?: unknown; customId?: unknown; message?: unknown; cardType?: unknown; cardBrand?: unknown; brand?: unknown };
 
 /** Apply a token notification (from the webhook, or the mock binding page). Returns what happened. */
 export async function applyTokenNotice(body: TokenNotice): Promise<{ card?: string; status?: string; ignored?: string }> {
@@ -46,10 +47,11 @@ export async function applyTokenNotice(body: TokenNotice): Promise<{ card?: stri
   if (typeof body.customId === "string" && body.customId && body.customId !== card.userId) return { ignored: "customId mismatch" };
   const ok = body.success === true && typeof body.token === "string" && body.token.length >= 8;
   const last4 = typeof body.paymentInfo === "string" ? body.paymentInfo.replace(/\D/g, "").slice(-4) || null : null;
+  const brand = cardBrand(body.cardBrand, body.cardType, body.brand, body.paymentInfo);
   const r = await db.savedCard.updateMany({
     where: { id: card.id, status: "pending" },
     data: ok
-      ? { status: "active", tokenSealed: seal(body.token as string), last4, activatedAt: new Date(), error: null }
+      ? { status: "active", tokenSealed: seal(body.token as string), last4, brand, activatedAt: new Date(), error: null }
       : { status: "failed", error: typeof body.message === "string" ? body.message.slice(0, 200) : "binding failed" },
   });
   if (r.count === 1 && ok) await retryFailedPledges(card.userId);
@@ -65,8 +67,11 @@ async function retryFailedPledges(userId: string) {
   await retryBacker(userId).catch((e) => console.warn("crowd retry", (e as Error).message));
 }
 
+/** What the card pickers show of a saved card */
+export const cardOpt = (c: { id: string; last4: string | null; brand?: string | null }) => ({ id: c.id, last4: c.last4, brand: isCardBrand(c.brand) ? c.brand : (null as CardBrand | null) });
+
 export async function activeCards(userId: string) {
-  return db.savedCard.findMany({ where: { userId, status: "active", sandbox: config.testMode }, orderBy: { activatedAt: "desc" }, select: { id: true, last4: true, activatedAt: true } });
+  return db.savedCard.findMany({ where: { userId, status: "active", sandbox: config.testMode }, orderBy: { activatedAt: "desc" }, select: { id: true, last4: true, brand: true, activatedAt: true } });
 }
 
 export async function latestCard(userId: string) {
@@ -107,11 +112,11 @@ export async function completeMockBinding(userId: string, cardId: string, ok: bo
   if (!card || card.userId !== userId || !simulatedCard(card)) throw new HttpError(404, "card not found");
   // production builds: only test-mode cards may be simulated
   if (!mockAllowed() && !card.sandbox) throw new HttpError(404, "not found");
-  return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "4242" : undefined, customId: userId });
+  return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "424242******4242" : undefined, customId: userId });
 }
 
 /** What a checkout form needs: the cards of the current mode, whether a binding is waiting, test mode */
 export async function checkoutCards(userId: string) {
   const [cards, pending] = await Promise.all([activeCards(userId), pendingBinding(userId)]);
-  return { cards: cards.map((c) => ({ id: c.id, last4: c.last4 })), pendingCard: !!pending, test: config.testMode };
+  return { cards: cards.map(cardOpt), pendingCard: !!pending, test: config.testMode };
 }

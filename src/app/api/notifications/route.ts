@@ -2,11 +2,13 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
+import { pointBalance } from "@/lib/crowd/points";
 
 export const GET = handle(async () => {
   const user = await requireUser();
-  const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
-  return json({ unread });
+  // the user menu polls this: unread notifications and the platform points balance
+  const [unread, points] = await Promise.all([db.notification.count({ where: { userId: user.id, readAt: null } }), pointBalance(user.id)]);
+  return json({ unread, points });
 });
 
 /** mark read: { ids } or { all: true } */

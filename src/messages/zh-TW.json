@@ -20,7 +20,9 @@
     "shares": "分享",
     "tryAgent": "線上試用",
     "menu": "選單",
-    "crowd": "眾籌"
+    "crowd": "眾籌",
+    "points": "平台點數",
+    "pointsBalance": "{n} 點"
   },
   "footer": {
     "tagline": "SinoBee 是一個在你電腦上工作的開源群體智慧 AI 助理：查資料、讀寫檔案、操作瀏覽器與桌面，做完把結果整理成表格、圖表與檔案。",

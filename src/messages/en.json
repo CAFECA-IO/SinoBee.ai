@@ -20,7 +20,9 @@
     "shares": "Shares",
     "tryAgent": "Try online",
     "menu": "Menu",
-    "crowd": "Crowdfund"
+    "crowd": "Crowdfund",
+    "points": "Platform points",
+    "pointsBalance": "{n} pts"
   },
   "footer": {
     "tagline": "SinoBee is an open-source swarm-intelligence assistant that works on your computer: it researches, reads and writes files, drives a browser and desktop, and hands back tables, charts and files.",

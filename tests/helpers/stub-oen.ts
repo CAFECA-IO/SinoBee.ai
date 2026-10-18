@@ -157,7 +157,7 @@ export class StubOen {
       b.token = token;
       this.tokens.set(token, behaviour);
     }
-    return { purpose: "token", merchantId: this.merchant, id: bindingId, transactionId: bindingId, success: ok, token, paymentInfo: ok ? "4242" : undefined, customId: b.customId, message: ok ? "" : "3DS_ABANDONED" };
+    return { purpose: "token", merchantId: this.merchant, id: bindingId, transactionId: bindingId, success: ok, token, paymentInfo: ok ? "424242******4242" : undefined, customId: b.customId, message: ok ? "" : "3DS_ABANDONED" };
   }
 
   /** the webhook body Oen would POST */

@@ -13,15 +13,25 @@ export function UserMenu() {
   const { ready, me, logout } = useCafeca();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [points, setPoints] = useState<number | null>(null);
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
 
+  const load = () =>
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : { unread: 0 }))
+      .then((j) => {
+        setUnread(j.unread ?? 0);
+        if (typeof j.points === "number") setPoints(j.points);
+      })
+      .catch(() => {});
+
   useEffect(() => {
     if (!me) return;
-    const load = () => fetch("/api/notifications").then((r) => (r.ok ? r.json() : { unread: 0 })).then((j) => setUnread(j.unread ?? 0)).catch(() => {});
     load();
     const id = setInterval(load, 60_000);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
   useEffect(() => {
@@ -44,12 +54,20 @@ export function UserMenu() {
         <Icon name="bell" />
         {unread > 0 && <span className="absolute right-0.5 top-0.5 min-w-4 rounded-full bg-err px-1 text-center text-[10px] font-bold leading-4 text-white">{unread > 99 ? "99+" : unread}</span>}
       </Link>
-      <button onClick={() => setOpen(!open)} className={`icon-btn outline tip-end ${open ? "on" : ""}`} aria-label={who} data-tip={open ? undefined : who} aria-expanded={open}>
+      <button
+        onClick={() => {
+          if (!open) load(); // fresh balance (a pledge may have just spent points)
+          setOpen(!open);
+        }} className={`icon-btn outline tip-end ${open ? "on" : ""}`} aria-label={who} data-tip={open ? undefined : who} aria-expanded={open}>
         <Icon name="user" />
       </button>
       {open && (
         <div className="card absolute right-0 top-11 z-50 w-56 p-1.5 shadow-xl">
           <div className="truncate px-3 pb-1.5 pt-1 font-mono text-xs text-muted">{who}</div>
+          <Link href="/account#points" onClick={() => setOpen(false)} className="mb-1 flex items-center gap-2.5 rounded-lg bg-panel-2 px-3 py-2 text-sm hover:bg-accent-soft">
+            <Icon name="coin" className="h-4 w-4 text-accent" /> {t("points")}
+            <span className="ml-auto font-mono font-bold text-accent">{points === null ? "…" : t("pointsBalance", { n: points.toLocaleString() })}</span>
+          </Link>
           {([
             ["/account", t("account"), "user"],
             ["/tasks?mine=1", t("myTasks"), "task"],

@@ -1,0 +1,1 @@
+ALTER TABLE "SavedCard" ADD COLUMN "brand" TEXT;

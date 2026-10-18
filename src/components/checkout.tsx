@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
+import type { CardBrand } from "@/lib/card-brand";
+import { CardBrandMark } from "./card-brand";
+import { Icon } from "./icon";
 
 export type Buyer = {
   name: string;
@@ -124,7 +127,7 @@ export function AgreeTerms() {
   );
 }
 
-export type CardOpt = { id: string; last4: string | null };
+export type CardOpt = { id: string; last4: string | null; brand?: CardBrand | null };
 
 /**
  * Pick a saved card, or bind a new one with Oen (3-D Secure). After binding, Oen confirms the card in the background:
@@ -148,14 +151,44 @@ export function CardPicker({ cards, value, onChange, pending = false, returnTo, 
       <legend className="label">{t("card")}</legend>
       {test && <p className="text-xs text-warn">{t("testCards")}</p>}
       {cards.length === 0 && !pending && <p className="text-sm text-muted">{t("noCard")}</p>}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {cards.map((c) => (
-          <label key={c.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${c.id === value ? "border-accent bg-accent-soft" : "border-line"}`}>
-            <input type="radio" name="card" className="checkbox-plain" checked={c.id === value} onChange={() => onChange(c.id)} />
-            <span className="font-mono">💳 •••• {c.last4 ?? "????"}</span>
-          </label>
-        ))}
-      </div>
+      {cards.length > 0 && (
+        <div
+          role="radiogroup"
+          aria-label={t("card")}
+          className="grid gap-2 sm:grid-cols-2"
+          onKeyDown={(e) => {
+            const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+            if (!dir) return;
+            e.preventDefault();
+            const i = cards.findIndex((c) => c.id === value);
+            const next = cards[(i + dir + cards.length) % cards.length];
+            onChange(next.id);
+            document.getElementById(`card-${next.id}`)?.focus();
+          }}
+        >
+          {cards.map((c) => {
+            const on = c.id === value;
+            return (
+              <button
+                key={c.id}
+                id={`card-${c.id}`}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                tabIndex={on || (!cards.some((x) => x.id === value) && c === cards[0]) ? 0 : -1}
+                onClick={() => onChange(c.id)}
+                className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent-soft" : "border-line hover:border-accent/60"}`}
+              >
+                <CardBrandMark brand={c.brand} />
+                <span className="font-mono tracking-wider">•••• {c.last4 ?? "????"}</span>
+                <span className={`ml-auto grid h-5 w-5 place-items-center rounded-full ${on ? "bg-accent text-accent-ink" : "border border-line"}`} aria-hidden="true">
+                  {on && <Icon name="check" className="h-3.5 w-3.5" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {pending && <p className="text-sm text-muted" aria-live="polite">{t("bindingPending")}</p>}
       <button
         type="button"

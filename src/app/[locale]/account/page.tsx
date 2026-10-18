@@ -11,7 +11,7 @@ import { DeviceList } from "@/components/device-list";
 import { LocalDate } from "@/components/date";
 import { StatusBadge } from "@/components/status-badge";
 import { CardManager } from "@/components/crowd";
-import { activeCards } from "@/lib/crowd/cards";
+import { activeCards, cardOpt } from "@/lib/crowd/cards";
 import { pointBalance, pointHistory } from "@/lib/crowd/points";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +91,7 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
       <section id="cards" className="card space-y-3 p-6">
         <h2 className="h3">{tc("cards")}</h2>
         <p className="text-sm text-muted">{tc("cardsNote")}</p>
-        <CardManager cards={cards.map((c) => ({ id: c.id, last4: c.last4 }))} />
+        <CardManager cards={cards.map(cardOpt)} />
       </section>
 
       <section id="subscription" className="card space-y-3 p-6">

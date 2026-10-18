@@ -6,6 +6,7 @@ import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
 import { Icon, type IconName } from "./icon";
 import { Link } from "@/i18n/navigation";
+import { CardBrandMark } from "./card-brand";
 import { AgreeCheck, AgreeTerms, BuyerFields, CardPicker, PayForm, emptyBuyer, postJson, useCheckout, type Buyer, type CardOpt } from "./checkout";
 import { confirmDialog } from "./confirm";
 
@@ -971,7 +972,7 @@ export function PledgePanel({
 
 // ───────────── saved cards (account) ─────────────
 
-export function CardManager({ cards }: { cards: { id: string; last4: string | null }[] }) {
+export function CardManager({ cards }: { cards: CardOpt[] }) {
   const t = useTranslations("crowd.account");
   const router = useRouter();
   const [err, setErr] = useState("");
@@ -980,7 +981,10 @@ export function CardManager({ cards }: { cards: { id: string; last4: string | nu
       {cards.length === 0 && <p className="text-sm text-muted">{t("noCards")}</p>}
       {cards.map((c) => (
         <div key={c.id} className="flex items-center justify-between rounded-xl border border-line p-3 text-sm">
-          <span className="font-mono">•••• {c.last4 ?? "????"}</span>
+          <span className="flex items-center gap-3">
+            <CardBrandMark brand={c.brand} />
+            <span className="font-mono tracking-wider">•••• {c.last4 ?? "????"}</span>
+          </span>
           <button
             className="text-xs text-err"
             onClick={async () => {

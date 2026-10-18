@@ -148,6 +148,8 @@ test("test mode without Oen test credentials: the built-in test gateway binds an
     assert.match(b.url, /\/pay\/mock-card\//, "SinoBee's own test binding page");
     const r = await cards.completeMockBinding(admin.id, b.id, true);
     assert.equal(r.status, "active");
+    const saved4 = (await cards.activeCards(admin.id)).find((x) => x.id === b.id);
+    assert.deepEqual([saved4?.last4, saved4?.brand], ["4242", "visa"], "network read from the masked number");
     const c = await pay.createPayment({ userId: admin.id, purpose: "SUBSCRIPTION", amountTwd: low.feeTwd, planId: low.id, cardId: b.id, buyer });
     assert.equal(c.status, "CONFIRMED");
     assert.equal(c.provider, "MOCK");

@@ -1093,6 +1093,8 @@ model SavedCard {
   /// sealed with the settings key; null until the notification arrives
   tokenSealed String?
   last4       String?
+  /// card network (visa, mastercard, jcb, amex, unionpay, diners, discover); null when the gateway did not say
+  brand       String?
   /// pending | active | failed | removed
   status      String    @default("pending")
   /// bound in test mode (Oen testing environment): only usable while the site is in test mode
