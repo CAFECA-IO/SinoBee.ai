@@ -24,15 +24,24 @@ test("setEnv replaces the key's line (commented or not), appends new keys and ke
   }
 });
 
-test("task containers get the swarm's service URLs", async () => {
-  process.env.SINOBEE_TASK_SERVICES = "OLLAMA_HOST=http://sinobee-ollama:11434,COMFYUI_URL=http://sinobee-h3:8188,bad=x";
+test("task containers reach the swarm's Ollama / H3 by name on the sinobee network; remote servers are passed on", async () => {
+  const { taskServices, config } = await import("../src/lib/config");
+  assert.deepEqual(taskServices({ OLLAMA_URL: "http://127.0.0.1:11434", COMFYUI_URL: "http://localhost:8188" }), {
+    ollama: "http://sinobee-ollama:11434",
+    comfyui: "http://sinobee-h3:8188",
+    local: true,
+  });
+  assert.deepEqual(taskServices({ OLLAMA_URL: "http://gpu-box:11434/", COMFYUI_URL: "" }), { ollama: "http://gpu-box:11434", comfyui: null, local: false });
+  const saved = { o: process.env.OLLAMA_URL, c: process.env.COMFYUI_URL };
+  process.env.OLLAMA_URL = "http://127.0.0.1:11434";
+  process.env.COMFYUI_URL = "http://127.0.0.1:8188";
   try {
-    const { config } = await import("../src/lib/config");
     const env = Object.fromEntries(config.runner.containerEnv);
+    assert.equal(env.SINOBEE_OLLAMA_URL, "http://sinobee-ollama:11434");
     assert.equal(env.OLLAMA_HOST, "http://sinobee-ollama:11434");
     assert.equal(env.COMFYUI_URL, "http://sinobee-h3:8188");
-    assert.equal(env.bad, undefined);
+    assert.equal(config.runner.network, "sinobee");
   } finally {
-    delete process.env.SINOBEE_TASK_SERVICES;
+    for (const [k, v] of [["OLLAMA_URL", saved.o], ["COMFYUI_URL", saved.c]] as const) if (v === undefined) delete process.env[k]; else process.env[k] = v;
   }
 });

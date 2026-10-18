@@ -9,8 +9,8 @@
  *                     (~76 GB) are downloaded into a volume on its first start. COMFYUI_URL is written to .env.
  *
  * Ollama and H3 are for SinoBee.ai only: published on 127.0.0.1 and attached to the `sinobee` docker network, which
- * the swarm also gives the task containers (RUNNER_NETWORK), so tasks reach them as http://sinobee-ollama:11434 and
- * http://sinobee-h3:8188. Images that are missing are built (H3) or pulled (Postgres, Ollama); --build rebuilds and
+ * the worker also gives the task containers (src/lib/config.ts taskServices), so tasks reach them as
+ * http://sinobee-ollama:11434 and http://sinobee-h3:8188. Images that are missing are built (H3) or pulled (Postgres, Ollama); --build rebuilds and
  * re-pulls them, and a container whose image changed is recreated (its volume is kept).
  */
 import { spawn, spawnSync } from "node:child_process";

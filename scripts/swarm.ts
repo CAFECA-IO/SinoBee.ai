@@ -136,10 +136,8 @@ async function aiServices() {
   }
   if (!task.length) return;
   const { sv } = await import("../src/lib/settings/cache");
-  // for this run: task containers on the services' network, told where the services are
-  if (!sv("runner.network")) process.env.RUNNER_NETWORK = NETWORK;
+  // task containers use the services' network unless one is configured (src/lib/config.ts taskServices)
   if ((sv("runner.network") || NETWORK) === NETWORK) {
-    process.env.SINOBEE_TASK_SERVICES = task.join(",");
     // existing user containers join the network too (they get the service URLs when they are next recreated)
     const { spawnSync } = await import("node:child_process");
     const ids = spawnSync("docker", ["ps", "-aq", "--filter", "label=ai.sinobee.user"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);

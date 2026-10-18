@@ -110,8 +110,8 @@ A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
 
 **Only for SinoBee.ai.** Ollama and H3 are published on 127.0.0.1 only.
 
-- They are attached to the `sinobee` docker network. For the run, swarm puts the task containers on that network too (`RUNNER_NETWORK`, unless a network is configured).
-- Task containers get `OLLAMA_HOST=http://sinobee-ollama:11434` and `COMFYUI_URL=http://sinobee-h3:8188`.
+- They are attached to the `sinobee` docker network. The worker creates the SinoBee task containers on that network too, unless a network is set in /admin → Settings (`runner.network`). This also holds when the worker runs without swarm (e.g. under pm2), because it reads `OLLAMA_URL` / `COMFYUI_URL` from `.env`.
+- Task containers get `SINOBEE_OLLAMA_URL` and `OLLAMA_HOST` (`http://sinobee-ollama:11434`), which SinoBee uses for `ollama/…` models, and `COMFYUI_URL` (`http://sinobee-h3:8188`), which the `ai-video-production` skill uses. An `OLLAMA_URL` / `COMFYUI_URL` on another host is passed to the tasks as it is.
 - Existing user containers join the network but only get these variables when they are recreated.
 
 Ports can be changed with `SINOBEE_POSTGRES_PORT`, `SINOBEE_OLLAMA_PORT`, `SINOBEE_H3_PORT` and `BOLT_NODE_RPC_PORT`; images with `SINOBEE_POSTGRES_IMAGE`, `SINOBEE_OLLAMA_IMAGE`, `COMFYUI_REF` and `BOLTCHAIN_REF`.

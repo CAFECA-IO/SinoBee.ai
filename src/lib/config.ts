@@ -9,6 +9,33 @@ import { sv, svBool, svList, svNum } from "./settings/cache";
  * All getters read an in-memory cache, so they are cheap and synchronous.
  */
 
+/** The docker network of the swarm's service containers (scripts/docker-services.ts) */
+export const SERVICES_NETWORK = "sinobee";
+
+const localHost = (url: string) => {
+  try {
+    return ["127.0.0.1", "localhost", "[::1]", "0.0.0.0"].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Ollama and ComfyUI (MiniMax H3) as task containers reach them. OLLAMA_URL / COMFYUI_URL in .env are the site's
+ * view: a localhost URL means the swarm's container (sinobee-ollama / sinobee-h3), reached by its name on the
+ * `sinobee` network; any other URL is passed on as it is.
+ */
+export function taskServices(env: Record<string, string | undefined> = process.env) {
+  const pick = (url: string | undefined, inside: string) => {
+    const u = url?.trim();
+    if (!u || !/^https?:\/\//.test(u)) return { url: null as string | null, local: false };
+    return localHost(u) ? { url: inside, local: true } : { url: u.replace(/\/+$/, ""), local: false };
+  };
+  const o = pick(env.OLLAMA_URL, "http://sinobee-ollama:11434");
+  const c = pick(env.COMFYUI_URL, "http://sinobee-h3:8188");
+  return { ollama: o.url, comfyui: c.url, local: o.local || c.local };
+}
+
 export const config = {
   /** Public origin of this site, e.g. https://sinobee.ai — must match exactly what users sign */
   get origin() {
@@ -381,16 +408,20 @@ export const config = {
       const keys = ["anthropic", "openai", "gemini", "deepseek", "openrouter", "brave", "tavily"];
       const env: Record<string, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY", deepseek: "DEEPSEEK_API_KEY", openrouter: "OPENROUTER_API_KEY", brave: "BRAVE_API_KEY", tavily: "TAVILY_API_KEY" };
       const keyed = keys.map((k) => [env[k], sv(`apiKeys.${k}`)] as [string, string]).filter(([, v]) => !!v);
-      // services the swarm runs for tasks (Ollama, ComfyUI with MiniMax H3): "NAME=url,NAME=url"
-      const services = (process.env.SINOBEE_TASK_SERVICES ?? "")
-        .split(",")
-        .map((x) => x.split("=") as [string, string])
-        .filter(([k, v]) => /^[A-Z_]+$/.test(k ?? "") && /^https?:\/\//.test(v ?? ""));
-      return [...keyed, ...services];
+      const { ollama, comfyui } = taskServices();
+      return [
+        ...keyed,
+        // SinoBee reads SINOBEE_OLLAMA_URL (then OLLAMA_HOST); the ai-video-production skill reads COMFYUI_URL
+        ...(ollama ? ([["SINOBEE_OLLAMA_URL", ollama], ["OLLAMA_HOST", ollama]] as [string, string][]) : []),
+        ...(comfyui ? ([["COMFYUI_URL", comfyui]] as [string, string][]) : []),
+      ];
     },
-    /** docker network for user containers (create it with the egress rules you want) */
+    /**
+     * docker network for user containers (create it with the egress rules you want). Unset while the swarm's own
+     * Ollama / MiniMax H3 containers serve the site: their `sinobee` network, so tasks can reach them.
+     */
     get network() {
-      return sv("runner.network") || undefined;
+      return sv("runner.network") || (taskServices().local ? SERVICES_NETWORK : undefined);
     },
     get pollSeconds() {
       return svNum("runner.pollSeconds");
