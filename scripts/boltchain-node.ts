@@ -100,10 +100,12 @@ export async function startNode(root: string, rpcPort: number, log: Log, opts: {
       if (/^#\d+ (\[|DONE|ERROR)|error|Compiling boltchain|Finished/i.test(l)) log(l);
     });
   }
-  const state = docker(["inspect", "-f", '{{.State.Running}} {{.Config.Image}} {{index .Config.Labels "sinobee.node-config"}}', CONTAINER]);
+  const state = docker(["inspect", "-f", '{{.State.Running}} {{.Config.Image}} {{index .Config.Labels "sinobee.node-config"}} {{.Image}}', CONTAINER]);
   if (state.status === 0) {
-    const [running, image, cfg] = state.stdout.trim().split(" ");
-    if (image !== IMAGE || cfg !== RUN_CONFIG) {
+    const [running, image, cfg, imageId] = state.stdout.trim().split(" ");
+    // a rebuilt image keeps its tag: compare the image id too
+    const currentId = docker(["image", "inspect", "-f", "{{.Id}}", IMAGE]).stdout.trim();
+    if (image !== IMAGE || cfg !== RUN_CONFIG || (currentId && imageId !== currentId)) {
       log(`replacing ${CONTAINER} (${image} → ${IMAGE}); chain data is kept`);
       docker(["rm", "-f", CONTAINER]);
     } else if (running === "true") {

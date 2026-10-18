@@ -380,7 +380,13 @@ export const config = {
     get containerEnv(): [string, string][] {
       const keys = ["anthropic", "openai", "gemini", "deepseek", "openrouter", "brave", "tavily"];
       const env: Record<string, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY", deepseek: "DEEPSEEK_API_KEY", openrouter: "OPENROUTER_API_KEY", brave: "BRAVE_API_KEY", tavily: "TAVILY_API_KEY" };
-      return keys.map((k) => [env[k], sv(`apiKeys.${k}`)] as [string, string]).filter(([, v]) => !!v);
+      const keyed = keys.map((k) => [env[k], sv(`apiKeys.${k}`)] as [string, string]).filter(([, v]) => !!v);
+      // services the swarm runs for tasks (Ollama, ComfyUI with MiniMax H3): "NAME=url,NAME=url"
+      const services = (process.env.SINOBEE_TASK_SERVICES ?? "")
+        .split(",")
+        .map((x) => x.split("=") as [string, string])
+        .filter(([k, v]) => /^[A-Z_]+$/.test(k ?? "") && /^https?:\/\//.test(v ?? ""));
+      return [...keyed, ...services];
     },
     /** docker network for user containers (create it with the egress rules you want) */
     get network() {

@@ -46,37 +46,74 @@ npm test
 
 ## One command: `npm run swarm`
 
-Runs the whole stack on **http://localhost:10023**: generates the Prisma clients, applies migrations, seeds the official skills, builds the site when needed, then starts the web server and the task worker together (prefixed logs, Ctrl-C stops both).
+Runs the whole stack on **http://localhost:10023**: starts the docker services below, generates the Prisma clients, applies migrations, seeds the official skills, builds the site when needed, then starts the web server and the task worker together (prefixed logs, Ctrl-C stops everything).
 
 ```bash
-npm run swarm                 # production build + worker on :10023
-npm run swarm -- --dev        # next dev (hot reload, DEV_LOGIN works) + worker
-npm run swarm -- --build      # force a fresh build
-npm run swarm -- --no-worker  # web only
+npm run swarm                     # production build + worker on :10023, with every docker service
+npm run swarm -- --dev            # next dev (hot reload, DEV_LOGIN works) + worker
+npm run swarm -- --build          # fresh site build, rebuild the Boltchain and H3 images, pull PostgreSQL and Ollama again
+npm run swarm -- --no-worker      # web only
 npm run swarm -- --no-boltchain   # do not start the Boltchain node
-npm run swarm -- --rebuild-node   # rebuild the Boltchain node image
+npm run swarm -- --no-postgres    # never start PostgreSQL (SQLite unless DATABASE_URL is set)
+npm run swarm -- --postgres       # start PostgreSQL even though SQLite data exists (the data is not copied)
+npm run swarm -- --no-ollama      # do not start Ollama
+npm run swarm -- --no-h3          # do not start MiniMax H3
+npm run swarm -- --rebuild-node   # rebuild only the Boltchain node image
 SWARM_PORT=12345 npm run swarm
 ```
 
+### Docker services
+
+| Container | What it is | Image | Published on | Written to `.env` |
+|---|---|---|---|---|
+| `sinobee-boltchain` | Boltchain node for storage deals and certificates | built from `docker/boltchain` | RPC `127.0.0.1:8545`, P2P `:8017` | — (settings in the database) |
+| `sinobee-postgres` | PostgreSQL database | `postgres:17-alpine`, pulled | `127.0.0.1:15432` | `DATABASE_URL` |
+| `sinobee-ollama` | Ollama, local models for SinoBee.ai | `ollama/ollama:0.34.4`, pulled | `127.0.0.1:11434` | `OLLAMA_URL` |
+| `sinobee-h3` | ComfyUI with MiniMax H3 (video), for SinoBee.ai | built from `docker/minimax-h3` | `127.0.0.1:8188` | `COMFYUI_URL` |
+
+- **Images.** A missing image is built from source or pulled the first time. `--build` rebuilds or pulls it again. A container whose image or options changed is recreated, and its data volume is kept.
+- **Data.** Each service keeps its data in a named volume: `sinobee-boltchain-data`, `sinobee-postgres-data`, `sinobee-ollama-data` and `sinobee-h3-models`.
+- **Stopping.** The containers stop with the swarm. Set `SWARM_KEEP=1` (or `BOLT_NODE_KEEP=1`) to leave them running.
+- **Without docker** the site runs with SQLite, local storage and no Ollama or H3.
+
 **Boltchain node.** Before the site starts, swarm prepares Boltchain storage:
 
-1. **Settings.** It fills in the `BOLT_*` settings in `.env`, creating the file from `.env.example` if needed. Values you already set are never overwritten. On the first run it adds:
-   - `BOLT_RPC_URL=http://127.0.0.1:8545` and `BOLT_CHAIN_ID=8018`;
-   - a new site wallet (`BOLT_WALLET_KEY`) and a master key (`BOLT_MASTER_KEY`). `.env` is then set to mode 600; **back it up**.
-   - the testnet Certificates contract (`BOLT_CERTIFICATES`).
-2. **Node.** It builds the node image `docker/boltchain`. The image is built from source (Luphia/Boltchain at `BOLTCHAIN_REF`), so the first build takes about 10–20 minutes.
-3. **Container.** It starts the image as the `sinobee-boltchain` container:
-   - JSON-RPC with `--rpc-storage` is published on 127.0.0.1 only;
-   - P2P runs on port 8017;
-   - chain data lives in the `sinobee-boltchain-data` volume.
-
-   A new node starts from the latest testnet epoch snapshot instead of syncing from genesis.
+1. **Settings.** The site wallet (`BOLT_WALLET_KEY`), the master key (`BOLT_MASTER_KEY`) and the testnet Certificates contract are generated on the first run and kept encrypted in the database (/admin → Settings → Boltchain).
+2. **Image.** The node image is built from source (Luphia/Boltchain at `BOLTCHAIN_REF`), so the first build takes about 10–20 minutes.
+3. **Container.** JSON-RPC with `--rpc-storage` is published on 127.0.0.1 only, and P2P runs on port 8017. A new node starts from the latest testnet epoch snapshot instead of syncing from genesis.
 4. **Wallet check.** Once the node answers, swarm logs the chain height and the site wallet's balance. The testnet has no faucet, so send BOLT to that address. Until then, objects stay in the local/S3 mirror and move to Boltchain once the wallet can pay.
 
-Other options:
-- A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
-- Without docker, the site runs with Boltchain storage off.
-- The node stops with swarm; set `BOLT_NODE_KEEP=1` to keep it running.
+A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
+
+**PostgreSQL.** swarm starts PostgreSQL when `.env` has no `DATABASE_URL` and there is no SQLite data yet:
+
+- It generates a random user (`sb_…`) and a random password, creates the `sinobee` database, and writes `DATABASE_URL=postgresql://…@127.0.0.1:15432/sinobee` to `.env`. `.env` is then set to mode 600; **back it up**, since the password is only there.
+- Later runs start the same container again from that `DATABASE_URL`.
+- An existing SQLite database is kept. `--postgres` switches to a new, empty PostgreSQL; the SQLite data is not copied.
+- A `DATABASE_URL` that points anywhere else is used as it is, and no container is started.
+- The port is published on 127.0.0.1 only. Task containers cannot reach the database.
+
+**Ollama.** Ollama runs on the GPU when docker has an NVIDIA GPU (NVIDIA Container Toolkit), and on the CPU otherwise.
+
+- swarm writes `OLLAMA_URL=http://127.0.0.1:11434` to `.env`.
+- Models are not pulled automatically. Add them with `docker exec sinobee-ollama ollama pull <model>`.
+- An `OLLAMA_URL` on another host uses that server instead of starting one.
+
+**MiniMax H3.** ComfyUI with MiniMax H3 renders the videos of the `ai-video-production` skill.
+
+- **GPU.** It needs an NVIDIA GPU with a CUDA 13 driver and the NVIDIA Container Toolkit. Without one it is skipped, with a note in the log.
+- **Image.** The image is built from `docker/minimax-h3`: ComfyUI `COMFYUI_REF` (default `v0.38.2`) on PyTorch for CUDA 13.
+- **Model files (~76 GB).** They are downloaded from Hugging Face `Comfy-Org/MiniMax-H3` into the `sinobee-h3-models` volume on the first start, before ComfyUI answers. Follow the download with `docker logs -f sinobee-h3`. A restart resumes it.
+- **Which files.** By default: the pruned int8 fl2va and ref2va models, the int8 Qwen3-VL text encoder, the video and audio VAEs, and the turbo LoRAs. `H3_FILES` (space-separated paths in that repository) replaces the set, and `HF_TOKEN` is used when set.
+- swarm writes `COMFYUI_URL=http://127.0.0.1:8188` to `.env`. A `COMFYUI_URL` on another host uses that server instead of starting one.
+
+**Only for SinoBee.ai.** Ollama and H3 are published on 127.0.0.1 only.
+
+- They are attached to the `sinobee` docker network. For the run, swarm puts the task containers on that network too (`RUNNER_NETWORK`, unless a network is configured).
+- Task containers get `OLLAMA_HOST=http://sinobee-ollama:11434` and `COMFYUI_URL=http://sinobee-h3:8188`.
+- Existing user containers join the network but only get these variables when they are recreated.
+
+Ports can be changed with `SINOBEE_POSTGRES_PORT`, `SINOBEE_OLLAMA_PORT`, `SINOBEE_H3_PORT` and `BOLT_NODE_RPC_PORT`; images with `SINOBEE_POSTGRES_IMAGE`, `SINOBEE_OLLAMA_IMAGE`, `COMFYUI_REF` and `BOLTCHAIN_REF`.
 
 Objects stored before Boltchain was turned on can be moved later: `npm run storage-migrate -- --anchor-skills --run`.
 

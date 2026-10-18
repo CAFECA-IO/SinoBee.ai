@@ -1,22 +1,31 @@
 /**
  * npm run swarm — run the whole SinoBee.ai stack on one port (default 10023):
- *   1. apply database migrations (PostgreSQL if DATABASE_URL is set, otherwise SQLite)
- *   2. settings: move registered variables out of .env into the database (secrets encrypted), and generate
+ *   1. PostgreSQL in docker (`sinobee-postgres`) when .env has no DATABASE_URL and there is no SQLite data yet:
+ *      random user and password, DATABASE_URL written to .env (scripts/docker-services.ts)
+ *   2. apply database migrations (PostgreSQL if DATABASE_URL is set, otherwise SQLite)
+ *   3. settings: move registered variables out of .env into the database (secrets encrypted), and generate
  *      missing keys (skill signing key, Boltchain site wallet and master key) — see /admin → Settings
- *   3. Boltchain: start a local node in docker (`sinobee-boltchain`, RPC on 127.0.0.1:8545 with --rpc-storage)
+ *   4. Boltchain: start a local node in docker (`sinobee-boltchain`, RPC on 127.0.0.1:8545 with --rpc-storage)
  *      unless a node RPC is configured
- *   4. seed the official skills (idempotent)
- *   5. build the site if needed (production mode)
- *   6. start the web server on :10023 and the task worker, with prefixed logs
+ *   5. Ollama (`sinobee-ollama`) and ComfyUI with MiniMax H3 (`sinobee-h3`, NVIDIA GPU only) for SinoBee.ai:
+ *      OLLAMA_URL / COMFYUI_URL written to .env; task containers join the `sinobee` network to reach them
+ *   6. seed the official skills (idempotent)
+ *   7. build the site if needed (production mode)
+ *   8. start the web server on :10023 and the task worker, with prefixed logs
+ * Missing docker images are built (Boltchain node, H3) or pulled (PostgreSQL, Ollama).
  *
  * Options:
  *   npm run swarm -- --dev        next dev instead of a production build (hot reload, DEV_LOGIN works)
- *   npm run swarm -- --build      force a fresh production build
+ *   npm run swarm -- --build      fresh production build, rebuild the Boltchain and H3 images, pull PostgreSQL / Ollama
  *   npm run swarm -- --no-worker  web only
  *   npm run swarm -- --no-boltchain   do not start the Boltchain node (storage stays local/S3)
- *   npm run swarm -- --rebuild-node   rebuild the Boltchain node image
+ *   npm run swarm -- --no-postgres    never start PostgreSQL (SQLite unless DATABASE_URL is set)
+ *   npm run swarm -- --postgres       start PostgreSQL even though SQLite data exists (it is not copied)
+ *   npm run swarm -- --no-ollama / --no-h3   do not start Ollama / MiniMax H3
+ *   npm run swarm -- --rebuild-node   rebuild only the Boltchain node image
  *   BOLT_RPC_URL=https://…   use that node instead of starting one; BOLT_NODE_RPC_PORT, BOLTCHAIN_REF
- *   BOLT_NODE_KEEP=1         leave the node running when the swarm stops
+ *   OLLAMA_URL / COMFYUI_URL pointing to another host: use that server instead of starting one
+ *   SWARM_KEEP=1 (or BOLT_NODE_KEEP=1)   leave the containers running when the swarm stops
  *   SWARM_PORT=12345 npm run swarm
  */
 import "dotenv/config";
@@ -24,6 +33,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_CERTIFICATES, dockerAvailable, isLocalRpc, siteAddress, startNode, stopNode, waitForNode } from "./boltchain-node";
+import { NETWORK, SERVICE, minimaxH3, ollama, postgres, stopServices } from "./docker-services";
 
 const root = path.resolve(import.meta.dirname, "..");
 const args = new Set(process.argv.slice(2));
@@ -43,7 +53,7 @@ else {
   }
 }
 
-const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", bolt: "\x1b[32m" } as const;
+const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", bolt: "\x1b[32m", docker: "\x1b[34m" } as const;
 const log = (who: keyof typeof color, line: string) => console.log(`${color[who]}[${who}]\x1b[0m ${line}`);
 
 function pipe(who: keyof typeof color, p: ChildProcess) {
@@ -87,7 +97,7 @@ async function boltchain() {
     blog("docker is not available: Boltchain storage is off for this run (objects stay in local/S3 storage)");
     return;
   }
-  await startNode(root, Number(new URL(url).port || rpcPort), blog, { rebuild: args.has("--rebuild-node") });
+  await startNode(root, Number(new URL(url).port || rpcPort), blog, { rebuild: args.has("--rebuild-node") || args.has("--build") });
   nodeStarted = true;
   await waitForNode(url, addr, blog);
   // tell the web server and the worker where the node is for this run (not stored: the node lives with the swarm)
@@ -103,13 +113,47 @@ async function settings() {
   await store.generateMissing((l) => log("swarm", l));
 }
 
+const keep = process.env.SWARM_KEEP === "1" || process.env.BOLT_NODE_KEEP === "1";
+const started: string[] = [];
+
+/** Ollama and MiniMax H3 for SinoBee.ai; task containers join their network */
+async function aiServices() {
+  const dlog = (l: string) => log("docker", l);
+  const task: string[] = [];
+  for (const [flag, fn, key] of [["--no-ollama", ollama, "OLLAMA_HOST"], ["--no-h3", minimaxH3, "COMFYUI_URL"]] as const) {
+    if (args.has(flag)) continue;
+    try {
+      const inside = await fn(root, dlog, { refresh: args.has("--build"), rebuild: args.has("--build") });
+      if (inside) {
+        task.push(`${key}=${inside}`);
+        started.push(key === "OLLAMA_HOST" ? SERVICE.ollama : SERVICE.h3);
+      }
+    } catch (e) {
+      dlog(`${flag.slice(5)} not started: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  if (!task.length) return;
+  const { sv } = await import("../src/lib/settings/cache");
+  // for this run: task containers on the services' network, told where the services are
+  if (!sv("runner.network")) process.env.RUNNER_NETWORK = NETWORK;
+  if ((sv("runner.network") || NETWORK) === NETWORK) {
+    process.env.SINOBEE_TASK_SERVICES = task.join(",");
+    // existing user containers join the network too (they get the service URLs when they are next recreated)
+    const { spawnSync } = await import("node:child_process");
+    const ids = spawnSync("docker", ["ps", "-aq", "--filter", "label=ai.sinobee.user"], { encoding: "utf8" }).stdout.split("\n").filter(Boolean);
+    for (const id of ids) spawnSync("docker", ["network", "connect", NETWORK, id]);
+  }
+  else dlog(`task containers use network ${sv("runner.network")}: connect it to ${NETWORK} for them to reach Ollama / H3`);
+}
+
 let stopping = false;
 function stopAll(code = 0) {
   if (stopping) return;
   stopping = true;
   log("swarm", "stopping…");
   for (const c of children) c.kill("SIGTERM");
-  if (nodeStarted && process.env.BOLT_NODE_KEEP !== "1") stopNode((l) => log("bolt", l));
+  if (nodeStarted && !keep) stopNode((l) => log("bolt", l));
+  if (started.length && !keep) stopServices(started, (l) => log("docker", l));
   setTimeout(() => process.exit(code), 3000).unref();
 }
 process.on("SIGINT", () => stopAll(0));
@@ -127,6 +171,12 @@ function start(who: "web" | "worker", cmd: string, argv: string[], env: Record<s
 }
 
 async function main() {
+  if (!args.has("--no-postgres")) {
+    if (dockerAvailable()) {
+      await postgres(root, (l) => log("docker", l), { refresh: args.has("--build"), force: args.has("--postgres") });
+      if (/^postgres/.test(process.env.DATABASE_URL ?? "") && new URL(process.env.DATABASE_URL!).port === String(Number(process.env.SINOBEE_POSTGRES_PORT || 15432))) started.push(SERVICE.postgres);
+    } else if (!process.env.DATABASE_URL) log("docker", "docker is not available: using SQLite");
+  }
   const db = /^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? "") ? "PostgreSQL" : `SQLite (${process.env.SQLITE_PATH || "./data/sinobee.db"})`;
   log("swarm", `database: ${db}`);
 
@@ -143,6 +193,7 @@ async function main() {
       delete process.env.BOLT_RPC_URL;
     }
   }
+  if (dockerAvailable()) await aiServices();
   await run("swarm", bin("tsx"), ["prisma/seed.ts"]);
 
   if (!dev && (args.has("--build") || !existsSync(path.join(root, ".next", "BUILD_ID")))) {
