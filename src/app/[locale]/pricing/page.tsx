@@ -4,7 +4,7 @@ import { config } from "@/lib/config";
 import { durations, sharePrice } from "@/lib/crowd/rules";
 import { publicPrices } from "@/lib/public-config";
 import { referenceBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
-import { listPlans } from "@/lib/plans";
+import { freePlan, listPlans } from "@/lib/plans";
 import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { Link } from "@/i18n/navigation";
 
@@ -19,7 +19,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   const t = await getTranslations("pricing");
   const p = await publicPrices();
   // the same rows the admin backend edits (ModelPrice / Plan)
-  const [models, plans, ref, fx] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), referenceBlended(), pricingSettings()]);
+  const [models, plans, ref, fx, free] = await Promise.all([currentModels(), listPlans({ activeOnly: true }), referenceBlended(), pricingSettings(), freePlan({ activeOnly: true })]);
   const tok = (twd: number) => (ref ? formatTokens(quotaTokens(twd, ref.blendedTwd), locale) : "—");
   return (
     <div className="container-x max-w-5xl space-y-12 py-12">
@@ -30,7 +30,23 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
 
       <section id="plans" className="space-y-4">
         <h2 className="h2">{t("plans")}</h2>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={`grid gap-4 ${free ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {free && (
+            <div className="card flex flex-col gap-3 p-6" data-plan="free">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="h3">{locale.startsWith("zh") ? free.name : free.nameEn}</h3>
+                <span className="text-2xl font-bold">NT$0</span>
+              </div>
+              <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
+                <li className="font-semibold text-ink">{t("freeUsage", { value: free.maxCostTwd.toLocaleString("en-US") })}</li>
+                <li>{t("planL6", { tokens: tok(free.l6Twd) })}</li>
+                <li>{t("planL168", { tokens: tok(free.l168Twd) })}</li>
+                <li>{t("planConcurrency", { n: free.concurrency })}</li>
+                <li>{t("freeNote")}</li>
+              </ul>
+              <Link href="/agent" className="btn-ghost mt-auto">{t("freeStart")}</Link>
+            </div>
+          )}
           {plans.map((pl) => (
             <div key={pl.id} className="card flex flex-col gap-3 p-6" data-plan={pl.code}>
               <div className="flex items-baseline justify-between gap-3">

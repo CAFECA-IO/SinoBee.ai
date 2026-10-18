@@ -55,6 +55,8 @@ async function collectedNonCard(taskId: string) {
 
 async function quotaPledge(userId: string, taskId: string, amount: number, goal: number) {
   const ctx = await quotaContext(userId);
+  // quota pledges spend a paid subscription's allowance; the free allowance is for using SinoBee only
+  if (!ctx.subscriptionId) throw new HttpError(400, "pledging with quota needs a paid subscription");
   const room = await headroom(ctx);
   if (room.free < amount) throw new HttpError(429, `not enough subscription quota right now (${Math.floor(room.free)} TWD free in the current window)`);
   // per period: quota pledges (net of returns) ≤ share × the plan's usage allowance
@@ -155,6 +157,7 @@ export async function returnQuota(userId: string, amount: number, pledgeId: stri
   } catch {
     return false;
   }
+  if (!ctx.subscriptionId) return false; // the subscription ended: the quota lapses
   const now = new Date();
   await db.usageLedger.create({
     data: { userId, subscriptionId: ctx.subscriptionId, planId: ctx.plan.id, modelId: "crowd", endpoint: "crowd-return", status: "SETTLED", heldTwd: 0, settledTwd: -amount, priceTwd: { pledge: pledgeId }, settledAt: now },

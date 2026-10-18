@@ -16,9 +16,9 @@ import { ToolReview, ReportActions } from "@/components/admin-actions";
 import type { ToolManifest } from "@/lib/tools/spec";
 import { isAdminRole } from "@/lib/roles";
 import { referenceBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
-import { listPlans } from "@/lib/plans";
+import { freePlan, listPlans } from "@/lib/plans";
 import { icontains } from "@/lib/db";
-import { PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
+import { FreePlanEditor, PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
 import { refundable } from "@/lib/payments";
 import { settingsForAdmin } from "@/lib/settings/store";
 import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type SettingsSection } from "@/components/admin-site-settings";
@@ -508,11 +508,21 @@ async function Prices() {
 
 async function Plans() {
   const t = await getTranslations("admin.plans");
-  const [plans, ref, s] = await Promise.all([listPlans(), referenceBlended(), pricingSettings()]);
+  const [plans, ref, s, free] = await Promise.all([listPlans(), referenceBlended(), pricingSettings(), freePlan()]);
   const blended = ref?.blendedTwd ?? 0;
   const label = ref?.model.label ?? "—";
+  const pro = plans.find((p) => p.code === "low") ?? plans.filter((p) => p.feeTwd > 0).sort((a, b) => a.feeTwd - b.feeTwd)[0];
   return (
     <div className="space-y-4">
+      {free && (
+        <FreePlanEditor
+          plan={{ name: free.name, nameEn: free.nameEn, maxCostTwd: free.maxCostTwd, concurrency: free.concurrency, active: free.active }}
+          pro={pro?.maxCostTwd ?? 0}
+          proName={pro?.name ?? "Pro"}
+          blended={blended}
+          buffer={s.buffer}
+        />
+      )}
       <p className="text-sm text-muted">{t("help")}</p>
       {plans.map((p) => (
         <PlanEditor key={p.id} buffer={s.buffer} blended={blended} blendedLabel={label} plan={{ id: p.id, code: p.code, name: p.name, nameEn: p.nameEn, feeTwd: p.feeTwd, multiplier: p.multiplier, concurrency: p.concurrency, active: p.active, sortOrder: p.sortOrder }} />

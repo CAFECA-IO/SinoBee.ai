@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { config } from "@/lib/config";
 import { subscriptionState } from "@/lib/subscriptions";
-import { listPlans } from "@/lib/plans";
+import { freePlan, listPlans } from "@/lib/plans";
 import { Link, redirect } from "@/i18n/navigation";
 import { PublisherForm } from "@/components/publisher-form";
 import { TokenManager } from "@/components/token-manager";
@@ -33,7 +33,7 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
     db.vaultPack.findMany({ where: { userId: me!.id }, orderBy: { name: "asc" } }),
     db.conversationShare.findMany({ where: { ownerId: me!.id, revokedAt: null }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
-  const plans = await listPlans();
+  const [plans, free] = await Promise.all([listPlans(), freePlan({ activeOnly: true })]);
   const tc = await getTranslations("crowd.account");
   const [points, pointRows, cards] = await Promise.all([pointBalance(me!.id), pointHistory(me!.id, 30), activeCards(me!.id)]);
   const planName = (id: string | null, code: string) => {
@@ -108,6 +108,7 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
         ) : (
           <p className="text-sm text-muted">{t("subNone", { days: config.retention.freeDays })}</p>
         )}
+        {!st.current && free && <p className="text-sm" data-sub="free">{t("subFree", { plan: locale.startsWith("zh") ? free.name : free.nameEn, value: free.maxCostTwd.toLocaleString("en-US") })}</p>}
         {st.graceEndsAt && <p className="text-xs text-muted">{t("subKeep")} <LocalDate value={st.graceEndsAt} withTime={false} /></p>}
         <Link href="/subscribe" className="btn-primary">{st.current || st.upcoming.length ? t("extendPlan") : t("choosePlan")}</Link>
       </section>

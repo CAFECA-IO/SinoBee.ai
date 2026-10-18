@@ -3,7 +3,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { audit } from "../roles";
 import { referenceBlended, type ModelPriceView } from "../models";
-import { listPlans, type PlanView } from "../plans";
+import { freePlan, listPlans, type PlanView } from "../plans";
 import { subscriptionState } from "../subscriptions";
 import type { UsageLedger } from "@/generated/prisma/client";
 
@@ -70,12 +70,18 @@ async function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T>
 
 // ───────────── context ─────────────
 
-export type QuotaCtx = { userId: string; subscriptionId: string; plan: PlanView };
+/** subscriptionId null: no subscription, the free plan's allowance */
+export type QuotaCtx = { userId: string; subscriptionId: string | null; plan: PlanView };
 
 /** The caller's current subscription period and plan, or a 402 */
 export async function quotaContext(userId: string): Promise<QuotaCtx> {
   const st = await subscriptionState(userId);
-  if (!st.current) throw new QuotaError("subscription", "an active SinoBee.ai subscription is required (https://sinobee.ai/subscribe)");
+  if (!st.current) {
+    // without a subscription: the free plan, when the admin keeps it on
+    const free = await freePlan({ activeOnly: true });
+    if (free) return { userId, subscriptionId: null, plan: free };
+    throw new QuotaError("subscription", "an active SinoBee.ai subscription is required (https://sinobee.ai/subscribe)");
+  }
   const plans = await listPlans();
   const plan = plans.find((p) => p.id === st.current!.planId) ?? plans.find((p) => p.code === st.current!.plan);
   if (!plan) throw new QuotaError("subscription", "subscription plan not found");

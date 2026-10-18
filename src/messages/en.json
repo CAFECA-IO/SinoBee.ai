@@ -586,7 +586,14 @@
       "marginHow": "buffer {buffer} ÷ multiplier {mult}",
       "badMult": "The usage multiplier must be above 0 and at most {max}.",
       "loss": "At the current buffer a user who uses the full allowance costs more than the fee. A buffer of {need} breaks even; {healthy} or more keeps a 50% margin.",
-      "thin": "Thin margin: a buffer of {healthy} or more keeps a 50% margin."
+      "thin": "Thin margin: a buffer of {healthy} or more keeps a 50% margin.",
+      "freeTitle": "Free plan",
+      "freeOn": "Offer a free allowance",
+      "freeHelp": "Signed-in users without a subscription get this allowance for SinoBee.ai's models (at published prices; the same 6-hour and 7-day rolling windows as paid plans). The default is 1/20 of Pro; the free allowance cannot be used for crowdfunding pledges.",
+      "freeMax": "Max usage per 30 days (TWD)",
+      "freeShare": "Set to 1/ of {plan}",
+      "freeApply": "Apply",
+      "freeRatio": "Share of {plan}"
     },
     "audit": {
       "empty": "Nothing logged yet.",
@@ -966,7 +973,10 @@
       "periodNote": "Results are kept {days} days for the backers.",
       "self": "Pay in full yourself",
       "selfNote": "no crowdfunding, no fee; charged when the screening passes"
-    }
+    },
+    "freeUsage": "Up to NT${value} of model usage per 30 days (at published prices)",
+    "freeNote": "Just sign in, no payment",
+    "freeStart": "Start free"
   },
   "account": {
     "title": "Account",
@@ -1035,7 +1045,8 @@
     "subGrace": "Your subscription has ended. During the grace period results and the container are kept until",
     "subKeep": "Results and container kept until",
     "extendPlan": "Extend 30 days or change plan",
-    "choosePlan": "Choose a plan"
+    "choosePlan": "Choose a plan",
+    "subFree": "You are on the {plan} allowance: up to NT${value} of model usage per 30 days."
   },
   "notifications": {
     "title": "Notifications",

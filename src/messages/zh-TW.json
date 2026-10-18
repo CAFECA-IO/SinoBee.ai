@@ -586,7 +586,14 @@
       "marginHow": "緩衝係數 {buffer} ÷ 用量倍數 {mult}",
       "badMult": "用量倍數必須大於 0 且不超過 {max}。",
       "loss": "目前的緩衝係數下，用滿額度會虧損。緩衝係數至少需 {need} 才打平，{healthy} 以上可保有 50% 利潤。",
-      "thin": "利潤偏低：緩衝係數 {healthy} 以上可保有 50% 利潤。"
+      "thin": "利潤偏低：緩衝係數 {healthy} 以上可保有 50% 利潤。",
+      "freeTitle": "免費方案",
+      "freeOn": "提供免費額度",
+      "freeHelp": "沒有訂閱的已登入用戶使用 SinoBee.ai 模型時套用這個額度（依公開價格計算，6 小時與 7 天滾動視窗與付費方案相同算法）。預設為 Pro 的 1/20；免費額度不能用於眾籌出資。",
+      "freeMax": "每 30 天最多用量（TWD）",
+      "freeShare": "設為 {plan} 的 1/",
+      "freeApply": "套用",
+      "freeRatio": "相當於 {plan} 的"
     },
     "audit": {
       "empty": "還沒有紀錄。",
@@ -966,7 +973,10 @@
       "periodNote": "成果保留 {days} 天供出資者下載。",
       "self": "個人全額支付",
       "selfNote": "不眾籌、免服務費，審核通過即扣款執行"
-    }
+    },
+    "freeUsage": "每 30 天最多 NT${value} 的模型用量（依公開價格）",
+    "freeNote": "登入即可使用，不需付款",
+    "freeStart": "免費開始"
   },
   "account": {
     "title": "帳戶設定",
@@ -1035,7 +1045,8 @@
     "subGrace": "訂閱已到期，寬限期內成果與容器照常保留，到",
     "subKeep": "成果與容器保留到",
     "extendPlan": "延長 30 天或變更方案",
-    "choosePlan": "選擇訂閱方案"
+    "choosePlan": "選擇訂閱方案",
+    "subFree": "目前使用{plan}額度：每 30 天最多 NT${value} 的模型用量。"
   },
   "notifications": {
     "title": "通知",

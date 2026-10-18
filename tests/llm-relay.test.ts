@@ -68,8 +68,25 @@ async function readAll(r: Response) {
 }
 const rows = () => db.usageLedger.findMany({ orderBy: { createdAt: "asc" } });
 
-test("auth and subscription are required", async () => {
+test("without a subscription the free plan applies (1/20 of Pro, managed by admins); switched off, a subscription is required", async () => {
   await db.subscription.deleteMany({ where: { userId } });
+  const free = (await plans.freePlan())!;
+  const pro = (await plans.listPlans()).find((p) => p.code === "low")!;
+  assert.equal(free.feeTwd, 0);
+  assert.equal(free.maxCostTwd, Math.round((pro.maxCostTwd / 20) * 100) / 100, "1/20 of Pro");
+  assert.ok(!(await plans.listPlans({ activeOnly: true })).some((p) => p.code === "free"), "not a plan to buy");
+  const ctx = await quota.quotaContext(userId);
+  assert.deepEqual([ctx.subscriptionId, ctx.plan.code, ctx.plan.l168Twd], [null, "free", Math.round((free.maxCostTwd / 4.8) * 100) / 100]);
+  llm.next.chunks = 1;
+  const freeCall = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "hi" }] }), "openai", "chat");
+  assert.equal(freeCall.status, 200);
+  assert.equal((await rows()).at(-1)?.subscriptionId, null);
+
+  const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
+  const edited = await plans.saveFreePlan(admin.id, { name: "免費", nameEn: "Free", maxCostTwd: 48, concurrency: 1, active: true });
+  assert.deepEqual([edited.maxCostTwd, edited.l168Twd, edited.l6Twd], [48, 10, 1]);
+  await assert.rejects(plans.savePlan(admin.id, { code: "free", name: "x", nameEn: "x", feeTwd: 1, multiplier: 1, concurrency: 1, active: true }), /own form/);
+  await plans.saveFreePlan(admin.id, { name: "免費", nameEn: "Free", maxCostTwd: 48, concurrency: 1, active: false });
   const noSub = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "hi" }] }), "openai", "chat");
   assert.equal(noSub.status, 402);
   assert.equal((await noSub.json()).error.type, "subscription_required");

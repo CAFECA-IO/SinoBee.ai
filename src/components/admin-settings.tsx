@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { HEALTHY_MARGIN, MAX_MULTIPLIER, bufferFor, formatPrice, planLimits, planMargin, publishedTwd } from "@/lib/price-math";
+import { HEALTHY_MARGIN, MAX_MULTIPLIER, bufferFor, formatPrice, limitsFromMax, planLimits, planMargin, publishedTwd } from "@/lib/price-math";
 import { confirmDialog } from "./confirm";
 
 const KINDS = ["input", "cacheRead", "cacheWrite", "output"] as const;
@@ -307,6 +307,65 @@ export function PlanEditor({ plan, blended, blendedLabel, buffer }: { plan?: Pla
       {!badMult && margin >= 1 && margin < HEALTHY_MARGIN && <p className="text-sm text-warn">{t("thin", { healthy: Math.round(mult * HEALTHY_MARGIN * 100) / 100 })}</p>}
       <div className="flex items-center gap-3">
         <button className="btn-primary" disabled={badMult || !(fee > 0) || !v.code || !v.name || !v.nameEn}>{plan ? t("save") : t("add")}</button>
+        {ok && <span className="text-sm text-ok">✓ {t("saved")}</span>}
+        {err && <span className="text-sm text-err" role="alert">{err}</span>}
+      </div>
+    </form>
+  );
+}
+
+/** The free plan: users without a subscription get this allowance; `pro` = the Pro plan's max usage, for the ratio */
+export function FreePlanEditor({ plan, pro, proName, blended, buffer }: { plan: { name: string; nameEn: string; maxCostTwd: number; concurrency: number; active: boolean }; pro: number; proName: string; blended: number; buffer: number }) {
+  const t = useTranslations("admin.plans");
+  const [v, setV] = useState({ name: plan.name, nameEn: plan.nameEn, maxCostTwd: String(plan.maxCostTwd), concurrency: String(plan.concurrency) });
+  const [share, setShare] = useState(pro > 0 && plan.maxCostTwd > 0 ? String(Math.round((pro / plan.maxCostTwd) * 100) / 100) : "20");
+  const [active, setActive] = useState(plan.active);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
+  const router = useRouter();
+  const max = Number(v.maxCostTwd);
+  const lim = limitsFromMax(max);
+  const tok = (twd: number) => (blended > 0 ? Math.round((twd / blended) * 1e6).toLocaleString("en-US") : "—");
+  const ratio = pro > 0 && max > 0 ? pro / max : 0;
+  return (
+    <form
+      className="card space-y-4 p-5"
+      data-plan="free"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setErr("");
+        setOk(false);
+        const e2 = await send("/api/admin/plans/free", "PUT", { name: v.name, nameEn: v.nameEn, maxCostTwd: max, concurrency: Number(v.concurrency), active });
+        if (e2) return setErr(e2);
+        setOk(true);
+        router.refresh();
+      }}
+    >
+      <div className="flex flex-wrap items-baseline gap-3">
+        <h2 className="h3 flex-1">{t("freeTitle")}</h2>
+        <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("freeOn")}</label>
+      </div>
+      <p className="text-sm text-muted">{t("freeHelp")}</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1 text-sm"><span className="block text-xs text-muted">{t("name")}</span><input className="input w-32" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></label>
+        <label className="space-y-1 text-sm"><span className="block text-xs text-muted">{t("nameEn")}</span><input className="input w-32" value={v.nameEn} onChange={(e) => setV({ ...v, nameEn: e.target.value })} /></label>
+        <label className="space-y-1 text-sm"><span className="block text-xs text-muted">{t("freeMax")}</span><input className="input w-28 font-mono" name="maxCostTwd" value={v.maxCostTwd} onChange={(e) => setV({ ...v, maxCostTwd: e.target.value })} /></label>
+        {pro > 0 && (
+          <span className="flex items-end gap-1.5 text-sm">
+            <label className="space-y-1"><span className="block text-xs text-muted">{t("freeShare", { plan: proName })}</span><input className="input w-20 font-mono" name="share" value={share} onChange={(e) => setShare(e.target.value)} /></label>
+            <button type="button" className="btn-ghost !py-2 text-sm" onClick={() => Number(share) > 0 && setV({ ...v, maxCostTwd: String(Math.round((pro / Number(share)) * 100) / 100) })}>{t("freeApply")}</button>
+          </span>
+        )}
+        <label className="space-y-1 text-sm"><span className="block text-xs text-muted">{t("concurrency")}</span><input className="input w-20 font-mono" value={v.concurrency} onChange={(e) => setV({ ...v, concurrency: e.target.value })} /></label>
+      </div>
+      <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4" aria-live="polite">
+        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">{t("maxCost")}</div><div className="font-mono" data-calc="max">NT$ {lim.maxCostTwd.toLocaleString("en-US")}</div><div className="text-xs text-muted">{t("vendorCost", { twd: (buffer > 0 ? lim.maxCostTwd / buffer : 0).toLocaleString("en-US", { maximumFractionDigits: 2 }) })}</div></div>
+        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">L6</div><div className="font-mono" data-calc="l6">NT$ {lim.l6Twd.toLocaleString("en-US")}</div><div className="text-xs text-muted">≈ {tok(lim.l6Twd)} tokens</div></div>
+        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">L168</div><div className="font-mono" data-calc="l168">NT$ {lim.l168Twd.toLocaleString("en-US")}</div><div className="text-xs text-muted">≈ {tok(lim.l168Twd)} tokens</div></div>
+        <div className="rounded-xl bg-panel-2 p-3"><div className="text-xs text-muted">{t("freeRatio", { plan: proName })}</div><div className="font-mono" data-calc="ratio">{ratio > 0 ? `1 / ${Math.round(ratio * 100) / 100}` : "—"}</div></div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button className="btn-primary" disabled={!(max >= 0) || !v.name || !v.nameEn}>{t("save")}</button>
         {ok && <span className="text-sm text-ok">✓ {t("saved")}</span>}
         {err && <span className="text-sm text-err" role="alert">{err}</span>}
       </div>

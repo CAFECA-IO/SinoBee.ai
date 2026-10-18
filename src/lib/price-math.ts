@@ -31,6 +31,13 @@ export function planLimits(feeTwd: number, multiplier: number) {
   return { maxCostTwd: r2(maxCost), l168Twd: r2(l168), l6Twd: r2(l168 / 10) };
 }
 
+/** The same windows from a max usage directly (the free plan: no fee, an allowance set by the admin) */
+export function limitsFromMax(maxCostTwd: number) {
+  if (!(maxCostTwd > 0)) return { maxCostTwd: 0, l168Twd: 0, l6Twd: 0 };
+  const l168 = maxCostTwd / 4.8;
+  return { maxCostTwd: r2(maxCostTwd), l168Twd: r2(l168), l6Twd: r2(l168 / 10) };
+}
+
 /**
  * Published prices are vendor cost × buffer, so a user who uses the whole allowance costs fee × multiplier ÷ buffer
  * in vendor fees. Margin = fee ÷ that = buffer ÷ multiplier: ≥ 1 breaks even, ≥ HEALTHY_MARGIN is healthy.
