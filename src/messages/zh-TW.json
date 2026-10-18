@@ -787,6 +787,34 @@
     },
     "screening": {
       "self": "個人支付"
+    },
+    "ollama": {
+      "title": "Ollama（本機開源模型）",
+      "lead": "Ollama 是平台 AI 的一個模型來源：已下載的模型同步後會以 ollama/<名稱> 出現在上方的模型清單與分級中，不需要 API 金鑰、沒有 API 費用。",
+      "connected": "已連線 · v{version}",
+      "offline": "無法連線",
+      "notConfigured": "尚未設定 Ollama：用 npm run swarm 啟動（會自動寫入 .env 的 OLLAMA_URL），或在「設定 → Ollama 網址」填入。",
+      "installed": "已下載的模型",
+      "none": "還沒有下載任何模型。",
+      "useHint": "下載完成後模型清單會自動同步；到上方「分級」把 ollama/… 模型排進高階／標準／輕量即可使用。",
+      "recommended": "推薦的開源模型",
+      "download": "下載",
+      "retry": "重試",
+      "downloading": "下載中",
+      "isInstalled": "✓ 已下載",
+      "delete": "刪除",
+      "confirmDelete": "從 Ollama 刪除 {model}？使用中的分級需改用其他模型。",
+      "custom": "其他模型（Ollama 模型名稱）",
+      "tier": {
+        "high": "高階",
+        "standard": "標準",
+        "light": "輕量"
+      },
+      "cap": {
+        "tools": "工具呼叫",
+        "thinking": "推理",
+        "vision": "圖片"
+      }
     }
   },
   "hubApi": {

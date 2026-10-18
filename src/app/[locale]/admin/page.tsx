@@ -26,6 +26,7 @@ import { oenConfigured } from "@/lib/oen";
 import { config } from "@/lib/config";
 import { Icon } from "@/components/icon";
 import { AiModelsAdmin } from "@/components/admin-ai";
+import { OllamaAdmin } from "@/components/admin-ollama";
 import { modelCatalogFromApi, tierConfig } from "@/lib/ai-models";
 import { adminCounts, adminStats, settingsHealth } from "@/lib/admin-overview";
 
@@ -441,14 +442,17 @@ async function AiModels() {
   const [c, catalog, rows] = await Promise.all([tierConfig(), modelCatalogFromApi(), pricesAt(new Date(8.64e15))]);
   const providers = Object.keys(config.llm.providers);
   return (
-    <AiModelsAdmin
-      tiers={c.tiers}
-      jobs={c.jobs}
-      catalog={catalog}
-      providers={providers}
-      keyed={providers.filter((p) => !!config.llm.providers[p].key)}
-      priced={Object.fromEntries(rows.map((m) => [m.modelId, m.enabled]))}
-    />
+    <div className="space-y-6">
+      <AiModelsAdmin
+        tiers={c.tiers}
+        jobs={c.jobs}
+        catalog={catalog}
+        providers={providers}
+        keyed={providers.filter((p) => !!config.llm.providers[p].key)}
+        priced={Object.fromEntries(rows.map((m) => [m.modelId, m.enabled]))}
+      />
+      <OllamaAdmin />
+    </div>
   );
 }
 

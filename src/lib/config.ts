@@ -36,6 +36,12 @@ export function taskServices(env: Record<string, string | undefined> = process.e
   return { ollama: o.url, comfyui: c.url, local: o.local || c.local };
 }
 
+/** Ollama's own API root (no /v1): the setting llm.base.ollama, else OLLAMA_URL from .env; "" when neither is set */
+export function ollamaBase(): string {
+  const u = (sv("llm.base.ollama") || process.env.OLLAMA_URL || "").trim().replace(/\/+$/, "");
+  return u.replace(/\/v1$/, "");
+}
+
 export const config = {
   /** Public origin of this site, e.g. https://sinobee.ai — must match exactly what users sign */
   get origin() {
@@ -343,6 +349,8 @@ export const config = {
       openai: { kind: "openai" as const, get base() { return sv("llm.base.openai"); }, get key() { return sv("apiKeys.openai"); } },
       gemini: { kind: "openai" as const, get base() { return sv("llm.base.gemini"); }, get key() { return sv("apiKeys.gemini"); } },
       deepseek: { kind: "openai" as const, get base() { return sv("llm.base.deepseek"); }, get key() { return sv("apiKeys.deepseek"); } },
+      // local open models: Ollama's OpenAI-compatible API; no API key (a placeholder marks it as usable once a URL is set)
+      ollama: { kind: "openai" as const, get base() { return ollamaBase() ? `${ollamaBase()}/v1` : ""; }, get key() { return ollamaBase() ? "ollama" : ""; } },
     } as Record<string, { kind: "openai" | "anthropic"; readonly base: string; readonly key: string }>,
     get rpm() {
       return svNum("llm.rpm");

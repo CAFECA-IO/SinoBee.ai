@@ -169,7 +169,7 @@ export async function syncCatalog(actorId: string | null): Promise<Catalog> {
 // ───────────── prices looked up by AI ─────────────
 
 export type PriceGuess = { modelId: string; label: string; vendor: string; usd: Prices; note?: string };
-const VENDOR: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", gemini: "Google", deepseek: "DeepSeek" };
+const VENDOR: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", gemini: "Google", deepseek: "DeepSeek", ollama: "Ollama" };
 
 /**
  * Add models from the catalog to Model prices with list prices looked up by the platform model (pricing job; with web
@@ -182,7 +182,9 @@ export async function addModelsWithAiPrices(actorId: string, modelIds: string[])
   if (ids.length > 20) throw new HttpError(400, "at most 20 models at a time");
   const catalog = await modelCatalogFromApi();
   const label = (id: string) => catalog[id.split("/")[0]]?.models.find((m) => `${id.split("/")[0]}/${m.id}` === id)?.label ?? id.split("/").slice(1).join("/");
-  const guesses = await lookUpPrices(ids.map((id) => ({ id, label: label(id) })));
+  // local models (Ollama) have no API price: they are added at 0
+  const remote = ids.filter((id) => !id.startsWith("ollama/"));
+  const guesses = remote.length ? await lookUpPrices(remote.map((id) => ({ id, label: label(id) }))) : new Map<string, { usd: Prices; note?: string }>();
   const priced = new Map((await pricesAt(new Date(8.64e15))).map((m) => [m.modelId, m]));
   const saved: PriceGuess[] = [];
   for (const id of ids) {
@@ -190,7 +192,7 @@ export async function addModelsWithAiPrices(actorId: string, modelIds: string[])
     const usd = gss?.usd ?? { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
     const prev = priced.get(id);
     await savePrice(actorId, { modelId: id, label: prev?.label ?? label(id), vendor: prev?.vendor ?? VENDOR[id.split("/")[0]] ?? id.split("/")[0], usd, enabled: prev?.enabled ?? false });
-    saved.push({ modelId: id, label: prev?.label ?? label(id), vendor: VENDOR[id.split("/")[0]] ?? "", usd, note: gss?.note ?? (gss ? undefined : "price not found") });
+    saved.push({ modelId: id, label: prev?.label ?? label(id), vendor: VENDOR[id.split("/")[0]] ?? "", usd, note: id.startsWith("ollama/") ? "local model (Ollama): no API price" : (gss?.note ?? (gss ? undefined : "price not found")) });
   }
   await audit(actorId, "ai.prices.lookup", { type: "site", id: "ai" }, { models: saved.map((s) => ({ id: s.modelId, usd: s.usd, note: s.note })) });
   return saved;

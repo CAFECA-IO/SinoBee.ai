@@ -97,7 +97,8 @@ A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
 **Ollama.** Ollama runs on the GPU when docker has an NVIDIA GPU (NVIDIA Container Toolkit), and on the CPU otherwise.
 
 - swarm writes `OLLAMA_URL=http://127.0.0.1:11434` to `.env`.
-- Models are not pulled automatically. Add them with `docker exec sinobee-ollama ollama pull <model>`.
+- Models are not pulled automatically. Download them in /admin → AI 模型 → Ollama, which lists recommended open models (or any Ollama model name) with download progress, or run `docker exec sinobee-ollama ollama pull <model>`.
+- Ollama is also a model source for the platform's own AI jobs. Downloaded models appear as `ollama/<name>` in the model lists of /admin → AI 模型 and can be put into the high, standard and light tiers. They need no API key and are added to Model prices at 0. Settings → Ollama URL overrides `OLLAMA_URL`.
 - An `OLLAMA_URL` on another host uses that server instead of starting one.
 
 **MiniMax H3.** ComfyUI with MiniMax H3 renders the videos of the `ai-video-production` skill.

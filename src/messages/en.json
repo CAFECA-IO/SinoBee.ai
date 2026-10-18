@@ -787,6 +787,34 @@
     },
     "screening": {
       "self": "self-paid"
+    },
+    "ollama": {
+      "title": "Ollama (local open models)",
+      "lead": "Ollama is a model source for the platform's AI: downloaded models appear as ollama/<name> in the model lists and tiers above after a sync — no API key, no API cost.",
+      "connected": "Connected · v{version}",
+      "offline": "Unreachable",
+      "notConfigured": "Ollama is not set up: start it with npm run swarm (it writes OLLAMA_URL to .env), or set Settings → Ollama URL.",
+      "installed": "Downloaded models",
+      "none": "No model downloaded yet.",
+      "useHint": "The model lists sync when a download finishes; put ollama/… models into the high / standard / light tiers above to use them.",
+      "recommended": "Recommended open models",
+      "download": "Download",
+      "retry": "Retry",
+      "downloading": "Downloading",
+      "isInstalled": "✓ Downloaded",
+      "delete": "Delete",
+      "confirmDelete": "Delete {model} from Ollama? Tiers that use it need another model.",
+      "custom": "Other model (Ollama model name)",
+      "tier": {
+        "high": "High",
+        "standard": "Standard",
+        "light": "Light"
+      },
+      "cap": {
+        "tools": "tools",
+        "thinking": "thinking",
+        "vision": "vision"
+      }
     }
   },
   "hubApi": {

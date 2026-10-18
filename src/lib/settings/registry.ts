@@ -72,6 +72,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "llm.base.openai", env: "LLM_BASE_OPENAI", type: "url", group: "llm", default: "https://api.openai.com/v1", label: L("OpenAI API 網址", "OpenAI API URL") },
   { key: "llm.base.gemini", env: "LLM_BASE_GEMINI", type: "url", group: "llm", default: "https://generativelanguage.googleapis.com/v1beta/openai", label: L("Gemini API 網址", "Gemini API URL") },
   { key: "llm.base.deepseek", env: "LLM_BASE_DEEPSEEK", type: "url", group: "llm", default: "https://api.deepseek.com/v1", label: L("DeepSeek API 網址", "DeepSeek API URL") },
+  { key: "llm.base.ollama", env: "LLM_BASE_OLLAMA", type: "url", group: "llm", label: L("Ollama 網址（選填）", "Ollama URL (optional)"), help: L("留空時使用 .env 的 OLLAMA_URL（npm run swarm 啟動的 Ollama 容器會自動寫入）", "Empty: OLLAMA_URL from .env (written by npm run swarm for its Ollama container)") },
 
   // ───── CAFECA ─────
   { key: "cafeca.wallet", env: "CAFECA_WALLET", type: "url", group: "cafeca", default: "https://cafeca.io", label: L("CAFECA 錢包網址", "CAFECA wallet URL"), restart: true },
