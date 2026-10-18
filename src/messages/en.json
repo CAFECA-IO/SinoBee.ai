@@ -354,6 +354,10 @@
       "youtube-analysis": {
         "title": "YouTube video analysis",
         "body": "Reads a video's metadata, transcript and stills and writes a Markdown report with a timestamped outline, category analysis and fact-check."
+      },
+      "engineering-feasibility": {
+        "title": "Engineering feasibility",
+        "body": "Takes a video or text, tests each claim against physics with a numeric model and gives a verdict; if it works, a 3D animated page shows how the system runs and where it stops, if not, why the key properties cannot be achieved, with a report."
       }
     },
     "howTitle": "How skills work",
