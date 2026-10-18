@@ -1174,14 +1174,17 @@
     "companyName": "公司名稱（選填）",
     "agree": "我已閱讀並同意<terms>服務條款</terms>、<refunds>退款政策</refunds>與<privacy>隱私權政策</privacy>，並同意付款後立即開始提供服務（線上服務不適用七日解除權，退款依退款政策辦理）。",
     "oenNote": "由應援科技股份有限公司（Oen）以你選擇的信用卡扣款（新臺幣計價），並開立電子發票。",
-    "card": "付款信用卡",
+    "card": "付款方式",
     "noCard": "還沒有綁定信用卡。先綁定一張卡，之後每次付款選卡即可直接扣款。",
     "bindCard": "綁定信用卡",
     "addAnother": "綁定其他信用卡",
     "bindNote": "綁卡在 Oen 的安全頁面完成（3-D 驗證），不會扣款；SinoBee.ai 不會取得你的卡號。",
     "bindingPending": "等待 Oen 確認綁卡…",
     "testCards": "測試模式：使用測試金流，不會產生真實扣款。",
-    "charging": "扣款中…"
+    "charging": "扣款中…",
+    "points": "平台點數",
+    "pointsBalance": "餘額 {n} 點",
+    "pointsUsed": "折抵 NT${n}"
   },
   "subscribe": {
     "title": "訂閱 SinoBee.ai",
@@ -1429,7 +1432,10 @@
       "selfNote": "由發起人全額支付，不開放出資。",
       "selfCharging": "審核已通過，正在向發起人的信用卡請款。",
       "selfPaid": "發起人已付款，不開放他人出資。",
-      "selfFailed": "信用卡請款未成功，任務未執行。"
+      "selfFailed": "信用卡請款未成功，任務未執行。",
+      "pointsCover": "平台點數足以支付這次出資，不會刷卡。點數立即扣除，未達標會退回。",
+      "split": "點數折抵 NT${p}，信用卡支付 NT${c}。",
+      "quotaAll": "以額度支付全額，不使用點數"
     },
     "account": {
       "points": "平台點數",

@@ -129,11 +129,39 @@ export function AgreeTerms() {
 
 export type CardOpt = { id: string; last4: string | null; brand?: CardBrand | null };
 
+/** Platform points shown first in the payment methods: they always pay first, the card only the rest */
+export type PointsOpt = { balance: number; used: number };
+
 /**
- * Pick a saved card, or bind a new one with Oen (3-D Secure). After binding, Oen confirms the card in the background:
- * while a binding is pending the list refreshes itself until the card shows up.
+ * Payment method: platform points first (when given: they always pay first), then the saved cards; or bind a new one
+ * with Oen (3-D Secure). After binding, Oen confirms the card in the background: while a binding is pending the list
+ * refreshes itself until the card shows up.
  */
-export function CardPicker({ cards, value, onChange, pending = false, returnTo, email, test = false }: { cards: CardOpt[]; value: string; onChange: (id: string) => void; pending?: boolean; returnTo: string; email?: string; test?: boolean }) {
+export function CardPicker({
+  cards,
+  value,
+  onChange,
+  pending = false,
+  returnTo,
+  email,
+  test = false,
+  points,
+  inactive = false,
+  extra,
+}: {
+  cards: CardOpt[];
+  value: string;
+  onChange: (id: string) => void;
+  pending?: boolean;
+  returnTo: string;
+  email?: string;
+  test?: boolean;
+  points?: PointsOpt;
+  /** another method (e.g. subscription quota) is chosen: no card is highlighted */
+  inactive?: boolean;
+  /** more methods after the cards (e.g. subscription quota), rendered as tiles too */
+  extra?: React.ReactNode;
+}) {
   const t = useTranslations("checkout");
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -150,12 +178,24 @@ export function CardPicker({ cards, value, onChange, pending = false, returnTo, 
     <fieldset className="space-y-2">
       <legend className="label">{t("card")}</legend>
       {test && <p className="text-xs text-warn">{t("testCards")}</p>}
+      {points && (
+        <div className={`flex items-center gap-3 rounded-xl border p-3 text-sm ${points.used > 0 ? "border-accent bg-accent-soft" : "border-line opacity-70"}`}>
+          <span className="grid h-6 w-[38px] flex-none place-items-center rounded-md border border-line bg-white text-accent" aria-hidden="true">
+            <Icon name="coin" className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 leading-tight">
+            <span className="block font-semibold">{t("points")}</span>
+            <span className="block text-xs text-muted">{t("pointsBalance", { n: points.balance.toLocaleString() })}</span>
+          </span>
+          <span className="ml-auto whitespace-nowrap font-mono text-sm font-bold text-accent">{points.used > 0 ? t("pointsUsed", { n: points.used.toLocaleString() }) : "—"}</span>
+        </div>
+      )}
       {cards.length === 0 && !pending && <p className="text-sm text-muted">{t("noCard")}</p>}
       {cards.length > 0 && (
         <div
           role="radiogroup"
           aria-label={t("card")}
-          className="grid gap-2 sm:grid-cols-2"
+          className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(11rem,1fr))]"
           onKeyDown={(e) => {
             const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
             if (!dir) return;
@@ -167,7 +207,7 @@ export function CardPicker({ cards, value, onChange, pending = false, returnTo, 
           }}
         >
           {cards.map((c) => {
-            const on = c.id === value;
+            const on = !inactive && c.id === value;
             return (
               <button
                 key={c.id}
@@ -177,18 +217,16 @@ export function CardPicker({ cards, value, onChange, pending = false, returnTo, 
                 aria-checked={on}
                 tabIndex={on || (!cards.some((x) => x.id === value) && c === cards[0]) ? 0 : -1}
                 onClick={() => onChange(c.id)}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent-soft" : "border-line hover:border-accent/60"}`}
+                className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-accent ${on ? "border-accent bg-accent-soft font-semibold" : "border-line hover:border-accent/60"}`}
               >
                 <CardBrandMark brand={c.brand} />
-                <span className="font-mono tracking-wider">•••• {c.last4 ?? "????"}</span>
-                <span className={`ml-auto grid h-5 w-5 place-items-center rounded-full ${on ? "bg-accent text-accent-ink" : "border border-line"}`} aria-hidden="true">
-                  {on && <Icon name="check" className="h-3.5 w-3.5" />}
-                </span>
+                <span className="whitespace-nowrap font-mono tracking-wider">•••• {c.last4 ?? "????"}</span>
               </button>
             );
           })}
         </div>
       )}
+      {extra}
       {pending && <p className="text-sm text-muted" aria-live="polite">{t("bindingPending")}</p>}
       <button
         type="button"

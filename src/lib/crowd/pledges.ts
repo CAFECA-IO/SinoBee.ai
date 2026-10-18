@@ -12,7 +12,8 @@ import { SHARE_OPTIONS, sharePrice } from "./rules";
 
 /**
  * Pledges. A backer picks 1, 5 or 20 shares and pays with:
- *  CARD    a saved card; nothing is charged until the goal is reached (then one charge per backer and task)
+ *  CARD    a saved card; nothing is charged until the goal is reached (then one charge per backer and task); with
+ *          usePoints the backer's points pay first and the card only the rest (all points → a POINTS pledge)
  *  POINTS  platform points, deducted now and given back if the campaign fails
  *  QUOTA   subscription quota (published-price TWD), deducted now inside the 6 h / 168 h windows, given back as
  *          quota only (never cash or points); capped per period and per task
@@ -25,7 +26,10 @@ export const PledgeInput = z.object({
   source: z.enum(["CARD", "POINTS", "QUOTA"]),
   /** needed for CARD pledges: the e-invoice goes to this buyer when the card is charged */
   buyer: BuyerInput.optional(),
-  /** CARD: pay part with points (the card is charged the rest, at least 1 TWD) */
+  /**
+   * CARD: spend platform points first (the pledge pages always do): the card is charged only what the points do not
+   * cover, and when they cover everything the pledge becomes a POINTS pledge (no card needed)
+   */
   usePoints: z.boolean().default(false),
   /** CARD: the saved card to charge (the newest card of the current mode when omitted) */
   cardId: z.string().max(40).optional(),
@@ -89,29 +93,35 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
   // a top-up round is open: the pledge waits for the round's goal like a campaign pledge
   const topup = task.status === "NEEDS_FUNDING" && !!task.topupGoalTwd;
 
-  if (input.source === "CARD") {
+  let source = input.source;
+  if (source === "CARD" && input.usePoints) {
+    const balance = await pointBalance(userId);
+    if (balance >= amount) source = "POINTS";
+    else pointsTwd = Math.max(0, balance);
+  }
+
+  if (source === "CARD") {
     const card = input.cardId ? await usableCard(userId, input.cardId) : await latestCard(userId);
     if (!card) throw new HttpError(400, "save a card first");
     cardId = card.id;
     if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
     await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
-    if (input.usePoints) pointsTwd = Math.max(0, Math.min(await pointBalance(userId), amount - 1));
-  } else if (input.source === "QUOTA") {
+  } else if (source === "QUOTA") {
     usageLedgerId = await quotaPledge(userId, taskId, amount, task.goalTwd ?? amount);
   }
 
   const { currentChecklist } = await import("./checklist");
   const termsVersion = (await currentChecklist()).version;
-  const p = await db.pledge.create({ data: { taskId, userId, source: input.source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup, termsVersion } });
-  if (input.source === "POINTS" || pointsTwd > 0) {
+  const p = await db.pledge.create({ data: { taskId, userId, source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup, termsVersion } });
+  if (source === "POINTS" || pointsTwd > 0) {
     try {
-      await spendPoints(userId, input.source === "POINTS" ? amount : pointsTwd, `pledge:${p.id}`, taskId);
+      await spendPoints(userId, source === "POINTS" ? amount : pointsTwd, `pledge:${p.id}`, taskId);
     } catch (e) {
       await db.pledge.delete({ where: { id: p.id } });
       throw e;
     }
   }
-  await db.taskEvent.create({ data: { taskId, type: "pledge", message: `${input.shares} share(s) pledged (${amount} TWD, ${input.source.toLowerCase()})`, data: { pledge: p.id } } });
+  await db.taskEvent.create({ data: { taskId, type: "pledge", message: `${input.shares} share(s) pledged (${amount} TWD, ${source.toLowerCase()}${pointsTwd ? ` + ${pointsTwd} points` : ""})`, data: { pledge: p.id } } });
   if (topup || collectsNow(task.status)) {
     const { collectLate } = await import("./lifecycle");
     await collectLate(taskId, p.id);

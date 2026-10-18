@@ -237,6 +237,14 @@ test("points + card: the remainder is paid with points and the card is charged t
   assert.equal((await db.task.findUniqueOrThrow({ where: { id: t.id } })).status, "QUEUED", "110 + 40 points = 150");
 
   // unfunded: the points part comes back
+  // points that cover the whole pledge: a points pledge, no card or buyer needed
+  await points.bookPoints({ userId: dan.id, delta: 35, reason: "admin", ref: "p1:dan-all" });
+  const tAll = await openCampaign(300);
+  const all = await pledges.pledge(dan.id, tAll.id, { shares: 1, source: "CARD", usePoints: true });
+  assert.deepEqual([all.source, all.pointsTwd, all.cardId], ["POINTS", 0, null]);
+  assert.equal(await points.pointBalance(dan.id), 5);
+  await points.bookPoints({ userId: dan.id, delta: -5, reason: "admin", ref: "p1:dan-all-reset" });
+
   await points.bookPoints({ userId: dan.id, delta: 20, reason: "admin", ref: "p1:dan2" });
   const t2 = await openCampaign(300);
   await pledges.pledge(dan.id, t2.id, { shares: 1, source: "CARD", buyer, usePoints: true });

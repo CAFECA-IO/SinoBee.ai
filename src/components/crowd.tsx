@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Toggle } from "./toggle";
@@ -866,14 +866,21 @@ export function PledgePanel({
   const t = useTranslations("crowd.panel");
   const router = useRouter();
   const [shares, setShares] = useState(1);
-  const [source, setSource] = useState<"CARD" | "POINTS" | "QUOTA">(cards.length ? "CARD" : points >= price ? "POINTS" : hasQuota ? "QUOTA" : "CARD");
+  // points always pay first; the card (or, instead of both, subscription quota) pays the rest
+  const [method, setMethod] = useState<"CARD" | "QUOTA">("CARD");
   const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
-  const [usePoints, setUsePoints] = useState(false);
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const amount = shares * price;
+  const used = method === "CARD" ? Math.min(points, amount) : 0;
+  const rest = amount - used;
+  const covered = method === "CARD" && rest === 0;
   const open = ["FUNDING", "CHARGING", "QUEUED", "RUNNING", "NEEDS_FUNDING"].includes(status);
+  const pickCard = useCallback((id: string) => {
+    setCardId(id);
+    setMethod("CARD");
+  }, []);
   return (
     <div className="space-y-4">
       {open && (
@@ -884,7 +891,13 @@ export function PledgePanel({
             setBusy(true);
             setErr("");
             try {
-              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, source, agreeTerms: true, ...(source === "CARD" ? { buyer, usePoints, cardId } : {}) });
+              const body =
+                method === "QUOTA"
+                  ? { source: "QUOTA" }
+                  : covered
+                    ? { source: "POINTS" }
+                    : { source: "CARD", usePoints: true, buyer, cardId };
+              await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, agreeTerms: true, ...body });
               router.refresh();
             } catch (e) {
               setErr((e as Error).message);
@@ -900,40 +913,39 @@ export function PledgePanel({
               </button>
             ))}
           </div>
-          <fieldset className="space-y-1 text-sm">
-            <legend className="label">{t("source")}</legend>
-            <label className="flex items-center gap-2">
-              <input type="radio" checked={source === "CARD"} onChange={() => setSource("CARD")} />
-              {t("card")}
-            </label>
-            <label className={`flex items-center gap-2 ${points < price ? "opacity-50" : ""}`}>
-              <input type="radio" checked={source === "POINTS"} disabled={points < price} onChange={() => setSource("POINTS")} />
-              {t("points", { n: points })}
-            </label>
-            {hasQuota && (
-              <label className="flex items-center gap-2">
-                <input type="radio" checked={source === "QUOTA"} onChange={() => setSource("QUOTA")} />
-                {t("quota")}
-              </label>
-            )}
-          </fieldset>
-          {source === "CARD" && (
-            <>
-              <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo={`/tasks/${taskId}`} email={buyer.email} test={test} />
-              {cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
-              {cards.length > 0 && points > 0 && (
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
-                  {t("usePoints", { n: points })}
-                </label>
-              )}
-              <p className="text-xs text-muted">{t("cardNote")}</p>
-            </>
-          )}
-          {source === "POINTS" && <p className="text-xs text-muted">{t("pointsNote")}</p>}
-          {source === "QUOTA" && <p className="text-xs text-muted">{t("quotaNote")}</p>}
+          <CardPicker
+            cards={cards}
+            value={cardId}
+            onChange={pickCard}
+            pending={pendingCard}
+            returnTo={`/tasks/${taskId}`}
+            email={buyer.email}
+            test={test}
+            points={{ balance: points, used }}
+            inactive={method !== "CARD" || covered}
+            extra={
+              hasQuota && (
+                <button
+                  type="button"
+                  aria-pressed={method === "QUOTA"}
+                  onClick={() => setMethod(method === "QUOTA" ? "CARD" : "QUOTA")}
+                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm transition ${method === "QUOTA" ? "border-accent bg-accent-soft font-semibold" : "border-line hover:border-accent/60"}`}
+                >
+                  <span className="grid h-6 w-[38px] flex-none place-items-center rounded-md border border-line bg-white text-accent" aria-hidden="true">
+                    <Icon name="sparkles" className="h-4 w-4" />
+                  </span>
+                  {t("quota")}
+                  <span className="ml-auto text-xs font-normal text-muted">{t("quotaAll")}</span>
+                </button>
+              )
+            }
+          />
+          {method === "CARD" && !covered && cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
+          <p className="text-xs text-muted">
+            {method === "QUOTA" ? t("quotaNote") : covered ? t("pointsCover") : used > 0 ? `${t("split", { p: used, c: rest })} ${t("cardNote")}` : t("cardNote")}
+          </p>
           <AgreeCrowdTerms />
-          <button className="btn-primary w-full" disabled={busy || (source === "CARD" && !cardId) || (source === "POINTS" && points < amount)}>
+          <button className="btn-primary w-full" disabled={busy || (method === "CARD" && !covered && !cardId)}>
             {busy ? t("pledging") : t("pledge", { amount })}
           </button>
           {err && <p className="text-sm text-err" role="alert">{err}</p>}
