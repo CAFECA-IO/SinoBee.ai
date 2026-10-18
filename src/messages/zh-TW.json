@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "SinoBee.ai — 在你電腦上工作的開源 AI 蜂群",
-    "description": "SinoBee 官方網站：線上試用 Agent、下載與安裝、Skill Hub 技能市集、眾籌 AI 任務、模型與技能公開評鑑。"
+    "description": "SinoBee 官方網站：線上使用 SinoBee、下載與安裝、Skill Hub 技能市集、眾籌 AI 任務、模型與技能公開評鑑。"
   },
   "nav": {
     "download": "下載安裝",
@@ -18,7 +18,7 @@
     "loginShort": "登入",
     "tools": "工具",
     "shares": "分享",
-    "tryAgent": "線上試用",
+    "tryAgent": "線上使用",
     "menu": "選單",
     "crowd": "眾籌",
     "points": "平台點數",
@@ -132,10 +132,10 @@
     },
     "popularSkills": "熱門技能",
     "viewAll": "全部技能",
-    "ctaTry": "線上試用 Agent",
+    "ctaTry": "線上使用",
     "tryNote": "不用安裝：在 agent.sinobee.ai 直接開一個 SinoBee 試試看。",
     "trySay": "試著說：",
-    "casesTry": "每個例子都可以直接在線上試用的 SinoBee 輸入。",
+    "casesTry": "每個例子都可以直接在線上使用的 SinoBee 輸入。",
     "more": {
       "video": {
         "title": "一句話拍出一支影片",
@@ -246,7 +246,7 @@
         "a": "預設連接埠已改為 10024，請開 http://localhost:10024；若 config.yaml 裡設定了 server.port，以該設定為準。"
       }
     },
-    "tryOnline": "先線上試用",
+    "tryOnline": "線上使用",
     "tryOnlineNote": "想先看看再安裝？到 agent.sinobee.ai 直接試用 SinoBee Agent。",
     "pipManual": "或手動安裝："
   },
@@ -1713,5 +1713,11 @@
     "title": "請確認",
     "ok": "確定",
     "cancel": "取消"
+  },
+  "agent": {
+    "title": "線上使用 SinoBee",
+    "lead": "你專屬的 SinoBee（含虛擬桌面）在 SinoBee.ai 的伺服器上執行，檔案與設定會保留在你的空間。第一次啟動需要幾十秒。",
+    "starting": "正在啟動你的 SinoBee…",
+    "retry": "再試一次"
   }
 }

@@ -7,7 +7,6 @@ import { Logo } from "./logo";
 import { UserMenu } from "./user-menu";
 import { LocaleSelect } from "./locale-select";
 import { Icon, type IconName } from "./icon";
-import { AGENT_URL } from "@/lib/links";
 
 const NAV: { href: string; key: string; icon: IconName }[] = [
   { href: "/download", key: "download", icon: "download" },
@@ -42,9 +41,9 @@ export function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-1">
           <LocaleSelect />
-          <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("tryAgent")} data-tip={t("tryAgent")} className="icon-btn solid">
+          <Link href="/agent" target="_blank" aria-label={t("tryAgent")} data-tip={t("tryAgent")} className="icon-btn solid">
             <Icon name="rocket" />
-          </a>
+          </Link>
           <UserMenu />
           <button className="icon-btn md:hidden" onClick={() => setOpen(!open)} aria-label={t("menu")} aria-expanded={open}>
             <Icon name="menu" />
@@ -54,9 +53,9 @@ export function Header() {
       {open && (
         /* touch screens have no hover, so the drawer shows icon + label */
         <nav className="container-x grid grid-cols-2 gap-1 pb-3 md:hidden">
-          <a href={AGENT_URL} target="_blank" rel="noopener" className="col-span-2 flex items-center gap-2 rounded-xl bg-accent-soft px-3 py-2.5 text-sm font-semibold text-accent">
+          <Link href="/agent" target="_blank" className="col-span-2 flex items-center gap-2 rounded-xl bg-accent-soft px-3 py-2.5 text-sm font-semibold text-accent">
             <Icon name="rocket" /> {t("tryAgent")}
-          </a>
+          </Link>
           {NAV.map((n) => (
             <Link key={n.href} href={n.href} onClick={() => setOpen(false)}
               className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm ${active(n.href) ? "bg-panel-2 text-accent" : ""}`}>

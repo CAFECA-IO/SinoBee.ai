@@ -1,7 +1,7 @@
 import Image from "next/image";
+import { Link } from "@/i18n/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { CopyCode } from "@/components/copy-code";
-import { AGENT_URL } from "@/lib/links";
 import { Icon } from "@/components/icon";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -38,7 +38,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
           <div className="mt-6 flex flex-wrap gap-2">
             <a href={REPO} target="_blank" rel="noreferrer" aria-label={t("github")} data-tip={t("github")} className="icon-btn solid lg"><Icon name="github" /></a>
             <a href={`${REPO}/archive/refs/heads/main.zip`} aria-label={t("zip")} data-tip={t("zip")} className="icon-btn outline lg"><Icon name="download" /></a>
-            <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("tryOnline")} data-tip={t("tryOnline")} className="icon-btn outline lg"><Icon name="rocket" /></a>
+            <Link href="/agent" target="_blank" aria-label={t("tryOnline")} data-tip={t("tryOnline")} className="icon-btn outline lg"><Icon name="rocket" /></Link>
           </div>
           <p className="mt-3 text-sm text-muted">{t("tryOnlineNote")}</p>
         </header>

@@ -12,6 +12,7 @@
     "swarm": "tsx scripts/swarm.ts",
     "lint": "tsc --noEmit",
     "worker": "tsx worker/index.ts",
+    "agent-gateway": "tsx scripts/agent-gateway.ts",
     "db:migrate": "prisma migrate deploy",
     "db:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",

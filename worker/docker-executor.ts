@@ -9,6 +9,7 @@ import Docker from "dockerode";
 import { PassThrough, Readable } from "node:stream";
 import { createGzip } from "node:zlib";
 import { config } from "../src/lib/config";
+import { ensureDockerNetwork } from "../src/lib/docker-net";
 import { getObject } from "../src/lib/storage";
 import { buildPrompt, taskSession, type Executor, type RunContext, type RunResult, type TaskWithRefs, type Usage } from "./types";
 
@@ -66,6 +67,7 @@ async function ensureContainer(task: TaskWithRefs): Promise<Docker.Container> {
     `SINOBEE_SERVER_TOKEN=${randomBytes(24).toString("base64url")}`,
     ...config.runner.containerEnv.map(([k, v]) => `${k}=${v}`),
   ];
+  await ensureDockerNetwork(docker, config.runner.network);
   const created = await docker.createContainer({
     name,
     Image: config.runner.image,

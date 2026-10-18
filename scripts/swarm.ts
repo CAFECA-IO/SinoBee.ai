@@ -11,7 +11,7 @@
  *      OLLAMA_URL / COMFYUI_URL written to .env; task containers join the `sinobee` network to reach them
  *   6. seed the official skills (idempotent)
  *   7. build the site if needed (production mode)
- *   8. start the web server on :10023 and the task worker, with prefixed logs
+ *   8. start the web server on :10023, the task worker and the agent gateway on :10025 (線上使用), with prefixed logs
  * Missing docker images are built (Boltchain node, H3) or pulled (PostgreSQL, Ollama). The SinoBee image that tasks
  * run in is not built at start-up (a missing one is reported); --build builds the latest one.
  *
@@ -20,6 +20,7 @@
  *   npm run swarm -- --build      fresh production build; build the latest SinoBee image (task containers, from
  *                                 SINOBEE_SRC); rebuild the Boltchain and H3 images; pull PostgreSQL / Ollama
  *   npm run swarm -- --no-worker  web only
+ *   npm run swarm -- --no-agent   do not start the agent gateway (線上使用: each user's own SinoBee container)
  *   npm run swarm -- --no-boltchain   do not start the Boltchain node (storage stays local/S3)
  *   npm run swarm -- --no-postgres    never start PostgreSQL (SQLite unless DATABASE_URL is set)
  *   npm run swarm -- --postgres       start PostgreSQL even though SQLite data exists (it is not copied)
@@ -55,7 +56,7 @@ else {
   }
 }
 
-const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", bolt: "\x1b[32m", docker: "\x1b[34m" } as const;
+const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", agent: "\x1b[96m", bolt: "\x1b[32m", docker: "\x1b[34m" } as const;
 const log = (who: keyof typeof color, line: string) => console.log(`${color[who]}[${who}]\x1b[0m ${line}`);
 
 function pipe(who: keyof typeof color, p: ChildProcess) {
@@ -159,7 +160,7 @@ function stopAll(code = 0) {
 process.on("SIGINT", () => stopAll(0));
 process.on("SIGTERM", () => stopAll(0));
 
-function start(who: "web" | "worker", cmd: string, argv: string[], env: Record<string, string> = {}) {
+function start(who: "web" | "worker" | "agent", cmd: string, argv: string[], env: Record<string, string> = {}) {
   const p = spawn(cmd, argv, { cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   pipe(who, p);
   children.push(p);
@@ -210,8 +211,15 @@ async function main() {
     await run("swarm", bin("next"), ["build"]);
   }
 
+  // the web server hands users to the agent gateway's origin
+  if (!process.env.AGENT_ORIGIN) process.env.AGENT_ORIGIN = `http://localhost:${process.env.AGENT_PORT || 10025}`;
   start("web", bin("next"), [dev ? "dev" : "start", "-p", String(port)], { PORT: String(port) });
   if (!args.has("--no-worker")) start("worker", bin("tsx"), ["worker/index.ts"]);
+  // 線上使用: each user's own SinoBee container behind the agent gateway (needs docker)
+  if (!args.has("--no-agent") && dockerAvailable()) {
+    start("agent", bin("tsx"), ["scripts/agent-gateway.ts"]);
+    log("swarm", `線上使用 (agent gateway) → ${process.env.AGENT_ORIGIN}`);
+  }
   log("swarm", `SinoBee.ai → ${process.env.PUBLIC_ORIGIN}  (${dev ? "dev" : "production"}${args.has("--no-worker") ? ", no worker" : " + worker"})  Ctrl-C to stop`);
 }
 

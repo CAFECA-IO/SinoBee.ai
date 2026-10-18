@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "SinoBee.ai — the open-source AI swarm that works on your computer",
-    "description": "SinoBee official site: try the agent online, download and install, the Skill Hub, crowdfunded AI tasks, and public model and skill evaluations."
+    "description": "SinoBee official site: use SinoBee online, download and install, the Skill Hub, crowdfunded AI tasks, and public model and skill evaluations."
   },
   "nav": {
     "download": "Download",
@@ -18,7 +18,7 @@
     "loginShort": "Sign in",
     "tools": "Tools",
     "shares": "Shares",
-    "tryAgent": "Try online",
+    "tryAgent": "Use online",
     "menu": "Menu",
     "crowd": "Crowdfund",
     "points": "Platform points",
@@ -132,7 +132,7 @@
     },
     "popularSkills": "Popular skills",
     "viewAll": "All skills",
-    "ctaTry": "Try the agent online",
+    "ctaTry": "Use online",
     "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it.",
     "trySay": "Try saying: ",
     "casesTry": "Every example can be typed straight into the online SinoBee.",
@@ -246,7 +246,7 @@
         "a": "The default port is now 10024: open http://localhost:10024. A server.port in your config.yaml takes precedence."
       }
     },
-    "tryOnline": "Try it online first",
+    "tryOnline": "Use it online",
     "tryOnlineNote": "Want a look before installing? Try the SinoBee agent at agent.sinobee.ai.",
     "pipManual": "Or install manually:"
   },
@@ -1713,5 +1713,11 @@
     "title": "Please confirm",
     "ok": "Confirm",
     "cancel": "Cancel"
+  },
+  "agent": {
+    "title": "Use SinoBee online",
+    "lead": "Your own SinoBee (with a virtual desktop) runs on SinoBee.ai's servers; your files and settings stay in your space. The first start takes a few tens of seconds.",
+    "starting": "Starting your SinoBee…",
+    "retry": "Try again"
   }
 }

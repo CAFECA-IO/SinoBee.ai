@@ -53,6 +53,7 @@ npm run swarm                     # production build + worker on :10023, with ev
 npm run swarm -- --dev            # next dev (hot reload, DEV_LOGIN works) + worker
 npm run swarm -- --build          # fresh site build, latest SinoBee image, rebuild the Boltchain and H3 images, pull PostgreSQL and Ollama again
 npm run swarm -- --no-worker      # web only
+npm run swarm -- --no-agent       # do not start the agent gateway (線上使用)
 npm run swarm -- --no-boltchain   # do not start the Boltchain node
 npm run swarm -- --no-postgres    # never start PostgreSQL (SQLite unless DATABASE_URL is set)
 npm run swarm -- --postgres       # start PostgreSQL even though SQLite data exists (the data is not copied)
@@ -116,6 +117,18 @@ A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
 - Existing user containers join the network but only get these variables when they are recreated.
 
 Ports can be changed with `SINOBEE_POSTGRES_PORT`, `SINOBEE_OLLAMA_PORT`, `SINOBEE_H3_PORT` and `BOLT_NODE_RPC_PORT`; images with `SINOBEE_POSTGRES_IMAGE`, `SINOBEE_OLLAMA_IMAGE`, `COMFYUI_REF` and `BOLTCHAIN_REF`.
+
+### 線上使用 (each user's own SinoBee)
+
+The header's 線上使用 button opens `/agent`. It needs a signed-in user, then starts that user's own SinoBee container and opens it through the **agent gateway** (`npm run agent-gateway`, started by swarm on port 10025).
+
+- **Container.** It is named `sb-u-<user id>` and built from the SinoBee image (`runner.image`). It runs the Web UI and a virtual desktop.
+- **Data.** The user's files and settings live in the volumes `sb-uhome-<user id>` and `sb-uwork-<user id>`. A container that nobody used for `AGENT_IDLE_HOURS` (default 2) is stopped, and the next visit starts it again.
+- **Ports.** They are published on 127.0.0.1 only, so only the gateway reaches the container. It is on the `sinobee` network, so SinoBee can use Ollama and MiniMax H3.
+- **Own origin.** SinoBee's Web UI must be served from the root of an origin, so the gateway has its own: `AGENT_ORIGIN`, default `http://localhost:10025`. In production, point e.g. `https://agent.sinobee.ai` at port 10025 in the reverse proxy (WebSockets included), set `AGENT_ORIGIN=https://agent.sinobee.ai` in `.env`, and run `npm run agent-gateway` next to the web server and the worker (e.g. a third pm2 process).
+- **Sign-in.** The site hands the browser over with a signed one-minute ticket, and the gateway keeps its own signed cookie. It adds the container's server token to every request, so the browser never sees it.
+- **No platform API keys** go into these containers. Users sign in to SinoBee.ai inside SinoBee (subscription models) or use local models.
+- The desktop view (`/__vnc/…`) goes through the gateway too.
 
 Objects stored before Boltchain was turned on can be moved later: `npm run storage-migrate -- --anchor-skills --run`.
 

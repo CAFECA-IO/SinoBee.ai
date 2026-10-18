@@ -6,7 +6,6 @@ import { SkillCard } from "@/components/skill-card";
 import { isOfficialSkill, skillTag } from "@/lib/skills/official";
 import { skillMarks } from "@/components/skill-tag";
 import { CopyCode } from "@/components/copy-code";
-import { AGENT_URL } from "@/lib/links";
 import { Icon } from "@/components/icon";
 import { HeroHive } from "@/components/hero-hive";
 
@@ -68,7 +67,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">{t("lead")}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href={AGENT_URL} target="_blank" rel="noopener" className="btn-primary !px-6 !py-3 text-base"><Icon name="rocket" />{t("ctaTry")}</a>
+              <Link href="/agent" target="_blank" className="btn-primary !px-6 !py-3 text-base"><Icon name="rocket" />{t("ctaTry")}</Link>
               <Link href="/download" aria-label={t("ctaInstall")} data-tip={t("ctaInstall")} className="icon-btn outline lg"><Icon name="download" /></Link>
               <Link href="/crowd/new" aria-label={t("ctaCommission")} data-tip={t("ctaCommission")} className="icon-btn outline lg"><Icon name="users" /></Link>
             </div>
@@ -153,7 +152,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
         <p className="mt-3 text-xs text-muted">{t("casesNote")}</p>
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <a href={AGENT_URL} target="_blank" rel="noopener" aria-label={t("ctaTry")} data-tip={t("ctaTry")} className="icon-btn solid lg"><Icon name="rocket" /></a>
+          <Link href="/agent" target="_blank" aria-label={t("ctaTry")} data-tip={t("ctaTry")} className="icon-btn solid lg"><Icon name="rocket" /></Link>
           <span className="text-sm text-muted">{t("casesTry")}</span>
         </div>
       </section>

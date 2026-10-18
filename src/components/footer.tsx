@@ -1,7 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { Logo } from "./logo";
-import { AGENT_URL } from "@/lib/links";
 
 export async function Footer() {
   const t = await getTranslations("footer");
@@ -17,7 +16,7 @@ export async function Footer() {
         </div>
         <div className="space-y-2 text-sm">
           <div className="font-semibold">{t("product")}</div>
-          <a className="block text-muted hover:text-accent" href={AGENT_URL} target="_blank" rel="noopener">{n("tryAgent")}</a>
+          <Link className="block text-muted hover:text-accent" href="/agent" target="_blank">{n("tryAgent")}</Link>
           <Link className="block text-muted hover:text-accent" href="/download">{n("download")}</Link>
           <Link className="block text-muted hover:text-accent" href="/skills">{n("skills")}</Link>
           <Link className="block text-muted hover:text-accent" href="/crowd">{n("tasks")}</Link>
