@@ -94,16 +94,57 @@ export function withHeadroom(estimate: bigint): bigint {
   return (estimate * 135n) / 100n + 25_000n;
 }
 
+/** The node's newest block may be at most this old before the site stops signing (blocks come every ~6 s) */
+export const MAX_HEAD_AGE_S = 180;
+/** Site-wallet transactions allowed to wait in the node's pool before the site stops sending more (the pool takes 16) */
+export const MAX_IN_FLIGHT = 4;
+
+const ago = (s: number) => (s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : s < 172_800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`);
+
+/**
+ * Checks that the site's node follows the chain and that nothing the site sent is stuck, before anything is signed.
+ * A node that stopped (for example one too old for a hard fork: it rejects the fork block and stays behind) still
+ * admits transactions to its pool, so every send would wait for a receipt that never comes, and after 16 of them
+ * the pool refuses the next nonce ("nonce too high") — the errors would hide the real problem.
+ * Returns null when ready, otherwise the reason.
+ */
+export async function nodeProblem(): Promise<string | null> {
+  const pc = publicClient();
+  const head = await pc.getBlock({ blockTag: "latest" });
+  const age = Math.floor(Date.now() / 1000) - Number(head.timestamp);
+  if (age > MAX_HEAD_AGE_S)
+    return `Boltchain node is not following the chain: its newest block #${head.number} is ${ago(age)} old. Upgrade the node (BOLTCHAIN_REF; a node too old for a hard fork stops at the fork block) or restart it.`;
+  const address = siteAccount().address;
+  const [mined, pending] = await Promise.all([pc.getTransactionCount({ address, blockTag: "latest" }), pc.getTransactionCount({ address, blockTag: "pending" })]);
+  if (pending - mined >= MAX_IN_FLIGHT)
+    return `${pending - mined} site-wallet transactions (nonce ${mined}–${pending - 1}) are waiting in the node's pool and are not being mined; nothing more is sent until they are (restarting the node clears its pool).`;
+  return null;
+}
+
+export async function assertNodeReady() {
+  const p = await nodeProblem();
+  if (p) throw new NodeNotReady(p);
+}
+
+export class NodeNotReady extends Error {
+  readonly notReady = true;
+}
+
 /** Simulates, sends with gas headroom and waits; throws `<label> reverted …` (and says when it ran out of gas) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function sendContract(req: any, label: string) {
+  await assertNodeReady();
   const wc = walletClient();
   const pc = publicClient();
   const full = { account: wc.account, ...req };
   await pc.simulateContract(full);
   const gas = withHeadroom(await pc.estimateContractGas(full));
   const hash = await wc.writeContract({ ...full, gas });
-  const rc = await pc.waitForTransactionReceipt({ hash, timeout: 300_000 });
+  const rc = await pc.waitForTransactionReceipt({ hash, timeout: 300_000 }).catch(async (e) => {
+    // say why it was not mined when the node is the reason
+    const p = await nodeProblem().catch(() => null);
+    throw p ? new NodeNotReady(`${label} ${hash} was not mined in 5 min. ${p}`) : e;
+  });
   if (rc.status !== "success") throw new Error(`${label} reverted (${hash}${rc.gasUsed >= gas ? `, out of gas at ${gas}` : ""})`);
   return { hash, receipt: rc };
 }

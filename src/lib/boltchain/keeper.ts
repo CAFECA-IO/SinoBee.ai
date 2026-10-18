@@ -1,7 +1,7 @@
 import { config } from "../config";
 import { db } from "../db";
 import { mirrorDelete, mirrorGet } from "../storage";
-import { siteAccount, publicClient, SWARM, swarmAbi, walletClient, currentEpoch } from "./chain";
+import { siteAccount, publicClient, SWARM, swarmAbi, walletClient, currentEpoch, assertNodeReady, nodeProblem } from "./chain";
 import { wrapKey } from "./keys";
 import { cancelDeal, closeDeal, extendDeal, storeSealed, MAX_DEAL_EPOCHS, dealInfo, epochsUntil, openSlots } from "./swarm";
 import { issue, type FileHash } from "./certificates";
@@ -136,6 +136,7 @@ export async function closeEnded(limit = 10) {
   const me = siteAccount().address;
   const bal = await publicClient().readContract({ address: SWARM, abi: swarmAbi, functionName: "balanceOf", args: [me] });
   if (bal > 0n) {
+    await assertNodeReady();
     const hash = await walletClient().writeContract({ address: SWARM, abi: swarmAbi, functionName: "withdraw", args: [me] });
     await publicClient().waitForTransactionReceipt({ hash });
     log(`withdrew ${bal} wei of refunds`);
@@ -271,16 +272,43 @@ async function onAnchored(targetType: string, targetId: string, code: string) {
   if (targetType === "legal") await db.legalVersion.updateMany({ where: { id: targetId }, data: { anchorCode: code } });
 }
 
-/** One pass of every job; each job's failure is logged and does not stop the others. */
+let lastProblem: string | null = null;
+
+/**
+ * One pass of every job; each job's failure is logged and does not stop the others. Jobs that send transactions are
+ * skipped while the node is not ready (see nodeProblem), so objects keep their retry schedule instead of collecting
+ * timeouts and "nonce too high" errors; the problem is shown on the admin storage page.
+ */
 export async function keeperTick() {
   if (!config.boltchain.enabled) return;
-  for (const [name, job] of [["expire", expireObjects], ["store", storePending], ["anchor", anchorPending], ["cancel", cancelDeleted], ["renew", renewDeals], ["close", closeEnded], ["audit", auditDeals], ["balance", checkBalance]] as const) {
+  let problem: string | null;
+  try {
+    problem = await nodeProblem();
+  } catch (e) {
+    problem = `Boltchain node unreachable: ${msg(e)}`;
+  }
+  if (problem !== lastProblem) log(problem ? `paused: ${problem}` : "node ready again");
+  if (!problem && lastProblem) await retryNow();
+  lastProblem = problem;
+  const jobs = [["expire", expireObjects], ["store", storePending], ["anchor", anchorPending], ["cancel", cancelDeleted], ["renew", renewDeals], ["close", closeEnded], ["audit", auditDeals], ["balance", checkBalance]] as const;
+  const sends = new Set(["store", "anchor", "cancel", "renew", "close"]);
+  for (const [name, job] of jobs) {
+    if (problem && sends.has(name)) continue;
     try {
       await job();
     } catch (e) {
       log(`${name}: ${msg(e)}`);
     }
   }
+}
+
+/** Objects and anchors that failed while the node was not ready: try them again now instead of after their backoff */
+export async function retryNow() {
+  const now = new Date();
+  const a = await db.storageObject.updateMany({ where: { status: "PENDING", error: { not: null } }, data: { nextTryAt: now, attempts: 0 } });
+  const b = await db.anchor.updateMany({ where: { status: "pending", error: { not: null } }, data: { nextTryAt: now, attempts: 0 } });
+  if (a.count + b.count) log(`retrying ${a.count} objects and ${b.count} anchors now`);
+  return { objects: a.count, anchors: b.count };
 }
 
 /** Status for the admin page */
@@ -290,8 +318,8 @@ export async function storageStatus() {
   if (!config.boltchain.enabled) return base;
   try {
     const me = siteAccount().address;
-    const [balance, epoch] = await Promise.all([publicClient().getBalance({ address: me }), currentEpoch()]);
-    return { ...base, wallet: me, balance: balance.toString(), epoch: epoch.toString(), low: balance < BigInt(config.boltchain.lowBalanceWei) };
+    const [balance, epoch, problem] = await Promise.all([publicClient().getBalance({ address: me }), currentEpoch(), nodeProblem()]);
+    return { ...base, wallet: me, balance: balance.toString(), epoch: epoch.toString(), low: balance < BigInt(config.boltchain.lowBalanceWei), ...(problem ? { error: problem } : {}) };
   } catch (e) {
     return { ...base, error: msg(e) };
   }

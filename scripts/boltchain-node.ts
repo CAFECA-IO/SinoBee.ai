@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { privateKeyToAccount } from "viem/accounts";
 
-export const BOLT_REF = process.env.BOLTCHAIN_REF || "b4fba15";
+export const BOLT_REF = process.env.BOLTCHAIN_REF || "8c0cd64";
 export const IMAGE = `sinobee-boltchain:${BOLT_REF}`;
 export const CONTAINER = process.env.BOLT_NODE_CONTAINER || "sinobee-boltchain";
 const VOLUME = `${CONTAINER}-data`;

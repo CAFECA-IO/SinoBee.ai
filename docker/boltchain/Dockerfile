@@ -1,11 +1,11 @@
 # Boltchain node for SinoBee.ai's storage (SwarmStorage deals, Certificates).
 # Built from source: the public testnet needs a node newer than the last release (v0.1.0 predates
-# the 2026-09-26 restart and the `swarm` fork). `npm run swarm` builds and runs it automatically.
+# the 2026-09-26 restart and the `swarm` and `tee` forks; a node older than a fork stops at its block). `npm run swarm` builds and runs it automatically.
 #
-#   docker build -t sinobee-boltchain:b4fba15 --build-arg BOLTCHAIN_REF=b4fba15 docker/boltchain
+#   docker build -t sinobee-boltchain:8c0cd64 --build-arg BOLTCHAIN_REF=8c0cd64 docker/boltchain
 FROM rust:1.95-bookworm AS build
 ARG BOLTCHAIN_REPO=https://github.com/Luphia/Boltchain
-ARG BOLTCHAIN_REF=b4fba15
+ARG BOLTCHAIN_REF=8c0cd64
 RUN apt-get update && apt-get install -y --no-install-recommends cmake clang libclang-dev g++ git \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src

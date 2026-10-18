@@ -12,6 +12,8 @@ export function DeviceApprove({ account, initialCode, request }: { account: stri
   const [code, setCode] = useState(initialCode);
   const [state, setState] = useState<"idle" | "busy" | "approved" | "denied">("idle");
   const [err, setErr] = useState("");
+  // every hook before the early returns below: approving (or opening a code from the form) changes which branch renders
+  const [choice, setChoice] = useState<boolean | null>(null);
   const sending = useRef(false);
 
   if (state === "approved" || state === "denied")
@@ -40,7 +42,6 @@ export function DeviceApprove({ account, initialCode, request }: { account: stri
       </form>
     );
 
-  const [choice, setChoice] = useState<boolean | null>(null);
   const decide = async (approve: boolean) => {
     if (sending.current) return; // one decision per page
     sending.current = true;

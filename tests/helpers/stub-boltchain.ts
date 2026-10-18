@@ -41,6 +41,10 @@ export class StubBoltchain {
   calls: string[] = [];
   /** set to make the next n hostBlocks calls fail */
   failHost = 0;
+  /** seconds the newest block is behind the clock (a node that stopped following the chain) */
+  headAge = 0;
+  /** site transactions waiting in the pool: added to the "pending" transaction count */
+  pendingExtra = 0;
   server?: http.Server;
   url = "";
 
@@ -231,9 +235,9 @@ export class StubBoltchain {
         this.exec(t.from, t.to, t.data, BigInt(t.value ?? 0), false);
         return toHex(500_000);
       }
-      case "eth_getTransactionCount": return toHex(this.nonces.get(String(p[0]).toLowerCase()) ?? 0);
+      case "eth_getTransactionCount": return toHex((this.nonces.get(String(p[0]).toLowerCase()) ?? 0) + (p[1] === "pending" ? this.pendingExtra : 0));
       case "eth_getBlockByNumber":
-        return { number: toHex(this.height), hash: keccak256(toHex(this.height)), parentHash: `0x${"0".repeat(64)}`, timestamp: toHex(Math.floor(Date.now() / 1000)), baseFeePerGas: toHex(10n ** 9n), gasLimit: toHex(30_000_000), gasUsed: "0x0", transactions: [], miner: `0x${"0".repeat(40)}`, difficulty: "0x0", extraData: "0x", logsBloom: `0x${"0".repeat(512)}`, nonce: "0x0000000000000000", sha3Uncles: `0x${"0".repeat(64)}`, size: "0x0", stateRoot: `0x${"0".repeat(64)}`, receiptsRoot: `0x${"0".repeat(64)}`, transactionsRoot: `0x${"0".repeat(64)}`, uncles: [], mixHash: `0x${"0".repeat(64)}`, totalDifficulty: "0x0" };
+        return { number: toHex(this.height), hash: keccak256(toHex(this.height)), parentHash: `0x${"0".repeat(64)}`, timestamp: toHex(Math.floor(Date.now() / 1000) - this.headAge), baseFeePerGas: toHex(10n ** 9n), gasLimit: toHex(30_000_000), gasUsed: "0x0", transactions: [], miner: `0x${"0".repeat(40)}`, difficulty: "0x0", extraData: "0x", logsBloom: `0x${"0".repeat(512)}`, nonce: "0x0000000000000000", sha3Uncles: `0x${"0".repeat(64)}`, size: "0x0", stateRoot: `0x${"0".repeat(64)}`, receiptsRoot: `0x${"0".repeat(64)}`, transactionsRoot: `0x${"0".repeat(64)}`, uncles: [], mixHash: `0x${"0".repeat(64)}`, totalDifficulty: "0x0" };
       case "eth_call": {
         const t = p[0] as { from?: Hex; to: Hex; data: Hex; value?: Hex };
         return this.exec(t.from ?? `0x${"0".repeat(40)}`, t.to, t.data, BigInt(t.value ?? 0), false).ret;

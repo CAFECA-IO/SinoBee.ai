@@ -108,6 +108,26 @@ test("failures back off and retry; overwrites get a new deal and the old one is 
   assert.equal(tomb?.dealState, "cancelled");
 });
 
+test("a node that stopped following the chain (or has site transactions stuck in its pool) pauses sending; recovery retries at once", async () => {
+  node.headAge = 2 * 86400; // e.g. too old for a hard fork: stuck at the fork block
+  await storage.putObject("skills/a/stuck/1.0.0.tar.gz", Buffer.from("stuck"));
+  await keeper.keeperTick();
+  let o = await db.storageObject.findUniqueOrThrow({ where: { key: "skills/a/stuck/1.0.0.tar.gz" } });
+  assert.equal(o.status, "PENDING");
+  await assert.rejects(swarm.storeSealed(Buffer.from("x"), "x", "application/octet-stream"), /not following the chain.*2 d old/);
+  const s = await keeper.storageStatus();
+  assert.match("error" in s ? String(s.error) : "", /not following the chain/);
+  node.headAge = 0;
+  node.pendingExtra = 5;
+  await assert.rejects(swarm.storeSealed(Buffer.from("x"), "x", "application/octet-stream"), /5 site-wallet transactions .* waiting in the node's pool/);
+  await keeper.keeperTick();
+  node.pendingExtra = 0;
+  await db.storageObject.update({ where: { key: o.key }, data: { nextTryAt: new Date(Date.now() + 6 * 3600_000), error: "nonce too high" } });
+  await keeper.keeperTick(); // ready again: retried now, not after its backoff
+  o = await db.storageObject.findUniqueOrThrow({ where: { key: o.key } });
+  assert.equal(o.status, "STORED");
+});
+
 test("deals are renewed before they end", async () => {
   await storage.putObject("vault/u1/pack", Buffer.from("secret pack"));
   await keeper.storePending();
