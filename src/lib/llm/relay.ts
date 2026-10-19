@@ -96,6 +96,8 @@ type Prepared = {
   promptEstimate: number;
   endpoint: string;
   deviceId: string | null;
+  /** aborted when the caller goes away (a proxy timeout, a closed app): the upstream call is stopped with it */
+  signal?: AbortSignal;
 };
 
 export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages" | "embeddings"): Promise<Response> {
@@ -112,7 +114,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     if (endpoint === "embeddings") {
       const payload = { ...pick(body, ["input", "dimensions", "encoding_format"]), model: upstreamName };
       const promptEstimate = estimateTokens(body.input);
-      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/embeddings`, headers: { authorization: `Bearer ${key}` }, payload, stream: false, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/embeddings`, headers: { authorization: `Bearer ${key}` }, payload, stream: false, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal };
       return await runPlain(prepared, 0);
     }
 
@@ -125,7 +127,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
       const asked = Number(payload.max_completion_tokens ?? payload.max_tokens ?? 0) || 0;
       const maxOut = Math.min(asked || (stream ? cap : config.llm.defaultOutputTokens), cap);
       const promptEstimate = estimateTokens({ m: payload.messages, t: payload.tools });
-      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal };
       const setMax = (n: number) => {
         delete payload.max_tokens;
         delete payload.max_completion_tokens;
@@ -148,7 +150,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     const beta = req.headers.get("anthropic-beta");
     if (beta && /^[a-z0-9,\-. ]{1,300}$/i.test(beta)) headers["anthropic-beta"] = beta;
     const promptEstimate = estimateTokens({ m: payload.messages, s: payload.system, t: payload.tools });
-    prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+    prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal };
     if (stream) return await runStream(prepared, Math.min(await avgOutput(ctx.userId, model.modelId), maxOut), maxOut);
     return await runPlain(prepared, maxOut, (n) => (payload.max_tokens = n));
   } catch (e) {
@@ -232,18 +234,26 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
   // the whole response arrives at once, so the hold covers the most it can cost: we lower max_tokens to what fits
   const { ledger, output } = await hold(p.ctx, p.model, { prompt: p.promptEstimate, output: maxOut, minOutput: maxOut > 0 ? Math.min(256, maxOut) : 0 }, { endpoint: p.endpoint, stream: false, deviceId: p.deviceId, fit: maxOut > 0 });
   if (setMax) setMax(output);
+  // The caller may give up before the whole answer is ready - a proxy in front of this server cuts requests that
+  // send nothing for ~100 s (a non-streaming call that writes a long answer does exactly that). Then nobody receives
+  // the answer: stop the upstream call and refund the hold instead of charging for it. (Clients should stream.)
+  const gone = () => p.signal?.aborted === true;
   let r: Response;
+  let text: string;
   try {
-    r = await upstream(p);
+    r = await upstream(p, p.signal);
+    if (!r.ok) {
+      await settle(ledger.id, { kind: "refund", reason: `upstream ${r.status}` });
+      return upstreamError(p, r);
+    }
+    text = await r.text();
+    if (gone()) throw new Error("client aborted");
   } catch (e) {
-    await settle(ledger.id, { kind: "refund", reason: `upstream unreachable: ${(e as Error).message}` });
+    const aborted = gone();
+    await settle(ledger.id, { kind: "refund", reason: aborted ? "client aborted before the answer arrived (not delivered)" : `upstream unreachable: ${(e as Error).message}` });
+    if (aborted) throw new HttpError(499, "client closed the request");
     throw new HttpError(503, "model provider unreachable");
   }
-  if (!r.ok) {
-    await settle(ledger.id, { kind: "refund", reason: `upstream ${r.status}` });
-    return upstreamError(p, r);
-  }
-  const text = await r.text();
   let json: Record<string, unknown> = {};
   try {
     json = JSON.parse(text);
@@ -308,9 +318,12 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
   let lastId = "relay";
 
   const finish = async (s: Settlement) => {
-    if (settled) return;
+    if (settled) return null;
     settled = true;
-    await settle(ledger.id, s).catch((e) => console.error("llm settle", e));
+    return await settle(ledger.id, s).catch((e) => {
+      console.error("llm settle", e);
+      return null;
+    });
   };
   const estimateNow = (): Settlement => ({ kind: "estimate", prompt: usage?.prompt || p.promptEstimate, output: Math.max(counted + estimateTokens(chars), usage?.output ?? 0), reason: "" });
 
@@ -326,7 +339,11 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
       try {
         const { done, value } = await reader.read();
         if (done && !buf.trim()) {
-          await finish(usage ? { kind: "usage", ...usage } : ({ ...estimateNow(), reason: "stream ended without usage" } as Settlement));
+          const row = await finish(usage ? { kind: "usage", ...usage } : ({ ...estimateNow(), reason: "stream ended without usage" } as Settlement));
+          // headers left before the answer existed: the answer's share of the quota goes last, as an SSE comment
+          // (ignored by SSE parsers that do not look for it)
+          const q = await quotaHeaders(p.ctx.plan, row).catch(() => ({}));
+          if (Object.keys(q).length) controller.enqueue(enc.encode(`: x-sinobee-quota ${JSON.stringify(q)}\n\n`));
           controller.close();
           return;
         }

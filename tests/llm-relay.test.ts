@@ -223,6 +223,29 @@ test("client abort settles what was produced; no usage → estimated; upstream e
   assert.equal(Number(row.settledTwd), 0);
 });
 
+test("non-streaming: a caller that gives up (proxy timeout) stops the upstream call and is not charged", async () => {
+  await subscribe(840);
+  llm.next = { ...StubLlm.defaults(), replyDelayMs: 1500 };
+  const before = llm.aborted;
+  const ac = new AbortController();
+  const req = new Request("http://localhost/api/v1/llm/anthropic/v1/messages", { method: "POST", signal: ac.signal, headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: SONNET, max_tokens: 2048, messages: [{ role: "user", content: "write the whole page" }] }) });
+  setTimeout(() => ac.abort(), 200);
+  const r = await relay.relay(req, "anthropic", "messages");
+  assert.equal(r.status, 499);
+  await new Promise((res) => setTimeout(res, 100));
+  const [row] = await rows();
+  assert.equal(row.status, "REFUNDED");
+  assert.equal(Number(row.settledTwd), 0);
+  assert.match(row.error ?? "", /client aborted before the answer arrived/);
+  assert.equal(llm.aborted, before + 1, "upstream call stopped");
+  // a caller that waits gets the answer and is charged as usual
+  await db.usageLedger.deleteMany();
+  llm.next = { ...StubLlm.defaults(), replyDelayMs: 50 };
+  const ok = await relay.relay(post("/api/v1/llm/anthropic/v1/messages", { model: SONNET, max_tokens: 256, messages: [{ role: "user", content: "hi" }] }, { "anthropic-version": "2023-06-01" }), "anthropic", "messages");
+  assert.equal(ok.status, 200);
+  assert.equal((await rows())[0].status, "SETTLED");
+});
+
 test("Anthropic stream: cache reads and writes are priced separately; prompt = input + cache tokens", async () => {
   await subscribe(3675, 1.5);
   llm.next = { ...StubLlm.defaults(), promptTokens: 10000, cacheRead: 6000, cacheWrite: 2000, chunks: 8, text: "Claude says hi " };
@@ -239,6 +262,10 @@ test("Anthropic stream: cache reads and writes are priced separately; prompt = i
   const out = Math.ceil((15 * 8) / 4);
   const expect = (2000 * 70.2 + 6000 * 3.51 + 2000 * 87.75 + out * 351) / 1e6;
   assert.ok(Math.abs(Number(row.settledTwd) - expect) < 1e-6, `${row.settledTwd} vs ${expect}`);
+  // the answer's share of the quota, sent last as an SSE comment (headers left before it was known)
+  const q = JSON.parse(/^: x-sinobee-quota (.+)$/m.exec(text)![1]);
+  assert.ok(Number(q["x-sinobee-cost-6h-pct"]) > 0 && "x-sinobee-quota-168h" in q);
+  assert.ok(text.trimEnd().endsWith("}"), "the comment comes after message_stop");
 });
 
 test("windows release 6 h / 168 h after the cost was incurred; stale holds are swept", async () => {

@@ -21,6 +21,8 @@ export type StubPlan = {
   cacheWrite: number;
   /** parameters the fake model rejects with a 400 like Claude Opus 5.5's "`temperature` is deprecated for this model." */
   reject?: string[];
+  /** ms before a non-streaming reply is sent (a model writing a long answer) */
+  replyDelayMs?: number;
 };
 
 export class StubLlm {
@@ -90,6 +92,10 @@ export class StubLlm {
             res.write(`data: ${JSON.stringify({ id: "chatcmpl-1", object: "chat.completion.chunk", choices: [], usage: { prompt_tokens: plan.promptTokens, completion_tokens: outTokens, prompt_tokens_details: { cached_tokens: plan.cacheRead } } })}\n\n`);
           this.lastChunkAt = Date.now();
           return res.end("data: [DONE]\n\n");
+        }
+        if (plan.replyDelayMs && !body.stream) {
+          await new Promise((r) => setTimeout(r, plan.replyDelayMs));
+          if (closed) return;
         }
         if (req.url?.endsWith("/v1/messages")) {
           const input = plan.promptTokens - plan.cacheRead - plan.cacheWrite;
