@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
@@ -8,34 +7,23 @@ import { skillMarks } from "@/components/skill-tag";
 import { CopyCode } from "@/components/copy-code";
 import { Icon } from "@/components/icon";
 import { HeroHive } from "@/components/hero-hive";
+import { HighlightArt, type HighlightKey } from "@/components/highlight-art";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES = ["research", "data", "files", "video", "work", "steer", "browser", "approval", "memory", "skills", "models", "usage"] as const;
+const FEATURES = ["research", "data", "files", "browser", "video", "work"] as const;
 const ICONS: Record<(typeof FEATURES)[number], string> = {
   research: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
   data: "M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6",
   files: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-  approval: "M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7zM9 12l2 2 4-4",
   browser: "M3 5h18v14H3zM3 9h18M7 7h.01M10 7h.01",
-  memory: "M12 4a4 4 0 0 0-4 4v1a3 3 0 0 0 0 6v1a4 4 0 0 0 8 0v-1a3 3 0 0 0 0-6V8a4 4 0 0 0-4-4z",
-  skills: "M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.6 6.5 19.5l1-6.3L3 8.9 9 8z",
-  usage: "M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
-  models: "M4 6h16M4 12h16M4 18h10",
   video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
   work: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
-  steer: "M4 12h10M10 6l6 6-6 6M20 5v14",
 };
 
-const MORE_CASES = ["video", "sequel", "schedule", "team", "forms", "code"] as const;
-const CASE_ICONS: Record<(typeof MORE_CASES)[number], string> = {
-  video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
-  sequel: "M4 4h7v7H4zM13 13h7v7h-7zM11 7.5h4.5V11M13 16.5H8.5V13",
-  schedule: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
-  team: "M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5",
-  forms: "M4 4h16v16H4zM8 9h8M8 13h8M8 17h4",
-  code: "M8 8l-4 4 4 4M16 8l4 4-4 4M13 6l-2 12",
-};
+/** what sets SinoBee apart: four cards, each with a honeycomb picture of its mechanism */
+const HIGHLIGHTS: HighlightKey[] = ["large", "roles", "memory", "safety"];
+const ART_LABELS = ["m1", "parallel", "merge", "plan", "think", "do", "check", "permanent", "long", "short", "task"] as const;
 
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -96,64 +84,53 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         ))}
       </section>
 
-      {/* features */}
+      {/* features: what it can do */}
       <section className="container-x py-12">
         <h2 className="h2">{t("featuresTitle")}</h2>
         <p className="mt-2 max-w-2xl text-muted">{t("featuresLead")}</p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-8 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
-            <div key={f} className="card p-5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent">
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <div key={f} className="flex min-w-0 gap-3">
+              <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
+                <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d={ICONS[f]} />
                 </svg>
               </div>
-              <h3 className="mt-4 font-semibold">{t(`f.${f}.title`)}</h3>
-              <p className="mt-1.5 text-sm text-muted">{t(`f.${f}.body`)}</p>
+              <div className="min-w-0">
+                <h3 className="font-semibold">{t(`f.${f}.title`)}</h3>
+                <p className="mt-1 text-sm text-muted">{t(`f.${f}.body`)}</p>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* use cases */}
+      {/* what sets SinoBee apart */}
       <section className="container-x py-12">
-        <h2 className="h2">{t("casesTitle")}</h2>
-        <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          {(["usecase-research", "usecase-data-analysis", "usecase-organize-files"] as const).map((img, i) => (
-            <figure key={img} className="card overflow-hidden">
-              <Image src={`/screenshots/${img}.png`} alt="" width={1600} height={1075} className="h-auto w-full border-b border-line" />
-              <figcaption className="p-4 text-sm">
-                <div className="font-semibold">{t(`cases.${i}.title`)}</div>
-                <div className="mt-1 text-muted">{t(`cases.${i}.body`)}</div>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MORE_CASES.map((k) => (
-            <div key={k} className="card flex flex-col overflow-hidden">
-              <Image src={`/screenshots/usecase-${k}.png`} alt={t(`more.${k}.title`)} width={1600} height={1075} className="h-auto w-full border-b border-line" />
-              <div className="flex flex-1 flex-col p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-accent-soft text-accent">
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={CASE_ICONS[k]} />
-                  </svg>
+        <span className="chip border-accent/40 text-accent">{t("hl.eyebrow")}</span>
+        <h2 className="h2 mt-4 !text-3xl">
+          {t("hl.title1")}
+          <span className="text-accent">{t("hl.title2")}</span>
+        </h2>
+        <p className="mt-2 max-w-2xl text-muted">{t("hl.lead")}</p>
+        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          {HIGHLIGHTS.map((k) => (
+            <article key={k} className="card grid gap-6 p-6 sm:grid-cols-[180px_minmax(0,1fr)] sm:p-7">
+              <div className="flex justify-center sm:block">
+                <HighlightArt kind={k} alt={t(`hl.items.${k}.art`)} labels={Object.fromEntries(ART_LABELS.map((l) => [l, t(`hl.art.${l}`)])) as Record<(typeof ART_LABELS)[number], string>} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-accent">{t(`hl.items.${k}.label`)}</div>
+                <h3 className="mt-2 text-xl font-extrabold leading-snug">{t(`hl.items.${k}.title`)}</h3>
+                <p className="mt-2.5 text-sm leading-relaxed text-muted">{t(`hl.items.${k}.body`)}</p>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs text-accent">{t(`hl.items.${k}.tags.${i}`)}</span>
+                  ))}
                 </div>
-                <div className="font-semibold">{t(`more.${k}.title`)}</div>
               </div>
-              <p className="mt-3 flex-1 text-sm text-muted">{t(`more.${k}.body`)}</p>
-              <div className="mt-4 rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm">
-                <span className="text-muted">{t("trySay")}</span>「{t(`more.${k}.prompt`)}」
-              </div>
-              </div>
-            </div>
+            </article>
           ))}
-        </div>
-        <p className="mt-3 text-xs text-muted">{t("casesNote")}</p>
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link href="/agent" target="_blank" aria-label={t("ctaTry")} data-tip={t("ctaTry")} className="icon-btn solid lg"><Icon name="rocket" /></Link>
-          <span className="text-sm text-muted">{t("casesTry")}</span>
         </div>
       </section>
 

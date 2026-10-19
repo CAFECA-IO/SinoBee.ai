@@ -46,7 +46,7 @@
     "statTasks": "Tasks completed",
     "statReports": "Public evaluation reports",
     "featuresTitle": "One assistant that finishes the job",
-    "featuresLead": "More than chat: SinoBee has tools, layered memory, skills and fixed workflows — and brakes.",
+    "featuresLead": "Research, analysis, file clean-up, browsing, video production and scheduled background work, each from one sentence.",
     "f": {
       "research": {
         "title": "Research",
@@ -60,6 +60,10 @@
         "title": "File management",
         "body": "Sorts, renames, converts and batch-processes files — never overwriting a file with the same name."
       },
+      "browser": {
+        "title": "Browser & desktop",
+        "body": "A real Chromium with saved logins; Docker mode adds a virtual desktop you can watch and take over."
+      },
       "video": {
         "title": "AI video production",
         "body": "One sentence becomes a short film, documentary or ad: script, characters, locations, shot list, voice, rendering, editing and subtitles are automatic, with a draft to approve before the final render. A production kit is exported too, so a sequel keeps the same characters and look."
@@ -67,52 +71,73 @@
       "work": {
         "title": "Background work & schedules",
         "body": "Sub-agents working in parallel, fixed workflows (YAML graphs), a shared blackboard and schedules; the Work tab shows past, present and next, and interrupted work can resume."
-      },
-      "steer": {
-        "title": "Steer while it works",
-        "body": "Add instructions or stop a task mid-run; intermediate files appear as links; each stretch of work folds into one summary line. Before finishing it checks the job is really done, and switches to a stronger model when a weak one gets stuck."
-      },
-      "browser": {
-        "title": "Browser & desktop",
-        "body": "A real Chromium with saved logins; Docker mode adds a virtual desktop you can watch and take over."
-      },
-      "approval": {
-        "title": "Asks before risky actions",
-        "body": "Deleting files, installing software, admin rights or force-pushing need your approval; keys and passwords stay on your machine and never reach the model. Modes: confirm, auto, readonly."
-      },
-      "memory": {
-        "title": "Layered memory",
-        "body": "Task, short-term, long-term and permanent memory, tidied, compressed and expired automatically; key facts are saved before a long conversation is summarised. Ratings and your instructions update it, and you can view, pin or delete memories any time."
-      },
-      "skills": {
-        "title": "Skills",
-        "body": "Reusable workflows following the Agent Skills standard. Create with /learn; install from the Hub, GitHub or a folder, with trust levels. Matching skills are suggested automatically, and complex skills can declare fixed workflows."
-      },
-      "models": {
-        "title": "Any model",
-        "body": "Mix OpenAI, Anthropic, Gemini and other cloud models with local Ollama models: pick the main, auxiliary, escalation and fallback models separately. Paste a key, press “Connect”, and its models are verified and listed at once."
-      },
-      "usage": {
-        "title": "Usage & budgets",
-        "body": "Every call logs tokens and cost; set daily and monthly budgets with an alert at 80%."
       }
     },
-    "casesTitle": "What it can do for you",
-    "cases": {
-      "0": {
-        "title": "Research: explain a GitHub project",
-        "body": "Reads the README and code, summarizes it into a table and an architecture diagram."
+    "hl": {
+      "eyebrow": "What sets SinoBee apart",
+      "title1": "It delivers,",
+      "title2": "and you can trust what it delivers.",
+      "lead": "Big jobs done in stages, thinking and doing split between models, a memory of you and of its mistakes, and brakes and records at every step.",
+      "items": {
+        "large": {
+          "label": "Large, complex tasks",
+          "title": "Big jobs split into milestones, finished one at a time",
+          "body": "Independent milestones go to sub-agents in parallel, and each one starts from a clean context. Progress, not a step count, decides when to stop; interrupted work resumes where it left off, and if the budget runs out you still get what is finished.",
+          "tags": {
+            "0": "Milestones",
+            "1": "Parallel sub-agents",
+            "2": "Partial delivery"
+          },
+          "art": "Four honeycomb cells as milestones: one first, two in parallel, one that merges them"
+        },
+        "roles": {
+          "label": "Models with separate roles",
+          "title": "The planner never acts; the doer never grades itself",
+          "body": "A thinking model plans, advises when work is stuck and checks the result before delivery; an execution model does every step; a reviewer looks at the actual files and screenshots with a fresh context. When the job cannot be done, it says so and explains why.",
+          "tags": {
+            "0": "Thinking model",
+            "1": "Execution model",
+            "2": "Checked before delivery"
+          },
+          "art": "Thinking, doing and checking cells; only the doing cell reaches the tools"
+        },
+        "memory": {
+          "label": "Personal memory & learning",
+          "title": "It remembers you, and its own mistakes",
+          "body": "Memory has four layers: task, short-term, long-term and permanent. What gets used stays, what doesn't fades, and what you ask it to keep forever is never changed. One thumbs-down turns a mistake into a check that runs before every delivery.",
+          "tags": {
+            "0": "Four memory layers",
+            "1": "Thumbs-down becomes a check",
+            "2": "Learns new skills"
+          },
+          "art": "Four stacked honeycomb cells: task, short-term, long-term and permanent memory"
+        },
+        "safety": {
+          "label": "Safe and transparent",
+          "title": "Risky actions need your OK; everything it did is on record",
+          "body": "It asks before deleting files, installing software or force-pushing; skills carry one of 8 trust levels; shares hide keys and paths automatically. What each step did, why it stopped and what it cost are all logged.",
+          "tags": {
+            "0": "Approval modes",
+            "1": "8 trust levels",
+            "2": "Run log"
+          },
+          "art": "A shield on a honeycomb cell next to a run log"
+        }
       },
-      "1": {
-        "title": "Data: from CSV to charts",
-        "body": "Cleans data, computes metrics, draws charts and writes conclusions."
-      },
-      "2": {
-        "title": "Tidy your Downloads folder",
-        "body": "Files by type, consistent names — and shows you the plan before touching anything."
+      "art": {
+        "m1": "m1",
+        "parallel": "in parallel",
+        "merge": "merge",
+        "plan": "plan",
+        "think": "Think",
+        "do": "Do",
+        "check": "Check",
+        "permanent": "permanent",
+        "long": "long-term",
+        "short": "short, 14 d",
+        "task": "task"
       }
     },
-    "casesNote": "Screenshots show the real SinoBee interface with demo data.",
     "pillars": {
       "hub": {
         "title": "Skill Hub",
@@ -134,40 +159,6 @@
     "viewAll": "All skills",
     "ctaTry": "Use online",
     "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it.",
-    "trySay": "Try saying: ",
-    "casesTry": "Every example can be typed straight into the online SinoBee.",
-    "more": {
-      "video": {
-        "title": "A film from one sentence",
-        "body": "Writes the script, designs characters and locations, plans the shots, records the voice, renders, edits and subtitles — with a draft to approve before the final render. You get the film and a complete production kit.",
-        "prompt": "Make a 30-second documentary about Taiwanese tea"
-      },
-      "sequel": {
-        "title": "Sequels from a production kit",
-        "body": "Attach the kit from the last film: characters, locations, look, music and voices carry over and only the story is new. Or remake the whole film and change details.",
-        "prompt": "Use this kit for a sequel: the two meet again on a snowy night"
-      },
-      "schedule": {
-        "title": "Daily checks on autopilot",
-        "body": "Put routine work in the Work tab — database health checks, report roll-ups, site checks — and it runs on time, compares with the last run and writes a report.",
-        "prompt": "Check the orders database every day at 9am and report anything unusual"
-      },
-      "team": {
-        "title": "Split big jobs across a team",
-        "body": "Researcher, analyst and reviewer sub-agents work in parallel, share findings on a blackboard and merge them into one sourced report.",
-        "prompt": "Compare the prices and specs of five cloud hosts in parallel, then merge them into a table"
-      },
-      "forms": {
-        "title": "Log in, fill forms, download reports",
-        "body": "A real browser logs in, fills forms, downloads and organizes files; submitting or paying always asks you first.",
-        "prompt": "Log into the back office, download last month's invoice CSV and combine it in Excel"
-      },
-      "code": {
-        "title": "Write code and fix bugs",
-        "body": "Understands the project, finds why tests fail, fixes and re-runs them; add requirements while it works, and it checks the fix is real before finishing.",
-        "prompt": "Find out why this project's tests fail and fix them"
-      }
-    },
     "heroAlt": "A swarm of robot bees working through a honeycomb: research, documents, analysis, code and files"
   },
   "download": {
