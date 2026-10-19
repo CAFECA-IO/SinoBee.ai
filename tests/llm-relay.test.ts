@@ -281,6 +281,14 @@ test("windows release 6 h / 168 h after the cost was incurred; stale holds are s
   assert.equal(st.windows[0].window, "6h");
   assert.ok(Math.abs(st.windows[0].usedPct - (1.5 / plan.l6Twd) * 100) < 1e-6);
   assert.ok(st.windows[0].remainingTokens > 0);
+  // the 6 h timeline: 12 half-hour buckets; the call made 1 hour ago sits at the 5-hour mark (index 9 or 10 by a few
+  // ms), the 7-hour-old one is gone
+  const b = st.windows[0].buckets!;
+  assert.equal(b.length, 12);
+  const i = b.findIndex((x) => x > 0);
+  assert.ok([9, 10].includes(i) && b.filter((x) => x > 0).length === 1, JSON.stringify(b));
+  assert.ok(Math.abs(b[i] - Math.round((1 / plan.l6Twd) * 100 * 100) / 100) < 1e-9);
+  assert.equal(st.windows[1].buckets, undefined);
   assert.equal(st.tokensBasis?.model, "anthropic/claude-sonnet-5-5", "token counts use Claude Sonnet 5.5");
   assert.equal(await quota.sweepHolds(), 1);
   u = await quota.windowUse(userId);

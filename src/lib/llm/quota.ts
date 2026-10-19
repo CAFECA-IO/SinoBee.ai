@@ -307,11 +307,23 @@ export async function quotaStatus(userId: string, now = new Date()) {
       .sort((a, b) => at(a).getTime() - at(b).getTime())
       .slice(0, 20)
       .map((r) => ({ at: new Date(at(r).getTime() + ms).toISOString(), pct: limit > 0 ? (amount(r) / limit) * 100 : 0 }));
+    // the 6 h window as 12 half-hour buckets (oldest first, % of the limit): SinoBee draws them as a timeline, and
+    // the oldest bucket is the next to be released
+    const buckets = key === "6h" ? Array.from({ length: 12 }, () => 0) : undefined;
+    if (buckets && limit > 0) {
+      const start = now.getTime() - ms;
+      for (const r of u.rows) {
+        const t = at(r).getTime();
+        if (r.status === "HELD" || t <= start || amount(r) <= 0) continue;
+        buckets[Math.min(11, Math.floor((t - start) / (ms / 12)))] += (amount(r) / limit) * 100;
+      }
+    }
     return {
       window: key,
       usedPct: limit > 0 ? Math.min(100, (used / limit) * 100) : 100,
       remainingTokens: tokens(limit - used),
       releases,
+      ...(buckets ? { buckets: buckets.map((b) => Math.round(b * 100) / 100) } : {}),
     };
   };
   const st = await subscriptionState(userId);
