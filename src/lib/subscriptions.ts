@@ -4,8 +4,10 @@ import { HttpError } from "./errors";
 import { addDays } from "./retention";
 
 /**
- * Subscription periods: 30 days each, no auto-renewal. Buying again (any plan) stacks a new period after the last
- * one. Results and the container are kept while subscribed and for `graceDays` (30) after the last period ends.
+ * Subscription periods: 30 days each, no auto-renewal. Buying the same or a cheaper plan again stacks a new period
+ * after the last one. Buying a more expensive plan while a period is running is an upgrade: it starts right away,
+ * the running period ends now and its unused time is converted to extra days on the new plan at equal value
+ * (unused days × old fee per day ÷ new fee per day); periods bought in advance move up behind it. Results and the container are kept while subscribed and for `graceDays` (30) after the last period ends.
  * A refunded period is cancelled and the periods after it move up (reflow).
  */
 
@@ -38,7 +40,7 @@ export async function subscriptionState(userId: string, now = new Date()): Promi
   };
 }
 
-/** Add a period for a confirmed payment (idempotent per payment) */
+/** Add a period for a confirmed payment (idempotent per payment); a more expensive plan than the running one upgrades now */
 export async function addPeriod(userId: string, paymentId: string, plan: { id: string; code: string; days: number }) {
   const existing = await db.subscription.findUnique({ where: { paymentId } });
   if (existing) return existing;
@@ -49,8 +51,46 @@ export async function addPeriod(userId: string, paymentId: string, plan: { id: s
   const sub = await db.subscription.create({
     data: { userId, plan: plan.code, planId: plan.id, startsAt, endsAt, graceEndsAt: addDays(endsAt, config.subscription.graceDays), paymentId },
   });
+  const upgraded = await upgradeNow(userId, sub.id, now);
   await applyRetention(userId);
-  return sub;
+  return upgraded ?? sub;
+}
+
+const feePerDay = (p: { feeTwd: unknown; days: number }) => Number(p.feeTwd) / (p.days || 30);
+
+/**
+ * Extra time on `to` worth the unused part of the running period on `from` (ms):
+ * unused × (from fee per day ÷ to fee per day).
+ */
+export function upgradeCreditMs(remainingMs: number, from: { feeTwd: unknown; days: number }, to: { feeTwd: unknown; days: number }) {
+  const a = feePerDay(from);
+  const b = feePerDay(to);
+  return remainingMs > 0 && a > 0 && b > 0 ? Math.floor((remainingMs * a) / b) : 0;
+}
+
+async function planOf(s: { planId: string | null; plan: string }) {
+  return (s.planId ? await db.plan.findUnique({ where: { id: s.planId } }) : null) ?? (await db.plan.findUnique({ where: { code: s.plan } }));
+}
+
+/**
+ * If period `subId` (not started yet) is on a more expensive plan than the period running at `now`, start it now:
+ * the running period ends now, its unused time is added to `subId` at equal value, later periods move up.
+ * Returns the updated period, or null when it is not an upgrade.
+ */
+export async function upgradeNow(userId: string, subId: string, now = new Date()) {
+  const target = await db.subscription.findUnique({ where: { id: subId } });
+  if (!target || target.cancelledAt || target.startsAt <= now) return null;
+  const cur = await db.subscription.findFirst({ where: { userId, cancelledAt: null, startsAt: { lte: now }, endsAt: { gt: now } }, orderBy: { startsAt: "desc" } });
+  if (!cur) return null;
+  const [from, to] = await Promise.all([planOf(cur), planOf(target)]);
+  if (!from || !to || !(Number(to.feeTwd) > Number(from.feeTwd))) return null;
+  const credit = upgradeCreditMs(cur.endsAt.getTime() - now.getTime(), from, to);
+  const length = target.endsAt.getTime() - target.startsAt.getTime();
+  const endsAt = new Date(now.getTime() + length + credit);
+  await db.subscription.update({ where: { id: cur.id }, data: { endsAt: now, graceEndsAt: addDays(now, config.subscription.graceDays) } });
+  const up = await db.subscription.update({ where: { id: target.id }, data: { startsAt: now, endsAt, graceEndsAt: addDays(endsAt, config.subscription.graceDays) } });
+  await reflow(userId, now);
+  return db.subscription.findUniqueOrThrow({ where: { id: up.id } });
 }
 
 /** Cancel the period bought with `paymentId` (refund) and move later periods up */

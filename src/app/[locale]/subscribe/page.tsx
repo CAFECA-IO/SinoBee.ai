@@ -4,7 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { redirect } from "@/i18n/navigation";
 import { listPlans } from "@/lib/plans";
 import { referenceBlended } from "@/lib/models";
-import { subscriptionState } from "@/lib/subscriptions";
+import { subscriptionState, upgradeCreditMs } from "@/lib/subscriptions";
 import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { LocalDate } from "@/components/date";
@@ -27,7 +27,19 @@ export default async function SubscribePage({ params, searchParams }: { params: 
   const [plans, ref, st] = await Promise.all([listPlans({ activeOnly: true }), referenceBlended(), subscriptionState(me!.id)]);
   const tok = (twd: number) => (ref ? formatTokens(quotaTokens(twd, ref.blendedTwd), locale) : "—");
   const zh = locale.startsWith("zh");
-  const stacks = st.endsAt && st.endsAt > new Date();
+  const now = new Date();
+  const stacks = st.endsAt && st.endsAt > now;
+  const curPlan = st.current ? plans.find((p) => p.id === st.current!.planId) ?? plans.find((p) => p.code === st.current!.plan) : undefined;
+  // what happens when each plan is bought now: upgrade right away (more expensive than the running plan), or stack after
+  const startsLabels = Object.fromEntries(
+    plans.map((p) => {
+      if (st.current && curPlan && p.feeTwd > curPlan.feeTwd) {
+        const credit = upgradeCreditMs(st.current.endsAt.getTime() - now.getTime(), curPlan, p) / 86400_000;
+        return [p.id, t("upgradeNow", { from: zh ? curPlan.name : curPlan.nameEn, days: p.days + Math.floor(credit), credit: credit.toFixed(1) })];
+      }
+      return [p.id, stacks ? t("stacks", { date: st.endsAt!.toISOString().slice(0, 10) }) : t("startsNow")];
+    }),
+  );
   return (
     <div className="container-x max-w-3xl space-y-6 py-12">
       <header>
@@ -50,7 +62,7 @@ export default async function SubscribePage({ params, searchParams }: { params: 
           initial={plan}
           buyer={(me!.billing ?? null) as Buyer | null}
           {...await checkoutCards(me!.id)}
-          startsLabel={stacks ? t("stacks", { date: st.endsAt!.toISOString().slice(0, 10) }) : t("startsNow")}
+          startsLabels={startsLabels}
         />
       </section>
     </div>

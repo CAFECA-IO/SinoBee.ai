@@ -1226,7 +1226,8 @@
     "grace": "訂閱已到期，寬限期到",
     "stacks": "新的一期從 {date} 開始（接在目前期間之後）。",
     "startsNow": "扣款成功後立即生效，30 天從付款時起算。",
-    "usage": "可使用月費 {mult} 倍的用量"
+    "usage": "可使用月費 {mult} 倍的用量",
+    "upgradeNow": "升級立即生效：{from} 的剩餘時間依價值折算為 {credit} 天，這一期共約 {days} 天，從付款時起算。"
   },
   "payReturn": {
     "title": {

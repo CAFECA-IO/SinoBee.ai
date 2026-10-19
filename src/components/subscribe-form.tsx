@@ -8,7 +8,8 @@ import { useRouter } from "@/i18n/navigation";
 type PlanOpt = { id: string; code: string; name: string; fee: number; mult: number; l6: string; l168: string; concurrency: number };
 
 /** Pick a plan and a saved card; the card is charged right away */
-export function SubscribeForm({ plans, initial, buyer, startsLabel, cards, pendingCard = false, test = false }: { plans: PlanOpt[]; initial?: string; buyer?: Partial<Buyer> | null; startsLabel: string; cards: CardOpt[]; pendingCard?: boolean; test?: boolean }) {
+/** startsLabels: plan id → when that plan would start (now as an upgrade, or after the current period) */
+export function SubscribeForm({ plans, initial, buyer, startsLabels, cards, pendingCard = false, test = false }: { plans: PlanOpt[]; initial?: string; buyer?: Partial<Buyer> | null; startsLabels: Record<string, string>; cards: CardOpt[]; pendingCard?: boolean; test?: boolean }) {
   const t = useTranslations("subscribe");
   const router = useRouter();
   const [planId, setPlanId] = useState(plans.find((p) => p.code === initial)?.id ?? plans[0]?.id);
@@ -58,7 +59,7 @@ export function SubscribeForm({ plans, initial, buyer, startsLabel, cards, pendi
               );
             })}
           </div>
-          <p className="text-sm text-muted">{startsLabel}</p>
+          <p className="text-sm text-muted" data-starts>{startsLabels[planId]}</p>
         </div>
       }
       onPay={async (b, cardId) => {

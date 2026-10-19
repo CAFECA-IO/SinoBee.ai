@@ -1226,7 +1226,8 @@
     "grace": "Your subscription has ended; the grace period lasts until",
     "stacks": "The new period starts on {date}, after your current one.",
     "startsNow": "Starts as soon as the charge goes through; 30 days from payment.",
-    "usage": "Use up to {mult}× the fee"
+    "usage": "Use up to {mult}× the fee",
+    "upgradeNow": "Upgrades right away: the rest of your {from} period is worth {credit} days on this plan, so this period runs about {days} days from payment."
   },
   "payReturn": {
     "title": {
