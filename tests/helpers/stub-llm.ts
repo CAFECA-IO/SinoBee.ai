@@ -19,6 +19,8 @@ export type StubPlan = {
   promptTokens: number;
   cacheRead: number;
   cacheWrite: number;
+  /** parameters the fake model rejects with a 400 like Claude Opus 5.5's "`temperature` is deprecated for this model." */
+  reject?: string[];
 };
 
 export class StubLlm {
@@ -41,6 +43,14 @@ export class StubLlm {
         const body = raw ? JSON.parse(raw) : {};
         this.requests.push({ path: req.url ?? "", body, headers: req.headers });
         const plan = { ...this.next };
+        const rejected = (plan.reject ?? []).find((k) => body[k] !== undefined);
+        if (rejected) {
+          res.statusCode = 400;
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify(req.url?.endsWith("/v1/messages")
+            ? { type: "error", error: { type: "invalid_request_error", message: `\`${rejected}\` is deprecated for this model.` } }
+            : { error: { message: `Unsupported parameter: '${rejected}' is not supported with this model.`, type: "invalid_request_error", param: rejected, code: "unsupported_parameter" } }));
+        }
         if (plan.status !== 200) {
           res.statusCode = plan.status;
           res.setHeader("content-type", "application/json");

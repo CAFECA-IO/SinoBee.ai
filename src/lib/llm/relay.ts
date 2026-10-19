@@ -15,7 +15,14 @@ import { QuotaError, avgOutput, hold, quotaContext, quotaHeaders, settle, topUp,
  * whitelist of parameters, max_tokens capped, the platform key added and usage reporting forced on. Responses
  * are forwarded unchanged except that a stream which runs out of quota ends with finish_reason / stop_reason
  * "quota". Billing is in quota.ts.
+ *
+ * A model that no longer accepts an optional sampling parameter (Claude Opus 5.5: "`temperature` is deprecated for
+ * this model") gets the request again without it - same hold, settled once - and is remembered, so later requests
+ * leave it out from the start; the response carries x-sinobee-dropped-params so the client stops sending it
+ * (param-compat.ts). Other 400s are passed back unchanged.
  */
+
+import { learn as learnParam, rejectedParam, stripKnown } from "./param-compat";
 
 type Fmt = "openai" | "anthropic";
 
@@ -77,6 +84,8 @@ function pick(body: Record<string, unknown>, keys: string[]) {
 
 type Prepared = {
   fmt: Fmt;
+  /** optional sampling parameters left out because this model does not accept them (param-compat.ts) */
+  dropped: string[];
   ctx: QuotaCtx;
   model: ModelPriceView;
   provider: string;
@@ -103,7 +112,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     if (endpoint === "embeddings") {
       const payload = { ...pick(body, ["input", "dimensions", "encoding_format"]), model: upstreamName };
       const promptEstimate = estimateTokens(body.input);
-      prepared = { fmt, ctx, model, provider, url: `${p.base}/embeddings`, headers: { authorization: `Bearer ${key}` }, payload, stream: false, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/embeddings`, headers: { authorization: `Bearer ${key}` }, payload, stream: false, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
       return await runPlain(prepared, 0);
     }
 
@@ -116,7 +125,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
       const asked = Number(payload.max_completion_tokens ?? payload.max_tokens ?? 0) || 0;
       const maxOut = Math.min(asked || (stream ? cap : config.llm.defaultOutputTokens), cap);
       const promptEstimate = estimateTokens({ m: payload.messages, t: payload.tools });
-      prepared = { fmt, ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
       const setMax = (n: number) => {
         delete payload.max_tokens;
         delete payload.max_completion_tokens;
@@ -139,7 +148,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     const beta = req.headers.get("anthropic-beta");
     if (beta && /^[a-z0-9,\-. ]{1,300}$/i.test(beta)) headers["anthropic-beta"] = beta;
     const promptEstimate = estimateTokens({ m: payload.messages, s: payload.system, t: payload.tools });
-    prepared = { fmt, ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
+    prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null };
     if (stream) return await runStream(prepared, Math.min(await avgOutput(ctx.userId, model.modelId), maxOut), maxOut);
     return await runPlain(prepared, maxOut, (n) => (payload.max_tokens = n));
   } catch (e) {
@@ -148,9 +157,35 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
   }
 }
 
-async function upstream(p: Prepared, signal?: AbortSignal) {
+function fetchOnce(p: Prepared, signal?: AbortSignal) {
   return fetch(p.url, { method: "POST", headers: { "content-type": "application/json", ...p.headers }, body: JSON.stringify(p.payload), signal });
 }
+
+/** The upstream call. A 400 that says the model does not accept an optional sampling parameter (temperature,
+ * top_p, top_k) is answered by sending the same request again without it, and the model is remembered so later
+ * requests leave it out from the start (param-compat.ts). Other errors are returned as they are. */
+async function upstream(p: Prepared, signal?: AbortSignal): Promise<Response> {
+  for (let round = 0; ; round++) {
+    const r = await fetchOnce(p, signal);
+    if ((r.status !== 400 && r.status !== 422) || round >= 3) return r;
+    const text = await r.text().catch(() => "");
+    let message = text;
+    try {
+      const j = JSON.parse(text);
+      message = j?.error?.message ?? j?.message ?? text;
+    } catch {
+      /* not JSON */
+    }
+    const param = rejectedParam(r.status, String(message), p.payload);
+    if (!param) return new Response(text, { status: r.status, headers: r.headers });
+    learnParam(String(p.payload.model), param);
+    delete p.payload[param];
+    p.dropped.push(param);
+  }
+}
+
+/** Tells the client which parameters were left out, so it can stop sending them */
+const droppedHeader = (p: Prepared): Record<string, string> => (p.dropped.length ? { "x-sinobee-dropped-params": p.dropped.join(",") } : {});
 
 /** Strip upstream error details that could identify our account; keep the type and message */
 async function upstreamError(p: Prepared, r: Response): Promise<Response> {
@@ -219,7 +254,7 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
   const u = p.fmt === "anthropic" ? anthropicUsage(json.usage as Record<string, unknown>) : openaiUsage(json.usage as Record<string, unknown>);
   const s: Settlement = u ? { kind: "usage", ...u } : { kind: "estimate", prompt: p.promptEstimate, output: estimateTokens(p.fmt === "anthropic" ? json.content : json.choices), reason: "no usage in response" };
   const done = await settle(ledger.id, s);
-  return Response.json(json, { status: r.status, headers: await quotaHeaders(p.ctx.plan, done).catch(() => ({})) });
+  return Response.json(json, { status: r.status, headers: { ...(await quotaHeaders(p.ctx.plan, done).catch(() => ({}))), ...droppedHeader(p) } });
 }
 
 // ───────────── streaming ─────────────
@@ -356,7 +391,7 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
       await finish({ ...estimateNow(), reason: "client aborted" } as Settlement);
     },
   });
-  return new Response(out, { status: 200, headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no" } });
+  return new Response(out, { status: 200, headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no", ...droppedHeader(p) } });
 }
 
 /** OpenAI-style model list with published prices (TWD per 1M tokens) */

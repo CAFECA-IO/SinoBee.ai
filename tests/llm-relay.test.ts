@@ -272,3 +272,39 @@ test("embeddings are billed as input tokens", async () => {
   assert.equal(row.status, "SETTLED");
   assert.ok(Math.abs(Number(row.settledTwd) - (5000 * 0.702) / 1e6) < 1e-9);
 });
+
+test("a model that no longer accepts temperature: retried without it, remembered, client told; other 400s pass through", async () => {
+  const compat = await import("../src/lib/llm/param-compat");
+  compat.resetParamCompat();
+  await subscribe(840);
+  // Claude Opus 5.5 answers "`temperature` is deprecated for this model." - every SinoBee version sends temperature
+  llm.next = { ...StubLlm.defaults(), chunks: 1, reject: ["temperature"] };
+  const body = { model: "claude-sonnet-5.5", max_tokens: 100, temperature: 0.2, messages: [{ role: "user", content: "hi" }] };
+  const r = await relay.relay(post("/api/v1/llm/anthropic/v1/messages", body), "anthropic", "messages");
+  assert.equal(r.status, 200, "answered instead of a 400");
+  assert.equal(r.headers.get("x-sinobee-dropped-params"), "temperature");
+  assert.deepEqual(llm.requests.map((q) => q.body.temperature), [0.2, undefined], "sent again without it");
+  assert.equal((await rows()).length, 1, "one hold, settled once");
+  assert.equal((await rows())[0].status, "SETTLED");
+  // remembered: the next request leaves it out from the start (also streaming)
+  llm.requests = [];
+  const s = await relay.relay(post("/api/v1/llm/anthropic/v1/messages", { ...body, stream: true }), "anthropic", "messages");
+  assert.equal(s.status, 200);
+  await readAll(s);
+  assert.equal(llm.requests.length, 1);
+  assert.equal(llm.requests[0].body.temperature, undefined);
+  assert.equal(s.headers.get("x-sinobee-dropped-params"), "temperature");
+  assert.deepEqual(compat.knownDropped(), { "claude-sonnet-5-5": ["temperature"] });
+  // OpenAI wording, and a 400 that is about something else is returned as it is
+  llm.requests = [];
+  llm.next = { ...StubLlm.defaults(), chunks: 1, reject: ["top_p"] };
+  const o = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, top_p: 0.9, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(o.status, 200);
+  assert.deepEqual(llm.requests.map((q) => q.body.top_p), [0.9, undefined]);
+  llm.requests = [];
+  llm.next = { ...StubLlm.defaults(), status: 400 };
+  const bad = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, temperature: 0.3, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(bad.status, 400);
+  assert.equal(llm.requests.length, 1, "not retried");
+  compat.resetParamCompat();
+});
