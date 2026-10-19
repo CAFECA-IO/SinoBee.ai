@@ -15,7 +15,7 @@ import { HttpError } from "./errors";
  */
 
 /** llm: use the subscription model relay (/api/v1/llm/*) */
-export const SCOPES = ["skills:publish", "tools:write", "vault:rw", "shares:write", "llm"] as const;
+export const SCOPES = ["skills:publish", "tools:write", "vault:rw", "shares:write", "llm", "evals:write"] as const;
 export type Scope = (typeof SCOPES)[number];
 export const DEFAULT_SCOPES: Scope[] = [...SCOPES];
 

@@ -18,7 +18,7 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
   const catalog = await modelCatalog();
   const labels = Object.fromEntries([...catalog.values()].map((m) => [m.modelId, m.label]));
   const offered = (await currentModels()).length;
-  const [byModel, byModelMethod, skillReports, recent] = await Promise.all([
+  const [byModel, byModelMethod, skillReports, recent, studies] = await Promise.all([
     db.evaluationReport.groupBy({ by: ["model"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true }, _count: true, _max: { evaluatedAt: true } }),
     db.evaluationReport.groupBy({ by: ["model", "method"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true } }),
     db.evaluationReport.findMany({
@@ -30,6 +30,12 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
       include: { requester: true, skillVersion: { include: { skill: { include: { publisher: true } } } } },
       orderBy: { evaluatedAt: "desc" },
       take: 20,
+    }),
+    db.evaluationStudy.findMany({
+      where: { hidden: false },
+      orderBy: { testedAt: "desc" },
+      take: 30,
+      select: { id: true, kind: true, title: true, domain: true, skill: true, summary: true, judgeModel: true, testedAt: true, models: true, bestModel: true, bestScore: true },
     }),
   ]);
   // average score per skill (portable across PostgreSQL / SQLite)
@@ -54,6 +60,33 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
         </div>
         <Link href="/crowd/new?kind=evaluation" className="btn-primary">{t("commission")}</Link>
       </div>
+
+      {studies.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="h2">{t("studies")}</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {studies.map((st) => (
+              <Link key={st.id} href={`/benchmarks/studies/${st.id}`} className="card block p-5 hover:bg-panel-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-accent">
+                  {st.kind === "skill" ? t("studySkill", { skill: st.skill ?? "" }) : t("studyModel", { domain: st.domain })}
+                </div>
+                <h3 className="mt-1 font-semibold">{st.title}</h3>
+                {st.summary && <p className="mt-1 line-clamp-2 text-sm text-muted">{st.summary}</p>}
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                  {st.bestModel && (
+                    <span>
+                      {t("best")} <b>{labels[st.bestModel] ?? st.bestModel}</b>{" "}
+                      <span className={`font-extrabold ${scoreColor(st.bestScore ?? 0)}`}>{st.bestScore?.toFixed(1)}</span>
+                    </span>
+                  )}
+                  <span className="text-muted">{t("studyModels", { n: st.models.split(",").filter(Boolean).length })}</span>
+                  {st.judgeModel && <span className="text-muted">{t("judgedBy", { judge: labels[st.judgeModel] ?? st.judgeModel })}</span>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-4">
         <h2 className="h2">{t("models")}</h2>

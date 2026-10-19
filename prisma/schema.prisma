@@ -45,6 +45,7 @@ model User {
   subscriptions    Subscription[]
   notifications    Notification[]
   evaluations      EvaluationReport[]
+  evaluationStudies EvaluationStudy[]
   reviewedVersions SkillVersion[]      @relation("reviewer")
   devices          Device[]
   deviceAuths      DeviceAuth[]
@@ -516,6 +517,40 @@ model EvaluationReport {
 
   @@index([model])
   @@index([skillVersionId])
+}
+
+/// A published evaluation that compares models: on one domain (kind "model") or using one skill (kind "skill").
+/// Run in SinoBee (`sinobee eval run <suite> -m <model> --judge <model>`, one run per model) and published with
+/// `sinobee eval publish`; every number on the page comes from those runs.
+model EvaluationStudy {
+  id            String    @id @default(cuid())
+  publisherId   String
+  publisher     User      @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  /// "model" | "skill"
+  kind          String
+  title         String
+  domain        String    @default("")
+  /// skill name (kind "skill")
+  skill         String?
+  summary       String    @default("")
+  /// the report text (Markdown)
+  body          String    @default("")
+  suite         String
+  judgeModel    String?
+  clientVersion String?
+  testedAt      DateTime
+  testedUntil   DateTime?
+  /// [{model, solo, totals, judge_usage, tasks: [{id, title, prompt, graders, trials: [...]}]}]
+  runs          Json
+  /// "model1,model2" for listings
+  models        String    @default("")
+  /// the model with the highest score
+  bestModel     String?
+  bestScore     Float?
+  hidden        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  @@index([kind, createdAt])
 }
 
 // ───────────────────────── Payments & subscriptions ─────────────────────────

@@ -901,7 +901,13 @@
         "title": "Publish",
         "body": "The report is public here and on the skill page for anyone to read and discuss."
       }
-    }
+    },
+    "studies": "Measured with SinoBee",
+    "studySkill": "Skill evaluation · {skill}",
+    "studyModel": "Model evaluation · {domain}",
+    "best": "Best",
+    "studyModels": "{n} models",
+    "judgedBy": "judged by {judge}"
   },
   "report": {
     "back": "← Back to benchmarks",
@@ -1061,7 +1067,8 @@
       "tools_write": "Register and update your tools (e.g. database browsers)",
       "vault_rw": "Read and write your encrypted vault (the server cannot see its contents)",
       "shares_write": "Create and revoke conversation shares",
-      "llm": "Use cloud models through SinoBee.ai on your subscription"
+      "llm": "Use cloud models through SinoBee.ai on your subscription",
+      "evals_write": "Publish the model and skill evaluations you run in SinoBee"
     },
     "approve": "Approve",
     "deny": "Deny",
@@ -1722,5 +1729,39 @@
     "lead": "Your own SinoBee (with a virtual desktop) runs on SinoBee.ai's servers; your files and settings stay in your space. The first start takes a few tens of seconds.",
     "starting": "Starting your SinoBee…",
     "retry": "Try again"
+  },
+  "study": {
+    "back": "← Back to evaluations",
+    "labelModel": "Model evaluation",
+    "labelSkill": "Skill evaluation",
+    "kind": "Type",
+    "kindModel": "Model evaluation: which model does best in a domain",
+    "kindSkill": "Skill evaluation: what the skill solves and which model uses it best",
+    "skill": "Skill",
+    "domain": "Domain",
+    "models": "Models tested",
+    "judge": "Judge model",
+    "judgeTokens": "{n} tokens spent grading",
+    "noJudge": "None (deterministic graders only)",
+    "testedAt": "Tested",
+    "tasks": "Tasks",
+    "tasksN": "{tasks} tasks, {trials} trials per model",
+    "client": "Run with",
+    "publisher": "Published by",
+    "ranking": "Results",
+    "model": "Model",
+    "score": "Score",
+    "passed": "Passed",
+    "time": "Time",
+    "perTrial": "{d} per trial",
+    "tokens": "Tokens",
+    "inOut": "in {i} · out {o}",
+    "steps": "Avg steps",
+    "scoreNote": "Score = share of graders passed per trial, averaged (0–100). Passed counts trials where every grader passed; pass@k counts tasks passed at least once, pass^k tasks passed every time. Time and tokens are what the model under test used to do the task, grading excluded.",
+    "prompt": "Task prompt",
+    "grader": "Grader",
+    "trialCost": "Each trial: time · tokens · status",
+    "analysis": "Analysis",
+    "howNote": "Every trial runs in a throw-away SinoBee: the model under test alone plans, works and reviews itself. Graders marked (judge) are decided by the judge model against a rubric; the others are deterministic checks (tests, files, commands)."
   }
 }

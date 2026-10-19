@@ -901,7 +901,13 @@
         "title": "公開",
         "body": "報告公開於本頁與技能頁，任何人都能查閱與留言討論。"
       }
-    }
+    },
+    "studies": "SinoBee 實測報告",
+    "studySkill": "技能評鑑 · {skill}",
+    "studyModel": "模型評鑑 · {domain}",
+    "best": "最佳",
+    "studyModels": "{n} 個模型",
+    "judgedBy": "評鑑模型 {judge}"
   },
   "report": {
     "back": "← 返回評鑑",
@@ -1061,7 +1067,8 @@
       "tools_write": "登錄與更新你的工具（例如資料庫瀏覽器）",
       "vault_rw": "讀寫你的加密保險箱（伺服器看不到內容）",
       "shares_write": "建立與撤回對話分享",
-      "llm": "用你的訂閱額度透過 SinoBee.ai 使用雲端模型"
+      "llm": "用你的訂閱額度透過 SinoBee.ai 使用雲端模型",
+      "evals_write": "發布你在 SinoBee 跑的模型與技能評鑑報告"
     },
     "approve": "授權",
     "deny": "拒絕",
@@ -1722,5 +1729,39 @@
     "lead": "你專屬的 SinoBee（含虛擬桌面）在 SinoBee.ai 的伺服器上執行，檔案與設定會保留在你的空間。第一次啟動需要幾十秒。",
     "starting": "正在啟動你的 SinoBee…",
     "retry": "再試一次"
+  },
+  "study": {
+    "back": "← 返回評鑑",
+    "labelModel": "模型評鑑報告",
+    "labelSkill": "技能評鑑報告",
+    "kind": "類型",
+    "kindModel": "模型評鑑：特定領域哪個模型表現最好",
+    "kindSkill": "技能評鑑：這個技能能解決什麼、哪個模型用得最好",
+    "skill": "技能",
+    "domain": "領域",
+    "models": "受測模型",
+    "judge": "評鑑模型",
+    "judgeTokens": "評分共用 {n} tokens",
+    "noJudge": "無（只用確定性評分）",
+    "testedAt": "測試時間",
+    "tasks": "題目",
+    "tasksN": "{tasks} 題，每個模型 {trials} 次試跑",
+    "client": "執行環境",
+    "publisher": "發布者",
+    "ranking": "結果",
+    "model": "模型",
+    "score": "分數",
+    "passed": "全部通過",
+    "time": "花費時間",
+    "perTrial": "每次 {d}",
+    "tokens": "使用 Tokens",
+    "inOut": "輸入 {i} · 輸出 {o}",
+    "steps": "平均步數",
+    "scoreNote": "分數 = 每次試跑通過的評分項目比例，取平均（0–100）。「全部通過」是所有評分項目都通過的試跑數；pass@k 是至少一次全部通過的題數，pass^k 是每次都全部通過的題數。時間與 tokens 是受測模型完成任務的實際用量，不含評分。",
+    "prompt": "題目內容",
+    "grader": "評分項目",
+    "trialCost": "每次試跑：時間 · tokens · 狀態",
+    "analysis": "分析",
+    "howNote": "每次試跑都在拋棄式的 SinoBee 環境中進行：受測模型獨自負責規劃、執行與自我審查，標示「（評鑑模型）」的項目由評鑑模型依評分準則判定，其餘為確定性檢查（測試、檔案、指令）。"
   }
 }
