@@ -15,10 +15,11 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function BenchmarksPage({ params }: { params: Promise<{ locale: string }> }) {
   setRequestLocale((await params).locale);
   const t = await getTranslations("bench");
+  const te = await getTranslations("evals");
   const catalog = await modelCatalog();
   const labels = Object.fromEntries([...catalog.values()].map((m) => [m.modelId, m.label]));
   const offered = (await currentModels()).length;
-  const [byModel, byModelMethod, skillReports, recent, studies] = await Promise.all([
+  const [byModel, byModelMethod, skillReports, recent, evals] = await Promise.all([
     db.evaluationReport.groupBy({ by: ["model"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true }, _count: true, _max: { evaluatedAt: true } }),
     db.evaluationReport.groupBy({ by: ["model", "method"], where: { skillVersionId: null, task: { status: "COMPLETED" } }, _avg: { score: true } }),
     db.evaluationReport.findMany({
@@ -31,13 +32,13 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
       orderBy: { evaluatedAt: "desc" },
       take: 20,
     }),
-    db.evaluationStudy.findMany({
-      where: { hidden: false },
-      orderBy: { testedAt: "desc" },
-      take: 30,
-      select: { id: true, kind: true, title: true, domain: true, skill: true, summary: true, judgeModel: true, testedAt: true, models: true, bestModel: true, bestScore: true },
-    }),
+    db.benchEval.findMany({ where: { hidden: false }, orderBy: { testedAt: "desc" }, take: 500, select: { kind: true, subject: true, title: true, fairScore: true, trials: true } }),
   ]);
+  // one card per skill / domain with SinoBee evaluations
+  const subjects = [...new Map(evals.map((e) => [`${e.kind}|${e.subject}`, e])).values()].map((e) => {
+    const rows = evals.filter((x) => x.kind === e.kind && x.subject === e.subject);
+    return { ...e, n: rows.length, best: Math.max(...rows.filter((x) => x.trials >= 3).map((x) => x.fairScore), -1) };
+  });
   // average score per skill (portable across PostgreSQL / SQLite)
   const skillAgg = new Map<string, { skillId: string; name: string; publisher: string; sum: number; n: number }>();
   for (const r of skillReports) {
@@ -61,26 +62,23 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
         <Link href="/crowd/new?kind=evaluation" className="btn-primary">{t("commission")}</Link>
       </div>
 
-      {studies.length > 0 && (
+      {subjects.length > 0 && (
         <section className="space-y-4">
-          <h2 className="h2">{t("studies")}</h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="h2">{te("sectionTitle")}</h2>
+              <p className="mt-1 text-sm text-muted">{te("sectionLead")}</p>
+            </div>
+            <Link href="/benchmarks/evals" className="text-sm text-accent">{te("seeAll")}</Link>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
-            {studies.map((st) => (
-              <Link key={st.id} href={`/benchmarks/studies/${st.id}`} className="card block p-5 hover:bg-panel-2">
-                <div className="text-xs font-semibold uppercase tracking-wide text-accent">
-                  {st.kind === "skill" ? t("studySkill", { skill: st.skill ?? "" }) : t("studyModel", { domain: st.domain })}
-                </div>
-                <h3 className="mt-1 font-semibold">{st.title}</h3>
-                {st.summary && <p className="mt-1 line-clamp-2 text-sm text-muted">{st.summary}</p>}
-                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                  {st.bestModel && (
-                    <span>
-                      {t("best")} <b>{labels[st.bestModel] ?? st.bestModel}</b>{" "}
-                      <span className={`font-extrabold ${scoreColor(st.bestScore ?? 0)}`}>{st.bestScore?.toFixed(1)}</span>
-                    </span>
-                  )}
-                  <span className="text-muted">{t("studyModels", { n: st.models.split(",").filter(Boolean).length })}</span>
-                  {st.judgeModel && <span className="text-muted">{t("judgedBy", { judge: labels[st.judgeModel] ?? st.judgeModel })}</span>}
+            {subjects.map((e) => (
+              <Link key={`${e.kind}|${e.subject}`} href={`/benchmarks/evals?kind=${e.kind}&subject=${encodeURIComponent(e.subject)}`} className="card block p-5 hover:bg-panel-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-accent">{e.kind === "skill" ? te("kindSkill") : te("kindModel")} · {e.subject}</div>
+                <h3 className="mt-1 font-semibold">{e.kind === "skill" ? te("headSkill", { subject: e.subject }) : te("headModel", { subject: e.subject })}</h3>
+                <div className="mt-2 flex flex-wrap gap-x-4 text-sm text-muted">
+                  <span>{te("reportsN", { n: e.n })}</span>
+                  {e.best >= 0 && <span>{te("fairShort")} <b className={`font-extrabold ${scoreColor(e.best)}`}>{e.best.toFixed(1)}</b></span>}
                 </div>
               </Link>
             ))}

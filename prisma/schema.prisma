@@ -46,6 +46,7 @@ model User {
   notifications    Notification[]
   evaluations      EvaluationReport[]
   evaluationStudies EvaluationStudy[]
+  benchEvals        BenchEval[]
   reviewedVersions SkillVersion[]      @relation("reviewer")
   devices          Device[]
   deviceAuths      DeviceAuth[]
@@ -1249,4 +1250,47 @@ model LegalVersion {
 
   @@unique([doc, locale, version])
   @@unique([doc, locale, sha256])
+}
+
+/// One evaluation published from SinoBee (`sinobee eval publish`), scored with SFS v1: one thing under test - a
+/// skill's thinking + execution model combination (kind "skill") or one model doing everything in a domain (kind
+/// "model") - on one suite, graded by one judge, over n trials. The listing columns are computed from the trials.
+model BenchEval {
+  id              Int       @id @default(autoincrement())
+  publisherId     String
+  publisher       User      @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  /// "skill" | "model"
+  kind            String
+  /// the skill (kind "skill") or the domain (kind "model")
+  subject         String
+  subjectVersion  String    @default("")
+  title           String
+  summary         String    @default("")
+  suite           String
+  suiteHash       String
+  inputHash       String?
+  thinkingModel   String
+  executionModel  String
+  judgeModel      String
+  judge2Model     String?
+  clientVersion   String?
+  testedAt        DateTime
+  testedUntil     DateTime?
+  trials          Int
+  /// {tasks: [{id, title, prompt, questions, weights, trials: [...]}], threshold, judgeCheck, judge2Agree, creativity, runs}
+  data            Json
+  meanScore       Float
+  stdErr          Float
+  fairScore       Float
+  qualified       Int
+  critFails       Int
+  medianSeconds   Float?
+  p90Seconds      Float?
+  costPerPass     Float?
+  creativityWins  Int?
+  creativityTotal Int?
+  hidden          Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  @@index([kind, subject])
 }
