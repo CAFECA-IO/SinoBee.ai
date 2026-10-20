@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { Link } from "@/i18n/navigation";
-import { ReviewActions, VerifyPublisher } from "@/components/admin-actions";
+import { ReviewActions, EvaluatorSecurity, VerifyPublisher } from "@/components/admin-actions";
 import { StatusBadge } from "@/components/status-badge";
 import { LocalDate } from "@/components/date";
 import { hubPublicKeys } from "@/lib/skills/signing";
@@ -131,6 +131,7 @@ async function SkillReviews({ tab }: { tab: "pending" | "approved" }) {
                 {v.skill.publisher.publisher}/{v.skill.name}@{v.version}
               </Link>
               <StatusBadge status={v.status} />
+              {v.skill.kind === "evaluation" && <span className="badge bg-accent-soft text-accent">{t("evKind")}</span>}
               <span className={`badge ${v.scanVerdict === "CLEAN" ? "bg-accent-soft text-ok" : "bg-warn-soft text-warn"}`}>scan: {v.scanVerdict}</span>
               <span className="text-xs text-muted"><LocalDate value={v.publishedAt} /></span>
               <VerifyPublisher userId={v.skill.publisherId} verified={v.skill.publisher.publisherVerified} />
@@ -147,6 +148,7 @@ async function SkillReviews({ tab }: { tab: "pending" | "approved" }) {
               <summary className="cursor-pointer text-sm text-accent">SKILL.md</summary>
               <pre className="codeblock mt-2 max-h-96 whitespace-pre-wrap">{v.skillMd}</pre>
             </details>
+            {v.skill.kind === "evaluation" && <EvaluatorSecurity versionId={v.id} approved={v.status === "APPROVED"} report={v.securityReport as never} />}
             <ReviewActions versionId={v.id} approved={v.status === "APPROVED"} />
           </div>
         ))}

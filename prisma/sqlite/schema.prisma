@@ -37,35 +37,36 @@ model User {
   createdAt         DateTime @default(now())
   lastLoginAt       DateTime @default(now())
 
-  sessions         Session[]
-  apiTokens        ApiToken[]
-  skills           Skill[]
-  ratings          SkillRating[]
-  comments         Comment[]
-  tasks            Task[]
-  payments         Payment[]
-  subscriptions    Subscription[]
-  notifications    Notification[]
-  evaluations      EvaluationReport[]
+  sessions          Session[]
+  apiTokens         ApiToken[]
+  skills            Skill[]
+  ratings           SkillRating[]
+  comments          Comment[]
+  tasks             Task[]
+  payments          Payment[]
+  subscriptions     Subscription[]
+  notifications     Notification[]
+  evaluations       EvaluationReport[]
   evaluationStudies EvaluationStudy[]
   benchEvals        BenchEval[]
-  reviewedVersions SkillVersion[]      @relation("reviewer")
-  devices          Device[]
-  deviceAuths      DeviceAuth[]
-  tools            Tool[]
-  vaultKey         VaultKey?
-  vaultPacks       VaultPack[]
-  shares           ConversationShare[]
-  reports          Report[]
-  reviewedTools ToolVersion[] @relation("toolReviewer")
-  toolRatings   ToolRating[]
-  adminActions  AdminAudit[]  @relation("auditActor")
-  modelPrices   ModelPrice[]
-  usage         UsageLedger[]
-  pledges       Pledge[]
-  savedCards    SavedCard[]
-  points        PointLedger[]
-  acceptanceVotes AcceptanceVote[]
+  benchSuites       BenchSuite[]
+  reviewedVersions  SkillVersion[]      @relation("reviewer")
+  devices           Device[]
+  deviceAuths       DeviceAuth[]
+  tools             Tool[]
+  vaultKey          VaultKey?
+  vaultPacks        VaultPack[]
+  shares            ConversationShare[]
+  reports           Report[]
+  reviewedTools     ToolVersion[]       @relation("toolReviewer")
+  toolRatings       ToolRating[]
+  adminActions      AdminAudit[]        @relation("auditActor")
+  modelPrices       ModelPrice[]
+  usage             UsageLedger[]
+  pledges           Pledge[]
+  savedCards        SavedCard[]
+  points            PointLedger[]
+  acceptanceVotes   AcceptanceVote[]
 }
 
 enum UserRole {
@@ -161,8 +162,8 @@ model Device {
   lastSeenAt DateTime  @default(now())
   revokedAt  DateTime?
 
-  tokens     ApiToken[]
-  vaultKey   VaultDeviceKey?
+  tokens   ApiToken[]
+  vaultKey VaultDeviceKey?
 
   @@index([userId])
 }
@@ -223,6 +224,10 @@ model Skill {
   ratingAvg     Float    @default(0)
   ratingCount   Int      @default(0)
   latestVersion String?
+  /// "skill" | "evaluation" (SKILL.md metadata sinobee-type) - an evaluation skill writes evaluation suites
+  kind          String   @default("skill")
+  /// evaluation skills: the skills it is for, comma-separated names or globs ("*" = any)
+  targets       String   @default("")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -235,34 +240,40 @@ model Skill {
 }
 
 model SkillVersion {
-  id           String       @id @default(cuid())
-  skillId      String
-  skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
-  version      String
+  id             String       @id @default(cuid())
+  skillId        String
+  skill          Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  version        String
   /// "sha256:<hex>" — SinoBee content hash (sorted path \0 bytes \0 ...)
-  contentHash  String
+  contentHash    String
   /// storage key of the .tar.gz bundle
-  bundleKey    String
-  bundleSize   Int
-  manifest     Json
-  skillMd      String
-  files        Json
+  bundleKey      String
+  bundleSize     Int
+  manifest       Json
+  skillMd        String
+  files          Json
   /// base64 ed25519 signature of contentHash (set when approved)
-  signature    String?
+  signature      String?
   /// Boltchain certificate code: the bundle and SKILL.md hashes, notarized at publish
-  anchorCode   String?
-  status       ReviewStatus @default(PENDING_REVIEW)
-  scanVerdict  ScanVerdict  @default(CLEAN)
-  scanFindings Json         @default("[]")
-  reviewNote   String?
-  reviewerId   String?
-  reviewer     User?        @relation("reviewer", fields: [reviewerId], references: [id])
-  reviewedAt   DateTime?
-  publishedAt  DateTime     @default(now())
-  downloads    Int          @default(0)
+  anchorCode     String?
+  status         ReviewStatus @default(PENDING_REVIEW)
+  scanVerdict    ScanVerdict  @default(CLEAN)
+  scanFindings   Json         @default("[]")
+  reviewNote     String?
+  reviewerId     String?
+  reviewer       User?        @relation("reviewer", fields: [reviewerId], references: [id])
+  reviewedAt     DateTime?
+  publishedAt    DateTime     @default(now())
+  downloads      Int          @default(0)
+  /// evaluation skills: the 4 security checks {static: {ok, issues}, behavior: {ok, note, by, at}, suite: {ok, checked, problems}}
+  /// (the 4th, human review, is status APPROVED)
+  securityReport Json?
 
-  tasks       Task[]
-  evaluations EvaluationReport[]
+  tasks           Task[]
+  evaluations     EvaluationReport[]
+  benchSuites     BenchSuite[]       @relation("suiteSkill")
+  evaluatorSuites BenchSuite[]       @relation("suiteEvaluator")
+  benchEvals      BenchEval[]
 
   @@unique([skillId, version])
   @@index([contentHash])
@@ -363,24 +374,24 @@ model Task {
   status         TaskStatus    @default(DRAFT)
 
   /// total TWD funded (collected pledges and top-up rounds, minus refunds)
-  budget       Decimal @default(0)
+  budget           Decimal  @default(0)
   /// TWD charged so far: tokens at the published model price + (VM + storage) × markup, see src/lib/pricing.ts
-  charged      Decimal @default(0)
+  charged          Decimal  @default(0)
   /// USD→TWD rate snapshotted when the task was created (the site's base FX rate)
-  usdTwdRate   Decimal @default(32)
+  usdTwdRate       Decimal  @default(32)
   /// published-price buffer snapshotted at creation (e.g. 1.08); null = legacy task billed with the markup on tokens
-  priceBuffer  Decimal?
+  priceBuffer      Decimal?
   /// vendor USD per 1M tokens {input, cacheRead, cacheWrite, output} snapshotted at creation
-  modelPriceUsd Json?
-  cacheReadTokens  BigInt @default(0)
-  cacheWriteTokens BigInt @default(0)
+  modelPriceUsd    Json?
+  cacheReadTokens  BigInt   @default(0)
+  cacheWriteTokens BigInt   @default(0)
   /// raw provider costs in USD
-  tokenCostUsd Decimal @default(0)
-  vmCostUsd    Decimal @default(0)
-  s3CostUsd    Decimal @default(0)
-  inputTokens  BigInt  @default(0)
-  outputTokens BigInt  @default(0)
-  vmSeconds    Int     @default(0)
+  tokenCostUsd     Decimal  @default(0)
+  vmCostUsd        Decimal  @default(0)
+  s3CostUsd        Decimal  @default(0)
+  inputTokens      BigInt   @default(0)
+  outputTokens     BigInt   @default(0)
+  vmSeconds        Int      @default(0)
 
   /// evaluation fields (kind = EVALUATION)
   evalMethod   String?
@@ -400,70 +411,70 @@ model Task {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  artifacts Artifact[]
-  events    TaskEvent[]
-  payments  Payment[]
-  report    EvaluationReport?
+  artifacts  Artifact[]
+  events     TaskEvent[]
+  payments   Payment[]
+  report     EvaluationReport?
   pledges    Pledge[]
   inputFiles TaskInputFile[]
 
   // ── crowdfunding (crowdfund = true) ──
-  crowdfund         Boolean   @default(true)
+  crowdfund           Boolean          @default(true)
   /// goal in whole TWD (a multiple of the share price)
-  goalTwd           Int?
+  goalTwd             Int?
   /// 7, 30 or 90 (null when paid in full by the proposer)
-  durationDays      Int?
-  deadlineAt        DateTime?
+  durationDays        Int?
+  deadlineAt          DateTime?
   /// start charging as soon as the goal is reached instead of at the deadline
-  startEarly        Boolean   @default(false)
+  startEarly          Boolean          @default(false)
   /// paid in full by the proposer (no crowdfunding period; charged when the screening passes)
-  selfFunded        Boolean   @default(false)
+  selfFunded          Boolean          @default(false)
   /// the saved card the proposer chose to pay with (self-funded)
-  selfCardId        String?
+  selfCardId          String?
   /// platform service fee rate snapshotted when funding opens (0 for 7 days)
-  serviceFeeRate    Decimal? 
-  serviceFeeTwd     Int       @default(0)
+  serviceFeeRate      Decimal?        
+  serviceFeeTwd       Int              @default(0)
   /// proposal: {summary, scope, outOfScope, deliverables[], method[], acceptance[], estimate {p50Twd, p90Twd, basis}, stretch[], risks[]}
-  spec              Json?
-  specVersion       Int       @default(0)
+  spec                Json?
+  specVersion         Int              @default(0)
   /// spec dialogue [{role: "user" | "assistant", content, at}]
-  specChat          Json?
+  specChat            Json?
   /// proposal fee credit (published-price TWD) and what the spec dialogue, storage and extra file space used
-  proposalCreditTwd Decimal   @default(0)
-  proposalUsedTwd   Decimal   @default(0)
+  proposalCreditTwd   Decimal          @default(0)
+  proposalUsedTwd     Decimal          @default(0)
   /// unused proposal credit moved into the budget when funded (kept by the platform at settlement, never points)
-  proposalToBudgetTwd Decimal @default(0)
-  fundingStartedAt  DateTime?
-  fundedAt          DateTime?
+  proposalToBudgetTwd Decimal          @default(0)
+  fundingStartedAt    DateTime?
+  fundedAt            DateTime?
   /// end of the grace period for failed card charges
-  chargeDeadlineAt  DateTime?
+  chargeDeadlineAt    DateTime?
   /// leftover budget returned to backers (points / quota)
-  settledAt         DateTime?
+  settledAt           DateTime?
   /// a spec revision while funding: backers may withdraw until then, charging waits for it
-  exitUntil         DateTime?
+  exitUntil           DateTime?
   /// research | data | writing | code | translation | media | other
-  category          String?
+  category            String?
   /// screening of the proposal before it opens: {decision, reasons, by: "ai" | "admin", at}
-  screening         Json?
+  screening           Json?
   /// set when an admin takes the campaign down after a report
-  takenDownAt       DateTime?
+  takenDownAt         DateTime?
   /// version of the crowdfunding terms (with the screening checklist) the proposer agreed to
   /// next AI screening attempt by the worker (null = not queued)
-  screenAt          DateTime?
-  termsVersion      Int?
+  screenAt            DateTime?
+  termsVersion        Int?
   /// stretch goals unlocked by money collected beyond the goal (count, in spec order)
-  stretchUnlocked   Int       @default(0)
+  stretchUnlocked     Int              @default(0)
   /// top-up round after the budget ran out: goal (whole TWD) and deadline; pledges wait until it is met
-  topupGoalTwd      Int?
-  topupDeadlineAt   DateTime?
+  topupGoalTwd        Int?
+  topupDeadlineAt     DateTime?
   /// acceptance: the agent's self-check {criteria: [{criterion, passed, evidence}], summary}, review deadline, reworks done
-  acceptance        Json?
-  reviewDeadlineAt  DateTime?
-  reworks           Int       @default(0)
+  acceptance          Json?
+  reviewDeadlineAt    DateTime?
+  reworks             Int              @default(0)
   /// why the last review rejected the result (given to the agent for the rework)
-  reworkNotes       String?
-  acceptanceVotes   AcceptanceVote[]
-  revisions         SpecRevision[]
+  reworkNotes         String?
+  acceptanceVotes     AcceptanceVote[]
+  revisions           SpecRevision[]
 
   @@index([status, createdAt])
   @@index([userId, createdAt])
@@ -585,66 +596,66 @@ enum PaymentProvider {
 }
 
 model Payment {
-  id          String         @id @default(cuid())
-  userId      String
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taskId      String?
-  task        Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  purpose     PaymentPurpose
-  amount      Decimal       
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId            String?
+  task              Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  purpose           PaymentPurpose
+  amount            Decimal        
   /// TWDC: amount in token base units. OEN/MOCK: the integer TWD amount as a string
-  amountBase  String
+  amountBase        String
   /// TWDC: token contract. OEN/MOCK: "TWD"
-  token       String
+  token             String
   /// TWDC: treasury address. OEN: merchant id
-  recipient   String
-  provider    PaymentProvider @default(TWDC)
+  recipient         String
+  provider          PaymentProvider @default(TWDC)
   /// made while the site was in test mode (Oen testing environment; excluded from revenue)
-  sandbox     Boolean        @default(false)
+  sandbox           Boolean         @default(false)
   /// the saved card charged (every Oen payment is a card token charge)
-  cardId      String?
+  cardId            String?
   /// integer TWD charged through Oen
-  amountTwd   Int?
+  amountTwd         Int?
   /// Oen internal transaction id (27 chars, used for GET /transactions/:id and in webhooks)
-  oenId          String?   @unique
+  oenId             String?         @unique
   /// Oen transaction number (P…, used for refunds)
-  transactionHid String?   @unique
+  transactionHid    String?         @unique
   checkoutUrl       String?
   checkoutExpiresAt DateTime?
-  paidAt         DateTime?
+  paidAt            DateTime?
   /// subscription plan bought (Plan.id)
-  planId         String?
+  planId            String?
   /// buyer name / email / invoice info sent to Oen for the e-invoice
-  buyer          Json?
-  refundedTwd    Int       @default(0)
-  refundedAt     DateTime?
-  refundReason   String?
+  buyer             Json?
+  refundedTwd       Int             @default(0)
+  refundedAt        DateTime?
+  refundReason      String?
   /// last Oen transaction status seen (initiated, charging, charged, …)
-  providerStatus String?
-  status      PaymentStatus  @default(PENDING)
-  txHash      String?        @unique
-  pledges     Pledge[]
-  error       String?
-  meta        Json?
-  createdAt   DateTime       @default(now())
-  confirmedAt DateTime?
+  providerStatus    String?
+  status            PaymentStatus   @default(PENDING)
+  txHash            String?         @unique
+  pledges           Pledge[]
+  error             String?
+  meta              Json?
+  createdAt         DateTime        @default(now())
+  confirmedAt       DateTime?
 }
 
 model Subscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan      String
-  startsAt  DateTime
-  endsAt    DateTime
-  paymentId String   @unique
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan        String
+  startsAt    DateTime
+  endsAt      DateTime
+  paymentId   String    @unique
   /// Plan.id at purchase (plan holds the code)
   planId      String?
   /// results and container are kept until graceEndsAt (endsAt + 30 days)
   graceEndsAt DateTime?
   /// refunded periods are cancelled; later periods move up
   cancelledAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([userId, endsAt])
 }
@@ -679,32 +690,32 @@ enum UsageStatus {
  * rest, at the time the cost was incurred (settledAt, or createdAt while held).
  */
 model UsageLedger {
-  id             String      @id @default(cuid())
-  userId         String
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// subscription period the call ran under
-  subscriptionId String?
-  planId         String?
-  deviceId       String?
-  modelId        String
-  endpoint       String
-  stream         Boolean     @default(false)
-  status         UsageStatus @default(HELD)
-  heldTwd        Decimal     @default(0)
-  settledTwd     Decimal?   
+  subscriptionId   String?
+  planId           String?
+  deviceId         String?
+  modelId          String
+  endpoint         String
+  stream           Boolean     @default(false)
+  status           UsageStatus @default(HELD)
+  heldTwd          Decimal     @default(0)
+  settledTwd       Decimal?   
   /// published TWD per 1M tokens {input, cacheRead, cacheWrite, output} at hold time
-  priceTwd       Json
-  promptTokens     Int @default(0)
-  outputTokens     Int @default(0)
-  cacheReadTokens  Int @default(0)
-  cacheWriteTokens Int @default(0)
+  priceTwd         Json
+  promptTokens     Int         @default(0)
+  outputTokens     Int         @default(0)
+  cacheReadTokens  Int         @default(0)
+  cacheWriteTokens Int         @default(0)
   /// output tokens the hold covers (estimate + top-ups)
-  heldOutput     Int         @default(0)
+  heldOutput       Int         @default(0)
   /// output tokens counted by us while streaming
-  countedOutput  Int         @default(0)
-  error          String?
-  createdAt      DateTime    @default(now())
-  settledAt      DateTime?
+  countedOutput    Int         @default(0)
+  error            String?
+  createdAt        DateTime    @default(now())
+  settledAt        DateTime?
 
   @@index([userId, status])
   @@index([userId, settledAt])
@@ -712,7 +723,9 @@ model UsageLedger {
   @@index([status, createdAt])
 }
 
-/** Average output length per user and model (last ~50 calls), used to size holds */
+/**
+ * Average output length per user and model (last ~50 calls), used to size holds
+ */
 model UserModelStats {
   userId    String
   modelId   String
@@ -812,8 +825,8 @@ model Tool {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  versions      ToolVersion[]
-  ratings       ToolRating[]
+  versions ToolVersion[]
+  ratings  ToolRating[]
 
   @@unique([ownerId, name])
   @@index([visibility, updatedAt])
@@ -1038,30 +1051,29 @@ model StorageObject {
 
 /// Content hashes notarized with the Boltchain Certificates contract (third-party verifiable)
 model Anchor {
-  id         String    @id @default(cuid())
+  id          String    @id @default(cuid())
   /// what was anchored: tool-version | share | skill-version | artifact
-  targetType String
-  targetId   String
+  targetType  String
+  targetId    String
   /// 16-char Crockford base32 certificate code (null until issued)
-  code       String?   @unique
-  salt       String
+  code        String?   @unique
+  salt        String
   /// [{name, sha256, keccak, size}]
-  files      Json
+  files       Json
   /// public certificate: the files themselves are kept on Boltchain (content read from the target when issuing)
-  publicFiles Boolean  @default(false)
-  root       String?
-  txHash     String?
-  status     String    @default("pending")
-  error      String?
-  attempts   Int       @default(0)
-  nextTryAt  DateTime  @default(now())
-  createdAt  DateTime  @default(now())
-  issuedAt   DateTime?
+  publicFiles Boolean   @default(false)
+  root        String?
+  txHash      String?
+  status      String    @default("pending")
+  error       String?
+  attempts    Int       @default(0)
+  nextTryAt   DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  issuedAt    DateTime?
 
   @@unique([targetType, targetId])
   @@index([status, nextTryAt])
 }
-
 
 // ───────────────────────── Crowdfunding ─────────────────────────
 
@@ -1085,7 +1097,9 @@ enum PledgeStatus {
   REFUNDED
 }
 
-/** One pledge action: shares × share price, paid with a saved card (charged later), points or subscription quota */
+/**
+ * One pledge action: shares × share price, paid with a saved card (charged later), points or subscription quota
+ */
 model Pledge {
   id            String       @id @default(cuid())
   taskId        String
@@ -1119,7 +1133,9 @@ model Pledge {
   @@index([userId, createdAt])
 }
 
-/** A card saved with Oen (token checkout). The token arrives only through the token notification. */
+/**
+ * A card saved with Oen (token checkout). The token arrives only through the token notification.
+ */
 model SavedCard {
   id          String    @id @default(cuid())
   userId      String
@@ -1144,7 +1160,9 @@ model SavedCard {
   @@index([userId, status])
 }
 
-/** Platform points: 1 point = 1 TWD, only for crowdfunding pledges, not transferable, no cash-out */
+/**
+ * Platform points: 1 point = 1 TWD, only for crowdfunding pledges, not transferable, no cash-out
+ */
 model PointLedger {
   id        String   @id @default(cuid())
   userId    String
@@ -1170,7 +1188,9 @@ enum FileVisibility {
   AGENT
 }
 
-/** Reference files uploaded with a crowdfunding proposal; copied into the task's inputs/ folder */
+/**
+ * Reference files uploaded with a crowdfunding proposal; copied into the task's inputs/ folder
+ */
 model TaskInputFile {
   id          String         @id @default(cuid())
   taskId      String
@@ -1187,7 +1207,9 @@ model TaskInputFile {
   @@index([taskId])
 }
 
-/** A backer's acceptance vote, weighted by the shares they paid for (collected pledges) */
+/**
+ * A backer's acceptance vote, weighted by the shares they paid for (collected pledges)
+ */
 model AcceptanceVote {
   taskId    String
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -1204,7 +1226,9 @@ model AcceptanceVote {
   @@id([taskId, userId, round])
 }
 
-/** Spec versions published while the campaign is open (v1 = the one funding opened with) */
+/**
+ * Spec versions published while the campaign is open (v1 = the one funding opened with)
+ */
 model SpecRevision {
   id        String   @id @default(cuid())
   taskId    String
@@ -1237,7 +1261,9 @@ model ChecklistVersion {
   @@index([publishedAt, version])
 }
 
-/** Every published text of a legal document, as the exact markdown shown, notarized on Boltchain */
+/**
+ * Every published text of a legal document, as the exact markdown shown, notarized on Boltchain
+ */
 model LegalVersion {
   id         String   @id @default(cuid())
   /// terms | privacy | refunds | crowd
@@ -1258,16 +1284,16 @@ model LegalVersion {
 /// skill's thinking + execution model combination (kind "skill") or one model doing everything in a domain (kind
 /// "model") - on one suite, graded by one judge, over n trials. The listing columns are computed from the trials.
 model BenchEval {
-  id              Int       @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   publisherId     String
-  publisher       User      @relation(fields: [publisherId], references: [id], onDelete: Cascade)
+  publisher       User          @relation(fields: [publisherId], references: [id], onDelete: Cascade)
   /// "skill" | "model"
   kind            String
   /// the skill (kind "skill") or the domain (kind "model")
   subject         String
-  subjectVersion  String    @default("")
+  subjectVersion  String        @default("")
   title           String
-  summary         String    @default("")
+  summary         String        @default("")
   suite           String
   suiteHash       String
   inputHash       String?
@@ -1291,8 +1317,49 @@ model BenchEval {
   costPerPass     Float?
   creativityWins  Int?
   creativityTotal Int?
-  hidden          Boolean   @default(false)
-  createdAt       DateTime  @default(now())
+  hidden          Boolean       @default(false)
+  /// "public" | "private" (only the publisher sees a private report; it is in no list or ranking)
+  visibility      String        @default("public")
+  /// the evaluation skill that wrote the suite ("eval-authoring@1.0.0")
+  evaluator       String?
+  suiteId         String?
+  benchSuite      BenchSuite?   @relation(fields: [suiteId], references: [id], onDelete: SetNull)
+  /// the published skill version a public skill evaluation is about
+  skillVersionId  String?
+  skillVersion    SkillVersion? @relation(fields: [skillVersionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
 
   @@index([kind, subject])
+  @@index([suiteHash])
+}
+
+/// An evaluation suite written by an evaluation skill (SinoBee evals/authoring.py), shared so that others can run the
+/// same questions on other model combinations. The hash is recomputed here exactly as SinoBee computes it.
+model BenchSuite {
+  id                      String        @id @default(cuid())
+  hash                    String        @unique
+  kind                    String        @default("skill")
+  /// the skill under test (its SinoBee name)
+  subject                 String
+  subjectVersion          String        @default("")
+  skillVersionId          String?
+  skillVersion            SkillVersion? @relation("suiteSkill", fields: [skillVersionId], references: [id], onDelete: SetNull)
+  evaluator               String        @default("")
+  evaluatorVersion        String        @default("")
+  evaluatorSkillVersionId String?
+  evaluatorSkillVersion   SkillVersion? @relation("suiteEvaluator", fields: [evaluatorSkillVersionId], references: [id], onDelete: SetNull)
+  title                   String        @default("")
+  /// suite.json as SinoBee stores it: {title, skill, bench, graders, inputs, anchors}
+  suite                   Json
+  /// {"inputs/<id>/<file>": text} - de-identified test inputs
+  inputs                  Json
+  createdById             String
+  createdBy               User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  reportCount             Int           @default(0)
+  hidden                  Boolean       @default(false)
+  createdAt               DateTime      @default(now())
+
+  evals BenchEval[]
+
+  @@index([subject])
 }

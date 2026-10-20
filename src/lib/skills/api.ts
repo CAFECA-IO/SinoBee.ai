@@ -1,6 +1,7 @@
 import type { Skill, SkillTag, SkillVersion, User } from "@/generated/prisma/client";
 import { bundleUrl } from "./service";
 import { certUrl } from "../boltchain/certificates";
+import { securityStatus } from "../bench-suites";
 
 export const LISTED = { status: { in: ["PENDING_REVIEW", "APPROVED"] as ("PENDING_REVIEW" | "APPROVED")[] }, scanVerdict: { not: "DANGEROUS" as const } };
 
@@ -21,6 +22,8 @@ export function versionJson(publisher: string, name: string, v: SkillVersion) {
     scan: { verdict: v.scanVerdict.toLowerCase(), findings },
     // Boltchain certificate over the bundle and SKILL.md (null until notarized)
     anchor: v.anchorCode ? { code: v.anchorCode, url: certUrl(v.anchorCode) } : null,
+    // evaluation skills: the 4 security checks (static scan, sandbox behavior, suites, review)
+    ...(v.securityReport ? { security: securityStatus(v.securityReport, v.status === "APPROVED") } : {}),
   };
 }
 
@@ -36,6 +39,8 @@ export function skillDetailJson(s: Skill & { publisher: User; versions: SkillVer
     rating: { average: Math.round(s.ratingAvg * 100) / 100, count: s.ratingCount },
     publisher: { id: pub, verified: s.publisher.publisherVerified },
     url: `/skills/${pub}/${s.name}`,
+    kind: s.kind,
+    ...(s.kind === "evaluation" ? { targets: s.targets || "*" } : {}),
     versions: s.versions.map((v) => versionJson(pub, s.name, v)),
   };
 }

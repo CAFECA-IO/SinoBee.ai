@@ -284,3 +284,28 @@ export function CopyLink({ url }: { url: string }) {
     </button>
   );
 }
+
+/** The publisher of a report makes it public or private */
+export function VisibilityToggle({ id, visibility }: { id: number; visibility: string }) {
+  const t = useTranslations("evals");
+  const [v, setV] = useState(visibility);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const flip = async () => {
+    setBusy(true);
+    setErr("");
+    const to = v === "public" ? "private" : "public";
+    const r = await fetch(`/api/v1/evals/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ visibility: to }) });
+    const j = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) return setErr(j.error || `HTTP ${r.status}`);
+    setV(j.visibility);
+  };
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2 text-xs">
+      <span className={`ev-chip ${v === "public" ? "ev-ok" : "ev-mid"}`}>{v === "public" ? t("visPublic") : t("visPrivate")}</span>
+      <button type="button" className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={flip}>{v === "public" ? t("makePrivate") : t("makePublic")}</button>
+      {err && <span className="text-err">{err}</span>}
+    </span>
+  );
+}

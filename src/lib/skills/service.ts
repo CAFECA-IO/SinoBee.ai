@@ -1,3 +1,4 @@
+import { securityStatus, staticCheck, type SecurityReport } from "@/lib/bench-suites";
 import { db } from "@/lib/db";
 import { HttpError } from "@/lib/errors";
 import { putObject } from "@/lib/storage";
@@ -71,6 +72,15 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
   await putObject(key, bundle, "application/gzip");
 
   const tags = tagsOf(fm);
+  // an evaluation skill (writes evaluation suites for other skills) also passes the security checks of SinoBee's
+  // evals/authoring.py: the static scan here, the sandbox behavior test recorded at review, its suites when shared
+  const kind = String(fm.metadata?.["sinobee-type"] ?? "").trim().toLowerCase() === "evaluation" ? "evaluation" : "skill";
+  const targets = kind === "evaluation" ? String(fm.metadata?.["sinobee-targets"] ?? "*").trim() || "*" : "";
+  const security = kind === "evaluation" ? { static: { ok: false, issues: [] as string[] }, behavior: { ok: null }, suite: { ok: null, checked: 0 } } : null;
+  if (security) {
+    const issues = staticCheck(up.files, fm as unknown as { metadata?: Record<string, unknown>; "allowed-tools"?: string });
+    security.static = { ok: issues.length === 0, issues: issues.slice(0, 20) };
+  }
   const skill = existing
     ? await db.skill.update({
         where: { id: existing.id },
@@ -78,11 +88,13 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
           description: fm.description,
           license: fm.license ?? null,
           tags: { deleteMany: {}, create: tags.map((tag) => ({ tag })) },
+          kind,
+          targets,
           latestVersion: !existing.latestVersion || compareVersions(version, existing.latestVersion) > 0 ? version : existing.latestVersion,
         },
       })
     : await db.skill.create({
-        data: { publisherId: user.id, name: fm.name, description: fm.description, license: fm.license ?? null, tags: { create: tags.map((tag) => ({ tag })) }, latestVersion: version },
+        data: { publisherId: user.id, name: fm.name, description: fm.description, license: fm.license ?? null, tags: { create: tags.map((tag) => ({ tag })) }, latestVersion: version, kind, targets },
       });
 
   const rejected = scan.verdict === "DANGEROUS";
@@ -100,6 +112,7 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
       scanVerdict: scan.verdict,
       scanFindings: scan.findings,
       reviewNote: rejected ? "automatic scan marked this version dangerous" : null,
+      ...(security ? { securityReport: security } : {}),
     },
   });
   // the bundle and its SKILL.md are notarized on Boltchain (Certificates) for third-party verification
@@ -112,6 +125,12 @@ export async function reviewVersion(reviewer: User, versionId: string, decision:
   if (!v) throw new HttpError(404, "version not found");
   if (decision === "approve") {
     if (v.scanVerdict === "DANGEROUS") throw new HttpError(400, "cannot approve a version the scanner marked dangerous");
+    if (v.skill.kind === "evaluation") {
+      const sec = securityStatus(v.securityReport, false);
+      if (sec.static !== true) throw new HttpError(400, "an evaluation skill must pass the static security scan before approval");
+      if (sec.behavior !== true) throw new HttpError(400, "record the sandbox behavior test (sinobee eval evaluator <name> --test) before approving an evaluation skill");
+      if (sec.suite === false) throw new HttpError(400, "a suite written with this evaluation skill tried to steer the judge");
+    }
     const signature = signContentHash(v.contentHash);
     if (!signature) throw new HttpError(500, "HUB_SIGNING_KEY is not configured");
     await db.skillVersion.update({ where: { id: v.id }, data: { status: "APPROVED", signature, reviewerId: reviewer.id, reviewedAt: new Date(), reviewNote: note ?? null } });
@@ -139,3 +158,16 @@ export async function rateSkill(userId: string, skillId: string, stars: number) 
 }
 
 export { BundleError };
+
+/** Check 2 of an evaluation skill's 4: the reviewer ran its sandbox behavior test (SinoBee `sinobee eval evaluator
+ * <name> --test`, decoys in place) and records the result; a failure blocks the version for good. */
+export async function recordBehavior(reviewer: User, versionId: string, ok: boolean, note?: string) {
+  const v = await db.skillVersion.findUnique({ where: { id: versionId }, include: { skill: true } });
+  if (!v) throw new HttpError(404, "version not found");
+  if (v.skill.kind !== "evaluation") throw new HttpError(400, "only evaluation skills have a behavior test");
+  const r = (v.securityReport ?? {}) as SecurityReport;
+  if (r.behavior?.ok === false && ok) throw new HttpError(400, "this version already failed its behavior test; publish a new version");
+  r.behavior = { ok, note: note ?? null, by: reviewer.id, at: new Date().toISOString() };
+  await db.skillVersion.update({ where: { id: v.id }, data: { securityReport: r as object } });
+  return r;
+}

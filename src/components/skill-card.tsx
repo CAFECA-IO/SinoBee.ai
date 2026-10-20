@@ -9,11 +9,13 @@ import { SkillMarks, type Mark } from "./skill-tag";
  * title: a localized display name (official skills); official: kept for callers (the 官方 mark carries it);
  * marks: 官方 / 社群, 已審核 / 待審核 and Boltchain as icons (text on hover) — see skillMarks()
  */
-export function SkillCard({ skill, title, marks = [] }: {
+export function SkillCard({ skill, title, marks = [], extra }: {
   skill: Skill & { publisher: User };
   title?: string;
   official?: boolean;
   marks?: Mark[];
+  /** shown under the description (an evaluation skill: what it is for and its security checks) */
+  extra?: React.ReactNode;
 }) {
   return (
     <Link href={`/skills/${skill.publisher.publisher}/${skill.name}`} className="card group flex min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-accent hover:shadow-lg hover:shadow-black/5">
@@ -31,6 +33,7 @@ export function SkillCard({ skill, title, marks = [] }: {
         <SkillMarks marks={marks} tip="tip-end" />
       </div>
       <p className="mt-3 line-clamp-3 flex-1 text-sm text-muted">{skill.description}</p>
+      {extra}
       <div className="mt-4 flex min-w-0 items-center gap-3 border-t border-line pt-3 text-xs text-muted">
         <Stars value={skill.ratingAvg} count={skill.ratingCount} size="text-xs" />
         <span className="ml-auto flex flex-none items-center gap-3">

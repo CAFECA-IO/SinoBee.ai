@@ -18,6 +18,9 @@ import { modelLabels } from "@/lib/models";
 import { BoltchainBadge } from "@/components/boltchain-badge";
 import { SkillMarks, skillMarks } from "@/components/skill-tag";
 import { skillTag } from "@/lib/skills/official";
+import { LIST_SELECT, PUBLIC, board, comparable, toBoardRow } from "@/lib/bench-evals";
+import { securityStatus, type SecurityReport } from "@/lib/bench-suites";
+import { fmtTime, fmtUsd, modelName, pct } from "@/components/evals-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +76,19 @@ export default async function SkillPage({ params, searchParams }: P) {
     }),
   ]);
   const files = Object.entries(ver.files as Record<string, number>);
+  const tEv = await getTranslations("evals");
+  // SinoBee evaluations of this skill (its combinations on a shared suite), or, for an evaluation skill, its own checks
+  const isEval = skill.kind === "evaluation";
+  const benchRows = isEval ? [] : await db.benchEval.findMany({
+    where: { ...PUBLIC, kind: "skill", OR: [{ skillVersion: { skillId: skill.id } }, { subject: skill.name, skillVersionId: null }] },
+    select: LIST_SELECT, orderBy: { testedAt: "desc" }, take: 500,
+  });
+  const benchBoard = benchRows.length ? board(comparable(benchRows).set.map((x) => toBoardRow(x))) : null;
+  const sec = isEval ? securityStatus(ver.securityReport, ver.status === "APPROVED") : null;
+  const secReport = (ver.securityReport ?? {}) as SecurityReport;
+  const evUse = isEval ? await db.benchSuite.aggregate({ where: { evaluator: skill.name, hidden: false }, _count: { _all: true }, _sum: { reportCount: true } }) : null;
+  const combo = (c: { thinkingModel: string; executionModel: string }) =>
+    c.thinkingModel === c.executionModel ? modelName(labels, c.thinkingModel) : `${modelName(labels, c.thinkingModel)} + ${modelName(labels, c.executionModel)}`;
 
   return (
     <div className="container-x py-10">
@@ -127,6 +143,49 @@ export default async function SkillPage({ params, searchParams }: P) {
                 ))}
               </ul>
             </div>
+          )}
+
+          {isEval && sec && (
+            <section className="card p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="h3">{t("evSecurity")}</h2>
+                <span className={`chip ${sec.passed === 4 ? "border-accent text-ok" : sec.blocked ? "text-err" : "text-warn"}`}>{t("evPassed", { n: sec.passed })}</span>
+              </div>
+              <p className="mt-1 text-sm text-muted">{t("evSecurityLead")}</p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {([["static", sec.static, secReport.static?.issues?.join("；")], ["behavior", sec.behavior, secReport.behavior?.note], ["suite", sec.suite, secReport.suite?.problems?.join("；")], ["review", sec.review, null]] as const).map(([k, ok, note]) => (
+                  <li key={k} className="flex gap-2"><span className={ok === true ? "text-ok" : ok === false ? "text-err" : "text-muted"}>{ok === true ? "✓" : ok === false ? "✕" : "–"}</span>
+                    <span><b>{t(`ev.${k}`)}</b> <span className="text-muted">{t(`ev.${k}Help`)}</span>{note ? <span className={`block text-xs ${ok === false ? "text-err" : "text-muted"}`}>{note}</span> : null}</span></li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="chip">{t("evTargets")}{!skill.targets || skill.targets === "*" ? t("evAll") : skill.targets}</span>
+                <span className="chip">{t("evSuites", { n: evUse?._count._all ?? 0 })}</span>
+                <span className="chip">{t("evReports", { n: evUse?._sum.reportCount ?? 0 })}</span>
+              </div>
+            </section>
+          )}
+
+          {!isEval && (
+            <section className="card p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="h3">{t("benchTitle")}</h2>
+                {benchRows.length > 0 && <Link href={`/benchmarks/evals?kind=skill&subject=${encodeURIComponent(skill.name)}`} className="text-sm text-accent">{t("benchAll", { n: benchRows.length })} →</Link>}
+              </div>
+              {!benchBoard || benchBoard.eligible.length === 0 ? (
+                <p className="mt-2 text-sm text-muted">{benchRows.length ? t("benchNotEnough") : t("benchNone")}</p>
+              ) : (
+                <table className="mt-3 w-full text-sm"><tbody>
+                  {benchBoard.awards.map((a) => a.winner && (
+                    <tr key={a.axis} className="border-t border-line">
+                      <td className="py-2 pr-3"><b>{tEv(`q.${a.axis}`)}</b></td>
+                      <td className="py-2 pr-3"><Link className="hover:text-accent" href={`/benchmarks/evals/${a.winner.id}`}>{combo(a.winner)}</Link>{a.tied.length > 0 && <span className="ml-1 text-xs text-muted">{tEv("tie")}</span>}</td>
+                      <td className="py-2 text-right font-semibold tabular-nums">{a.axis === "speed" ? fmtTime(a.winner.medianSeconds) : a.axis === "cost" ? fmtUsd(a.winner.costPerPass) : a.axis === "quality" ? a.winner.fairScore.toFixed(1) : a.winner.creativity === null ? "—" : pct(a.winner.creativity)}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              )}
+            </section>
           )}
 
           <section className="card p-6">

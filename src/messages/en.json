@@ -397,7 +397,17 @@
       "approved": "Reviewed",
       "pending": "Awaiting review",
       "boltchain": "Notarized on Boltchain"
-    }
+    },
+    "evTargets": "For: ",
+    "evAll": "any skill",
+    "evSecurity": "Security {n}/4",
+    "evSuites": "{n} suites",
+    "evReports": "used by {n} reports",
+    "evAgree": "judge agreement {p}%",
+    "filterKind": "Kind",
+    "kindAll": "All skills",
+    "kindEvaluation": "Evaluation skills",
+    "kindEvaluationNote": "Evaluation skills write evaluation suites for other skills; SinoBee lists only reviewed ones that passed the security checks by default."
   },
   "skill": {
     "by": "by",
@@ -421,7 +431,28 @@
     "anchor": "Boltchain certificate",
     "anchorHelp": "The bundle and SKILL.md hashes are notarized on Boltchain; open to verify independently",
     "author": "Author",
-    "source": "Source"
+    "source": "Source",
+    "evSecurity": "Security checks",
+    "evPassed": "{n}/4 passed",
+    "evSecurityLead": "An evaluation skill reads other people's skills and results and writes checks that run on users' computers, so it must pass four checks before use.",
+    "ev": {
+      "static": "Static scan",
+      "staticHelp": "no network, no files or keys outside the workspace, no obfuscated or dynamic code, authoring tools only",
+      "behavior": "Sandbox behavior test",
+      "behaviorHelp": "writes a suite once with decoys in place, without crossing a line",
+      "suite": "Suite checks",
+      "suiteHelp": "its suites never try to steer the judge",
+      "review": "Human review",
+      "reviewHelp": "approved on Skill Hub"
+    },
+    "evTargets": "For: ",
+    "evAll": "any skill",
+    "evSuites": "{n} suites",
+    "evReports": "used by {n} reports",
+    "benchTitle": "SinoBee evaluations",
+    "benchAll": "all {n} reports",
+    "benchNotEnough": "There are reports, but not enough combinations (n >= 3, 2/3 qualified) to compare yet.",
+    "benchNone": "No evaluations yet. After using this skill for a task in SinoBee you can evaluate it from the result and compare model combinations."
   },
   "submit": {
     "title": "Submit a skill",
@@ -813,7 +844,16 @@
         "thinking": "thinking",
         "vision": "vision"
       }
-    }
+    },
+    "evSecurity": "Evaluation skill security checks",
+    "evStatic": "Static scan",
+    "evBehavior": "Sandbox behavior test",
+    "evSuite": "Suite checks ({n})",
+    "evReview": "Human review",
+    "evBehaviorHow": "Run sinobee eval evaluator <name> --test in SinoBee, then record:",
+    "evPass": "Behavior test passed",
+    "evFail": "Behavior test failed",
+    "evKind": "Evaluation skill"
   },
   "hubApi": {
     "lead": "The sinobee.ai Skill Hub protocol v1, compatible with the SinoBee client (sinobee skills search / install / publish / sync-revocations).",
@@ -2022,6 +2062,19 @@
     "cCreativity": "Creativity comparison",
     "cCreativityV": "blind pairwise against {n} {unit}s, {w}/{t} wins",
     "moreOk": "{n} more passed",
-    "valueSame": "the quality leader is also the cheapest choice"
+    "valueSame": "the quality leader is also the cheapest choice",
+    "suitePick": "Suite",
+    "suiteBy": "by {e}",
+    "suiteBuiltin": "built-in suite",
+    "colEvaluator": "Evaluator / suite",
+    "visPublic": "Public",
+    "visPrivate": "Private (only you)",
+    "makePrivate": "Make private",
+    "makePublic": "Make public",
+    "security": "Security",
+    "securityNote": "The skill ran in SinoBee's evaluation sandbox: access outside the workspace, dangerous commands and undeclared network use are blocked and recorded; decoy keys and fake personal data were planted, and one input carried a prompt injection. Passes per question over all trials:",
+    "cEvaluator": "Evaluation skill",
+    "cSuiteDownload": "download suite",
+    "cSkill": "Skill version"
   }
 }

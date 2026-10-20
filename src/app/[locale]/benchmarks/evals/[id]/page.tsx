@@ -6,9 +6,10 @@ import { config } from "@/lib/config";
 import { modelLabels } from "@/lib/models";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
-import { LIST_SELECT, board, categoryRates, comparable, family, reportStats, sameFamily, toBoardRow, verdict, weightsOf, type Axis, type Contender, type EvalTask } from "@/lib/bench-evals";
+import { LIST_SELECT, PUBLIC, board, categoryRates, comparable, family, reportStats, sameFamily, toBoardRow, verdict, weightsOf, type Axis, type Contender, type EvalTask } from "@/lib/bench-evals";
 import { Bar, ComboBadge, Radar, fmtTime, fmtTok, fmtUsd, modelName, pct } from "@/components/evals-ui";
-import { CopyLink, QuestionTable, type QTask } from "@/components/evals";
+import { CopyLink, QuestionTable, VisibilityToggle, type QTask } from "@/components/evals";
+import { currentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,20 @@ type Data = { tasks: EvalTask[]; threshold: number; judgeCheck: { total: number;
 async function load(id: string) {
   const n = Number(id);
   if (!Number.isInteger(n)) return null;
-  const r = await db.benchEval.findUnique({ where: { id: n }, include: { publisher: true } });
-  return r && !r.hidden ? r : null;
+  const r = await db.benchEval.findUnique({
+    where: { id: n },
+    include: {
+      publisher: true,
+      benchSuite: { select: { hash: true, evaluator: true, evaluatorVersion: true, reportCount: true, evaluatorSkillVersion: { select: { skill: { select: { name: true, publisher: { select: { publisher: true } } } } } } } },
+      skillVersion: { select: { version: true, skill: { select: { name: true, publisher: { select: { publisher: true } } } } } },
+    },
+  });
+  if (!r || r.hidden) return null;
+  if (r.visibility !== "public") {          // a private report: its publisher only
+    const u = await currentUser().catch(() => null);
+    if (!u || u.id !== r.publisherId) return null;
+  }
+  return r;
 }
 
 export async function generateMetadata({ params }: P) {
@@ -43,8 +56,8 @@ export default async function EvalReportPage({ params }: P) {
   const name = (m: string) => modelName(labels, m);
 
   // its place among the comparable reports of the subject
-  const sibs = await db.benchEval.findMany({ where: { hidden: false, kind: r.kind, subject: r.subject }, select: LIST_SELECT });
-  const { set } = comparable(sibs);
+  const sibs = await db.benchEval.findMany({ where: { ...PUBLIC, kind: r.kind, subject: r.subject }, select: LIST_SELECT });
+  const { set } = comparable(r.visibility === "public" ? sibs : [...sibs, { ...sibs[0], ...r }].filter(Boolean), r.suiteHash);
   const B = board(set.map((x) => toBoardRow(x)));
   const me = B.contenders.find((c) => c.id === r.id);
   const fmtAxis = (a: Axis, c: Contender) => (a === "speed" ? fmtTime(c.medianSeconds) : a === "cost" ? fmtUsd(c.costPerPass) : a === "quality" ? c.fairScore.toFixed(1) : c.creativity === null ? "—" : pct(c.creativity));
@@ -109,6 +122,20 @@ export default async function EvalReportPage({ params }: P) {
   const evid = t0.questions.map((q, i) => ({ q, i, g: tr1.grades[i] })).filter((x) => x.g && (x.g.evidence || !x.g.ok));
   const fam = sameFamily(r.judgeModel, r.thinkingModel, r.executionModel);
   const url = `${config.origin}/${locale}/benchmarks/evals/${r.id}`;
+  const evSkill = r.benchSuite?.evaluatorSkillVersion?.skill ?? null;
+  // the 安全性 questions (sandbox record, SinoBee evals/sandbox.py) over every task and trial
+  const secMap = new Map<string, { label: string; ok: number; total: number; critical: boolean; detail: string }>();
+  for (const x of s.scored) x.task.questions.forEach((q, i) => {
+    if (q.category !== "安全性") return;
+    const o = secMap.get(q.label) ?? { label: q.label, ok: 0, total: 0, critical: q.critical, detail: "" };
+    for (const tr of x.trials) {
+      o.total += 1;
+      if (tr.x.grades[i]?.ok) o.ok += 1;
+      else if (!o.detail) o.detail = tr.x.grades[i]?.detail ?? "";
+    }
+    secMap.set(q.label, o);
+  });
+  const security = [...secMap.values()];
   const who = r.publisher.publisher ?? (r.publisher.handle ? `@${r.publisher.handle}` : r.publisher.account);
 
   // a stage lists what failed and its critical questions; the rest is counted
@@ -137,7 +164,10 @@ export default async function EvalReportPage({ params }: P) {
       <section className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="text-xs text-muted">{t("reportOf", { kind: solo ? t("kindModel") : t("kindSkill"), subject: r.subject, v: r.subjectVersion, id: r.id })}</div>
-          <CopyLink url={url} />
+          <span className="flex flex-wrap items-center gap-2">
+            {(await currentUser().catch(() => null))?.id === r.publisherId ? <VisibilityToggle id={r.id} visibility={r.visibility} /> : null}
+            {r.visibility === "public" && <CopyLink url={url} />}
+          </span>
         </div>
         <h1 className="mt-1 text-xl font-bold sm:text-2xl">{t0.title}</h1>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">{solo ? t("unitTestedModel") : t("unitTested")} <ComboBadge thinking={r.thinkingModel} execution={r.executionModel} solo={solo} labels={labels} tags={tags} /></div>
@@ -334,12 +364,30 @@ export default async function EvalReportPage({ params }: P) {
         </div>
       </section>
 
+      {security.length > 0 && (
+        <section className="card p-5">
+          <h2 className="h3">{t("security")}</h2>
+          <p className="mt-1 text-xs text-muted">{t("securityNote")}</p>
+          <table className="ev-table mt-2 text-sm"><tbody>
+            {security.map((x) => (
+              <tr key={x.label}><td>{x.label}{x.critical && <span className="ev-chip ev-crit">{t("critical")}</span>}</td>
+                <td className="r tabular-nums"><b className={x.ok === x.total ? "text-ok" : "text-err"}>{x.ok}/{x.total}</b></td>
+                <td className="text-xs text-muted">{x.ok === x.total ? "" : x.detail}</td></tr>
+            ))}
+          </tbody></table>
+        </section>
+      )}
+
       <section className="card p-5">
         <h2 className="h3">{t("conditions")}</h2>
         <table className="ev-table mt-2 text-sm">
           <tbody>
             <tr><td className="w-36 text-muted">{t("cTime")}</td><td><LocalDate value={r.testedAt} />{r.testedUntil && <> – <LocalDate value={r.testedUntil} /></>}</td></tr>
             <tr><td className="text-muted">{t("cSuite")}</td><td>{t("cSuiteV", { suite: r.suite, v: r.subjectVersion, h: r.suiteHash.slice(0, 4) + "…" + r.suiteHash.slice(-3) })}</td></tr>
+            {(r.evaluator || r.benchSuite) && <tr><td className="text-muted">{t("cEvaluator")}</td><td>
+              {evSkill ? <Link className="font-mono text-accent" href={`/skills/${evSkill.publisher.publisher}/${evSkill.name}`}>{r.evaluator ?? `${r.benchSuite!.evaluator}@${r.benchSuite!.evaluatorVersion}`}</Link> : <span className="font-mono">{r.evaluator ?? `${r.benchSuite!.evaluator}@${r.benchSuite!.evaluatorVersion}`}</span>}
+              {r.benchSuite && <> · <a className="text-accent" href={`/api/v1/evals/suites/${r.benchSuite.hash}`}>{t("cSuiteDownload")}</a> · {t("reportsN", { n: r.benchSuite.reportCount })}</>}</td></tr>}
+            {r.skillVersion && <tr><td className="text-muted">{t("cSkill")}</td><td><Link className="font-mono text-accent" href={`/skills/${r.skillVersion.skill.publisher.publisher}/${r.skillVersion.skill.name}?v=${r.skillVersion.version}`}>{r.skillVersion.skill.publisher.publisher}/{r.skillVersion.skill.name}@{r.skillVersion.version}</Link></td></tr>}
             {r.inputHash && <tr><td className="text-muted">{t("cInput")}</td><td className="font-mono text-xs break-all">{r.inputHash}</td></tr>}
             <tr><td className="text-muted">{t("cJudge")}</td><td>{t("cJudgeV", { m: name(r.judgeModel) })}{d.judgeCheck && <> · {d.judgeCheck.correct === d.judgeCheck.total ? t("cAnchors", { c: d.judgeCheck.correct, t: d.judgeCheck.total }) : <span className="text-err">{t("cAnchorsBad", { c: d.judgeCheck.correct, t: d.judgeCheck.total })}</span>}</>}</td></tr>
             <tr><td className="text-muted">{t("cFamily")}</td><td>{fam ? t("cFamilyYes", { f: family(r.judgeModel) }) : t("cFamilyNo")}{r.judge2Model && d.judge2Agree && t("cJudge2", { m: name(r.judge2Model), a: d.judge2Agree[0], n: d.judge2Agree[1] })}</td></tr>

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { HttpError } from "@/lib/errors";
 import type { User } from "@/generated/prisma/client";
+import { resolveSkillVersion } from "@/lib/bench-suites";
 
 /**
  * Evaluations published from SinoBee (`sinobee eval publish`), scored with SFS v1.
@@ -96,6 +97,11 @@ export const evalInput = z.object({
   runs: z.array(z.string().max(120)).max(50).default([]),
   tasks: z.array(task).min(1).max(20),
   creativity: z.object({ wins: z.number().int().nonnegative(), total: z.number().int().nonnegative(), judge: z.string().max(120).nullish(), combos: z.number().int().nullish() }).nullish(),
+  /** a campaign's report (SinoBee evals/campaign.py): who wrote the suite and whether others may see it */
+  visibility: z.enum(["public", "private"]).default("public"),
+  evaluator: z.string().max(160).nullish(),
+  suite_ref: z.string().max(128).nullish(),
+  campaign: z.string().max(80).nullish(),
 });
 export type EvalInput = z.infer<typeof evalInput>;
 export type EvalTask = z.infer<typeof task>;
@@ -250,8 +256,24 @@ export function board(rows: BoardRow[]) {
 
 // ---------------------------------------------------------------- publishing
 
+/** Where a report belongs: the shared suite it was run on and, for a public skill evaluation, the published skill
+ * version (so readers can rerun it). A private report needs neither: its suite stays on the publisher's computer. */
+export async function links(user: Pick<User, "id">, r: Pick<EvalInput, "kind" | "subject" | "subject_version" | "suite_hash" | "suite_ref">, visibility: "public" | "private") {
+  const suite = await db.benchSuite.findUnique({ where: { hash: r.suite_hash }, select: { id: true } });
+  if (!r.suite_ref || visibility === "private") return { suiteId: suite?.id ?? null, skillVersionId: null };
+  if (!suite) throw new HttpError(400, "upload the suite first (POST /api/v1/evals/suites); a public report must name a shared suite");
+  let skillVersionId: string | null = null;
+  if (r.kind === "skill") {
+    const sv = await resolveSkillVersion(user, r.subject, r.subject_version || null);
+    if (!sv) throw new HttpError(400, `a public skill evaluation needs ${r.subject}${r.subject_version ? " " + r.subject_version : ""} published on Skill Hub`);
+    skillVersionId = sv.version.id;
+  }
+  return { suiteId: suite.id, skillVersionId };
+}
+
 export async function createEval(user: Pick<User, "id">, raw: unknown) {
   const r = evalInput.parse(raw);
+  const link = await links(user, r, r.visibility);
   if (r.kind === "model" && r.thinking !== r.execution) throw new HttpError(400, "a model evaluation has one model (thinking = execution)");
   for (const t of r.tasks) {
     for (const x of t.trials) if (x.grades.length !== t.questions.length) throw new HttpError(400, `task ${t.id}: every trial answers each question once`);
@@ -260,27 +282,57 @@ export async function createEval(user: Pick<User, "id">, raw: unknown) {
   const s = reportStats(r);
   const { scored: _scored, ...stats } = s;
   void _scored;
-  return db.benchEval.create({
+  const row = await db.benchEval.create({
     data: {
       publisherId: user.id, kind: r.kind, subject: r.subject, subjectVersion: r.subject_version, title: r.title, summary: r.summary,
       suite: r.suite, suiteHash: r.suite_hash, inputHash: r.input_hash ?? null, thinkingModel: r.thinking, executionModel: r.execution,
       judgeModel: r.judge, judge2Model: r.judge2 ?? null, clientVersion: r.client_version ?? null,
       testedAt: new Date(r.tested_at * 1000), testedUntil: r.tested_until ? new Date(r.tested_until * 1000) : null,
       trials: stats.n,
-      data: { tasks: r.tasks, threshold: r.threshold, judgeCheck: r.judge_check ?? null, judge2Agree: r.judge2_agree ?? null, creativity: r.creativity ?? null, runs: r.runs, observations: stats.observations, trialQ: stats.trialQ } as object,
+      data: { tasks: r.tasks, threshold: r.threshold, judgeCheck: r.judge_check ?? null, judge2Agree: r.judge2_agree ?? null, creativity: r.creativity ?? null, runs: r.runs, observations: stats.observations, trialQ: stats.trialQ, suiteRef: r.suite_ref ?? null, campaign: r.campaign ?? null } as object,
+      visibility: r.visibility, evaluator: r.evaluator ?? null, suiteId: link.suiteId, skillVersionId: link.skillVersionId,
       meanScore: stats.mean, stdErr: stats.se, fairScore: stats.fair, qualified: stats.qualified, critFails: stats.critFails,
       medianSeconds: stats.medianSeconds, p90Seconds: stats.p90Seconds, costPerPass: stats.costPerPass,
       creativityWins: r.creativity?.wins ?? null, creativityTotal: r.creativity?.total ?? null,
     },
   });
+  if (row.visibility === "public" && row.suiteId) await db.benchSuite.update({ where: { id: row.suiteId }, data: { reportCount: { increment: 1 } } });
+  return row;
 }
+
+/** Make a report public or private (its publisher only). Going public needs what a public report needs. */
+export async function setVisibility(user: Pick<User, "id">, id: number, visibility: "public" | "private") {
+  const r = await db.benchEval.findUnique({ where: { id } });
+  if (!r || r.publisherId !== user.id) throw new HttpError(404, "report not found");
+  if (r.visibility === visibility) return r;
+  const suiteRef = ((r.data ?? {}) as { suiteRef?: string | null }).suiteRef ?? null;
+  const link = await links(user, { kind: r.kind as "skill" | "model", subject: r.subject, subject_version: r.subjectVersion, suite_hash: r.suiteHash, suite_ref: suiteRef }, visibility);
+  const row = await db.benchEval.update({ where: { id }, data: { visibility, suiteId: link.suiteId ?? r.suiteId, skillVersionId: link.skillVersionId ?? r.skillVersionId } });
+  if (row.suiteId) await db.benchSuite.update({ where: { id: row.suiteId }, data: { reportCount: { increment: visibility === "public" ? 1 : -1 } } });
+  return row;
+}
+
+/** Reports anyone may see (lists, rankings, the API) */
+export const PUBLIC = { hidden: false, visibility: "public" } as const;
 
 export const LIST_SELECT = {
   id: true, kind: true, subject: true, subjectVersion: true, suite: true, suiteHash: true, title: true, thinkingModel: true, executionModel: true,
   judgeModel: true, trials: true, meanScore: true, stdErr: true, fairScore: true, qualified: true, critFails: true, medianSeconds: true,
-  p90Seconds: true, costPerPass: true, creativityWins: true, creativityTotal: true, testedAt: true, data: true,
+  p90Seconds: true, costPerPass: true, creativityWins: true, creativityTotal: true, testedAt: true, data: true, evaluator: true,
   publisher: { select: { publisher: true, handle: true, account: true } },
 } as const;
+
+/** The suites a subject's reports were run on, most reports first (only reports on the same suite are compared) */
+export function suitesOf<T extends { suiteHash: string; evaluator?: string | null; title: string; testedAt: Date }>(rows: T[]) {
+  const m = new Map<string, { hash: string; n: number; evaluator: string | null; title: string; last: Date }>();
+  for (const r of rows) {
+    const x = m.get(r.suiteHash) ?? { hash: r.suiteHash, n: 0, evaluator: r.evaluator ?? null, title: r.title, last: r.testedAt };
+    x.n += 1;
+    if (r.testedAt > x.last) x.last = r.testedAt;
+    m.set(r.suiteHash, x);
+  }
+  return [...m.values()].sort((a, b) => b.n - a.n || +b.last - +a.last);
+}
 
 export type ListRow = BoardRow & {
   subject: string; subjectVersion: string; suite: string; suiteHash: string; title: string; judgeModel: string;
@@ -295,9 +347,9 @@ export function toBoardRow(r: { data: unknown } & Omit<BoardRow, "observations">
 }
 
 /** The reports of a subject that can be compared: same suite version and judge as the newest; the newest report per subject under test */
-export function comparable<T extends { suiteHash: string; judgeModel: string; thinkingModel: string; executionModel: string; testedAt: Date }>(rows: T[]) {
+export function comparable<T extends { suiteHash: string; judgeModel: string; thinkingModel: string; executionModel: string; testedAt: Date }>(rows: T[], suiteHash?: string | null) {
   const newest = [...rows].sort((a, b) => +b.testedAt - +a.testedAt);
-  const ref = newest[0];
+  const ref = (suiteHash ? newest.find((r) => r.suiteHash === suiteHash) : null) ?? newest[0];
   if (!ref) return { set: [] as T[], other: [] as T[] };
   const seen = new Set<string>();
   const set: T[] = [];

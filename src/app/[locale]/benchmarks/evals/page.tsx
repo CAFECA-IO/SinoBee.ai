@@ -3,13 +3,13 @@ import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { modelLabels } from "@/lib/models";
 import { LocalDate } from "@/components/date";
-import { LIST_SELECT, board, comparable, sameFamily, toBoardRow, verdict, type Axis, type Contender } from "@/lib/bench-evals";
+import { LIST_SELECT, PUBLIC, board, comparable, sameFamily, suitesOf, toBoardRow, verdict, type Axis, type Contender } from "@/lib/bench-evals";
 import { ComboBadge, VerdictChip, fmtTime, fmtUsd, modelName, pct } from "@/components/evals-ui";
 import { ComboMatrix, EvalLeaderboard, type LbRow, type MxCell } from "@/components/evals";
 
 export const dynamic = "force-dynamic";
 
-type P = { params: Promise<{ locale: string }>; searchParams: Promise<{ kind?: string; subject?: string }> };
+type P = { params: Promise<{ locale: string }>; searchParams: Promise<{ kind?: string; subject?: string; suite?: string }> };
 
 export async function generateMetadata({ params }: P) {
   const t = await getTranslations({ locale: (await params).locale, namespace: "evals" });
@@ -25,11 +25,13 @@ export default async function EvalsPage({ params, searchParams }: P) {
   const tags = { th: t("th"), ex: t("ex"), solo: t("solo") };
   const kind = sp.kind === "model" ? "model" : "skill";
   const solo = kind === "model";
-  const all = await db.benchEval.findMany({ where: { hidden: false, kind }, orderBy: { testedAt: "desc" }, select: LIST_SELECT, take: 2000 });
+  const all = await db.benchEval.findMany({ where: { ...PUBLIC, kind }, orderBy: { testedAt: "desc" }, select: LIST_SELECT, take: 2000 });
   const subjects = [...new Map(all.map((r) => [r.subject, r.subject])).keys()].map((s) => ({ s, n: all.filter((r) => r.subject === s).length }));
   const subject = subjects.find((x) => x.s === sp.subject)?.s ?? subjects[0]?.s;
   const mine = all.filter((r) => r.subject === subject);
-  const { set, other } = comparable(mine);
+  const suites = suitesOf(mine);
+  const suiteSel = suites.find((x) => sp.suite && x.hash.startsWith(sp.suite))?.hash ?? suites[0]?.hash;
+  const { set, other } = comparable(mine, suiteSel);
   const ref = set[0];
   const B = board(set.map((r) => toBoardRow(r)));
   const byId = new Map(B.contenders.map((c) => [c.id, c]));
@@ -86,11 +88,23 @@ export default async function EvalsPage({ params, searchParams }: P) {
           <section className="card mt-5 p-5">
             <div className="text-xs text-muted">{solo ? t("kindModel") : t("kindSkill")} · {subject} {ref.subjectVersion}</div>
             <h2 className="mt-1 text-xl font-bold">{solo ? t("headModel", { subject: subject! }) : t("headSkill", { subject: subject! })}</h2>
+            {suites.length > 1 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-xs text-muted">{t("suitePick")}</span>
+                {suites.map((x) => (
+                  <Link key={x.hash} href={`/benchmarks/evals?kind=${kind}&subject=${encodeURIComponent(subject!)}&suite=${x.hash.slice(0, 12)}`}
+                    className={`rounded-lg border px-3 py-1 leading-tight ${x.hash === ref.suiteHash ? "border-accent ring-1 ring-accent" : "border-line bg-panel"}`}>
+                    <span className="font-mono text-xs">sha {x.hash.slice(0, 8)}</span>
+                    <span className="block text-xs text-muted">{x.evaluator ? t("suiteBy", { e: x.evaluator }) : t("suiteBuiltin")} · {t("reportsN", { n: x.n })}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
             <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
               <div className="ev-role"><div className="text-xs text-muted">{solo ? t("standardSuite") : t("useSkill")}</div><div className="font-semibold">{subject} {ref.subjectVersion}</div><div className="text-xs text-muted">{ref.title}</div></div>
               <div className="ev-role"><div className="text-xs text-muted">{t("subjectsUnder")}</div><div className="font-semibold">{solo ? t("nModels", { n: set.length }) : t("nCombos", { n: set.length })}</div><div className="text-xs text-muted">{solo ? t("soloIs") : t("comboIs")}</div></div>
               <div className="ev-role"><div className="text-xs text-muted">{t("judgeFixed")}</div><div className="font-semibold break-all">{ref.judgeModel.replace(/^[^/]+\//, "")}</div><div className="text-xs text-muted">{t("judgeHow")}</div></div>
-              <div className="ev-role"><div className="text-xs text-muted">{t("data")}</div><div className="font-semibold">{t("dataN", { reports: mine.length, trials: nTrials })}</div><div className="font-mono text-xs text-muted">{t("suiteHash", { h: ref.suiteHash.slice(0, 4) + "…" + ref.suiteHash.slice(-3) })}</div></div>
+              <div className="ev-role"><div className="text-xs text-muted">{t("data")}</div><div className="font-semibold">{t("dataN", { reports: mine.length, trials: nTrials })}</div><div className="font-mono text-xs text-muted">{t("suiteHash", { h: ref.suiteHash.slice(0, 4) + "…" + ref.suiteHash.slice(-3) })}</div>{ref.evaluator && <div className="text-xs text-muted">{t("suiteBy", { e: ref.evaluator })}</div>}</div>
             </div>
           </section>
 
@@ -156,7 +170,7 @@ export default async function EvalsPage({ params, searchParams }: P) {
             <h2 className="h3">{t("reports")}</h2>
             <div className="mt-2 overflow-x-auto">
               <table className="ev-table min-w-[760px]">
-                <thead><tr><th>{t("colReport")}</th><th>{unit}</th><th className="r">{t("colN")}</th><th className="r">{t("colScore")}</th><th>{t("colVerdict")}</th><th>{t("colTags")}</th><th>{t("colDate")}</th></tr></thead>
+                <thead><tr><th>{t("colReport")}</th><th>{unit}</th><th className="r">{t("colN")}</th><th className="r">{t("colScore")}</th><th>{t("colVerdict")}</th><th>{t("colEvaluator")}</th><th>{t("colTags")}</th><th>{t("colDate")}</th></tr></thead>
                 <tbody>
                   {mine.map((r) => {
                     const c = byId.get(r.id);
@@ -169,6 +183,7 @@ export default async function EvalsPage({ params, searchParams }: P) {
                         <td className="r tabular-nums">{r.trials}</td>
                         <td className="r tabular-nums"><b>{(trial ? r.meanScore : r.fairScore).toFixed(1)}</b><div className="text-xs text-muted">{trial ? t("singleShort") : t("fairShort")}</div></td>
                         <td><VerdictChip v={v} label={t(`verdict.${v}`)} /></td>
+                        <td className="whitespace-nowrap text-xs"><span className="font-mono">{r.evaluator ?? "—"}</span><div className="font-mono text-muted">sha {r.suiteHash.slice(0, 6)}</div></td>
                         <td>
                           {trial && <span className="ev-chip ev-mid">{t("tagTrial")}</span>}
                           {c?.out === "critical" && <span className="ev-chip ev-bad">{t("why.critical")}</span>}

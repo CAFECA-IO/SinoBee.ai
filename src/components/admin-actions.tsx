@@ -78,3 +78,40 @@ export function ReportActions({ reportId, targetType, targetId }: { reportId: st
     </div>
   );
 }
+
+/** An evaluation skill's 4 security checks, and recording its sandbox behavior test */
+export function EvaluatorSecurity({ versionId, report, approved }: {
+  versionId: string; approved: boolean;
+  report: { static?: { ok: boolean; issues: string[] }; behavior?: { ok: boolean | null; note?: string | null; at?: string | null }; suite?: { ok: boolean | null; checked: number; problems?: string[] } } | null;
+}) {
+  const t = useTranslations("admin");
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const router = useRouter();
+  const r = report ?? {};
+  const mark = (v: boolean | null | undefined) => (v === true ? <span className="text-ok">✓</span> : v === false ? <span className="text-err">✕</span> : <span className="text-muted">–</span>);
+  const record = async (ok: boolean) => {
+    setErr("");
+    const res = await fetch("/api/admin/review/security", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ versionId, ok, note: note || undefined }) });
+    if (!res.ok) return setErr((await res.json()).error);
+    router.refresh();
+  };
+  return (
+    <div className="space-y-2 rounded-xl border border-line p-3 text-sm">
+      <div className="font-semibold">{t("evSecurity")}</div>
+      <div>{mark(r.static?.ok)} {t("evStatic")}{r.static?.issues?.length ? <ul className="list-disc pl-5 text-xs text-err">{r.static.issues.map((x, i) => <li key={i}>{x}</li>)}</ul> : null}</div>
+      <div>{mark(r.behavior?.ok)} {t("evBehavior")} {r.behavior?.note && <span className="text-xs text-muted">— {r.behavior.note}</span>}</div>
+      <div>{mark(r.suite?.ok)} {t("evSuite", { n: r.suite?.checked ?? 0 })}{r.suite?.problems?.length ? <ul className="list-disc pl-5 text-xs text-err">{r.suite.problems.map((x, i) => <li key={i}>{x}</li>)}</ul> : null}</div>
+      <div>{mark(approved || null)} {t("evReview")}</div>
+      {r.behavior?.ok !== false && (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-xs text-muted">{t("evBehaviorHow")}</span>
+          <input className="input max-w-xs" placeholder={t("note")} value={note} onChange={(e) => setNote(e.target.value)} />
+          <button className="btn-ghost" onClick={() => record(true)}>{t("evPass")}</button>
+          <button className="btn-danger" onClick={() => record(false)}>{t("evFail")}</button>
+        </div>
+      )}
+      {err && <span className="text-sm text-err">{err}</span>}
+    </div>
+  );
+}

@@ -7,6 +7,7 @@ import { OFFICIAL, OFFICIAL_PUBLISHER, isOfficialSkill, skillTag, type OfficialN
 import { CopyButton } from "@/components/copy-button";
 import { Icon, type IconName } from "@/components/icon";
 import type { Prisma } from "@/generated/prisma/client";
+import { securityStatus } from "@/lib/bench-suites";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ const LISTED: Prisma.SkillWhereInput = {
   versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } },
 };
 
-type SP = { q?: string; tag?: string; sort?: string; page?: string; verified?: string; official?: string };
+type SP = { q?: string; tag?: string; sort?: string; page?: string; verified?: string; official?: string; kind?: string };
 
 export default async function SkillsPage({ params, searchParams }: { params: Promise<{ locale: string }>; searchParams: Promise<SP> }) {
   setRequestLocale((await params).locale);
@@ -50,6 +51,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
     ...LISTED,
     ...(q ? { OR: [{ name: icontains(q) }, { description: icontains(q) }] } : {}),
     ...(sp.tag ? { tags: { some: { tag: sp.tag } } } : {}),
+    ...(sp.kind === "evaluation" ? { kind: "evaluation" } : {}),
     ...(sp.official ? { name: { in: [...OFFICIAL] } } : {}),
     ...(sp.verified || sp.official
       ? { publisher: { ...(sp.verified ? { publisherVerified: true } : {}), ...(sp.official ? { publisher: OFFICIAL_PUBLISHER } : {}) } }
@@ -57,21 +59,52 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
   };
   const [total, skills, tagCounts, all, publishers] = await Promise.all([
     db.skill.count({ where }),
-    db.skill.findMany({ where, include: { publisher: true, versions: { where: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
+    db.skill.findMany({ where, include: { publisher: true, versions: { where: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true, securityReport: true } } }, orderBy: SORTS[sort], skip: (page - 1) * PAGE, take: PAGE }),
     db.skillTag.groupBy({ by: ["tag"], _count: { tag: true }, orderBy: { _count: { tag: "desc" } }, take: 18 }),
     db.skill.aggregate({ where: LISTED, _count: { _all: true }, _sum: { downloads: true } }),
     db.skill.groupBy({ by: ["publisherId"], where: LISTED }),
   ]);
   const tagRows = tagCounts.map((r) => ({ tag: r.tag, n: r._count.tag }));
+  // evaluation skills: what they are for, their 4 security checks, the suites and reports written with them
+  const evNames = skills.filter((s) => s.kind === "evaluation").map((s) => s.name);
+  const [evSuites, evReports] = evNames.length
+    ? await Promise.all([
+        db.benchSuite.groupBy({ by: ["evaluator"], where: { evaluator: { in: evNames }, hidden: false }, _count: { _all: true }, _sum: { reportCount: true } }),
+        db.benchEval.findMany({ where: { hidden: false, visibility: "public", OR: evNames.map((n) => ({ evaluator: { startsWith: `${n}@` } })) }, select: { evaluator: true, data: true }, take: 2000 }),
+      ])
+    : [[], []];
+  const evStats = (name: string) => {
+    const g = evSuites.find((x) => x.evaluator === name);
+    const agree = evReports.filter((r) => r.evaluator?.startsWith(`${name}@`)).map((r) => (r.data as { judge2Agree?: [number, number] | null }).judge2Agree).filter((a): a is [number, number] => !!a && a[1] > 0);
+    const a = agree.reduce((x, y) => [x[0] + y[0], x[1] + y[1]], [0, 0]);
+    return { suites: g?._count._all ?? 0, reports: g?._sum.reportCount ?? 0, agree: a[1] ? a[0] / a[1] : null };
+  };
+  const evExtra = (s: (typeof skills)[number]) => {
+    if (s.kind !== "evaluation") return undefined;
+    const v = s.versions[0];
+    const sec = securityStatus(v?.securityReport, v?.status === "APPROVED");
+    const st = evStats(s.name);
+    return (
+      <div className="mt-3 space-y-1 text-xs">
+        <div className="text-muted">{t("evTargets")}{s.targets === "*" || !s.targets ? t("evAll") : s.targets}</div>
+        <div className="flex flex-wrap gap-1">
+          <span className={`chip ${sec.passed === 4 ? "border-accent text-ok" : sec.blocked ? "text-err" : "text-warn"}`}>{t("evSecurity", { n: sec.passed })}</span>
+          <span className="chip">{t("evSuites", { n: st.suites })}</span>
+          <span className="chip">{t("evReports", { n: st.reports })}</span>
+          {st.agree !== null && <span className="chip">{t("evAgree", { p: Math.round(st.agree * 100) })}</span>}
+        </div>
+      </div>
+    );
+  };
   const qs = (o: Partial<SP>) => {
     const p = new URLSearchParams();
-    const cur: SP = { q: q || undefined, tag: sp.tag, sort: sort === "popular" ? undefined : sort, verified: sp.verified, official: sp.official };
+    const cur: SP = { q: q || undefined, tag: sp.tag, sort: sort === "popular" ? undefined : sort, verified: sp.verified, official: sp.official, kind: sp.kind };
     for (const [k, v] of Object.entries({ ...cur, ...o })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/skills?${s}` : "/skills";
   };
   const isOfficial = (s: (typeof skills)[number]) => isOfficialSkill(s.publisher.publisher, s.name);
-  const filtered = !!(q || sp.tag || sp.verified || sp.official);
+  const filtered = !!(q || sp.tag || sp.verified || sp.official || sp.kind);
   const pages = Math.ceil(total / PAGE);
   const stats: [number, string][] = [
     [all._count._all, t("statSkills")],
@@ -170,6 +203,18 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
               </div>
             </div>
             <div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterKind")}</div>
+              <div className="flex flex-wrap gap-1 lg:flex-col">
+                {([undefined, "evaluation"] as const).map((k) => (
+                  <Link key={k ?? "all"} href={qs({ kind: k, page: undefined })} aria-pressed={sp.kind === k}
+                    className={`${side} ${(sp.kind ?? undefined) === k ? "bg-accent-soft font-semibold text-accent" : "text-ink/80"}`}>
+                    <Icon name={k ? "shield" : "folder"} className="h-4 w-4" /> {k ? t("kindEvaluation") : t("kindAll")}
+                  </Link>
+                ))}
+              </div>
+              {sp.kind === "evaluation" && <p className="mt-2 text-xs text-muted">{t("kindEvaluationNote")}</p>}
+            </div>
+            <div>
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t("filterOnly")}</div>
               <div className="flex flex-wrap gap-1 lg:flex-col">
                 <Link href={qs({ official: sp.official ? undefined : "1", page: undefined })} aria-pressed={!!sp.official}
@@ -209,7 +254,7 @@ export default async function SkillsPage({ params, searchParams }: { params: Pro
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {skills.map((s) => (
                   <SkillCard key={s.id} skill={s} official={isOfficial(s)} marks={skillMarks(skillTag(s, s.versions[0]), s.versions[0], (k) => t(`mark.${k}`))}
-                    title={isOfficial(s) ? t(`official.${s.name}.title`) : undefined} />
+                    title={isOfficial(s) ? t(`official.${s.name}.title`) : undefined} extra={evExtra(s)} />
                 ))}
               </div>
             ) : (

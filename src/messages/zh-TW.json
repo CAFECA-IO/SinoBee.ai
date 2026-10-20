@@ -397,7 +397,17 @@
       "approved": "已審核",
       "pending": "待審核",
       "boltchain": "已在 Boltchain 存證"
-    }
+    },
+    "evTargets": "適用：",
+    "evAll": "所有技能",
+    "evSecurity": "安全性評鑑 {n}/4",
+    "evSuites": "{n} 份題組",
+    "evReports": "{n} 份報告採用",
+    "evAgree": "評鑑一致率 {p}%",
+    "filterKind": "類別",
+    "kindAll": "全部技能",
+    "kindEvaluation": "評鑑技能",
+    "kindEvaluationNote": "評鑑技能為其他技能出評鑑題組；SinoBee 預設只列出已審核且通過安全性評鑑的。"
   },
   "skill": {
     "by": "發布者",
@@ -421,7 +431,28 @@
     "anchor": "Boltchain 存證",
     "anchorHelp": "技能包與 SKILL.md 的雜湊已在 Boltchain 存證，點開可由第三方驗證",
     "author": "原作者",
-    "source": "原始出處"
+    "source": "原始出處",
+    "evSecurity": "安全性評鑑",
+    "evPassed": "{n}/4 通過",
+    "evSecurityLead": "評鑑技能會讀別人的技能與成果，也會產生在使用者電腦執行的評分題，所以使用前要通過四項檢查。",
+    "ev": {
+      "static": "靜態掃描",
+      "staticHelp": "不連網、不讀工作區外的檔案或金鑰、不執行混淆或動態程式、只用出題工具",
+      "behavior": "沙箱行為測試",
+      "behaviorHelp": "放好誘餌後實際出題一次，不能越界",
+      "suite": "題組檢查",
+      "suiteHelp": "用它出的題組沒有試圖操控評鑑模型",
+      "review": "人工審核",
+      "reviewHelp": "Skill Hub 審核通過"
+    },
+    "evTargets": "適用：",
+    "evAll": "所有技能",
+    "evSuites": "{n} 份題組",
+    "evReports": "{n} 份報告採用",
+    "benchTitle": "SinoBee 實測評鑑",
+    "benchAll": "全部 {n} 份報告",
+    "benchNotEnough": "已有評鑑報告，但還沒有足夠的組合（每組至少 3 次、合格率 2/3）可以比較。",
+    "benchNone": "還沒有評鑑。在 SinoBee 用這個技能完成任務後，可以在結果上發起評鑑，比較不同模型組合。"
   },
   "submit": {
     "title": "提交技能",
@@ -813,7 +844,16 @@
         "thinking": "推理",
         "vision": "圖片"
       }
-    }
+    },
+    "evSecurity": "評鑑技能的安全性評鑑",
+    "evStatic": "靜態掃描",
+    "evBehavior": "沙箱行為測試",
+    "evSuite": "題組檢查（{n} 份）",
+    "evReview": "人工審核",
+    "evBehaviorHow": "用 SinoBee 執行 sinobee eval evaluator <名稱> --test 後記錄結果：",
+    "evPass": "行為測試通過",
+    "evFail": "行為測試不通過",
+    "evKind": "評鑑技能"
   },
   "hubApi": {
     "lead": "sinobee.ai Skill Hub 協定 v1，與 SinoBee 用戶端（sinobee skills search / install / publish / sync-revocations）相容。",
@@ -2022,6 +2062,19 @@
     "cCreativity": "創造力比較",
     "cCreativityV": "與 {n} 個{unit}兩兩盲比，{w}/{t} 勝",
     "moreOk": "另有 {n} 題通過",
-    "valueSame": "品質冠軍本身就是最便宜的選擇"
+    "valueSame": "品質冠軍本身就是最便宜的選擇",
+    "suitePick": "題組",
+    "suiteBy": "出題：{e}",
+    "suiteBuiltin": "內建題組",
+    "colEvaluator": "評鑑技能／題組",
+    "visPublic": "公開",
+    "visPrivate": "私人（只有你看得到）",
+    "makePrivate": "改成私人",
+    "makePublic": "改成公開",
+    "security": "安全性",
+    "securityNote": "技能在 SinoBee 的評鑑沙箱中執行：越界存取、危險指令、未宣告的連網會被擋下並記錄；工作區內外放了誘餌金鑰與假個資，其中一份輸入夾帶了提示注入指令。以下是每一題在所有試驗中的通過次數。",
+    "cEvaluator": "評鑑技能",
+    "cSuiteDownload": "下載題組",
+    "cSkill": "技能版本"
   }
 }

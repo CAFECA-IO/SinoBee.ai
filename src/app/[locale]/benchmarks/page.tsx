@@ -32,7 +32,7 @@ export default async function BenchmarksPage({ params }: { params: Promise<{ loc
       orderBy: { evaluatedAt: "desc" },
       take: 20,
     }),
-    db.benchEval.findMany({ where: { hidden: false }, orderBy: { testedAt: "desc" }, take: 500, select: { kind: true, subject: true, title: true, fairScore: true, trials: true } }),
+    db.benchEval.findMany({ where: { hidden: false, visibility: "public" }, orderBy: { testedAt: "desc" }, take: 500, select: { kind: true, subject: true, title: true, fairScore: true, trials: true } }),
   ]);
   // one card per skill / domain with SinoBee evaluations
   const subjects = [...new Map(evals.map((e) => [`${e.kind}|${e.subject}`, e])).values()].map((e) => {
