@@ -101,3 +101,26 @@ test("paths stay inside the trial", () => {
   assert.equal(O.serveType("x.svg"), "image/svg+xml");
   assert.match(O.serveType("x.html"), /^text\/plain/);
 });
+
+test("the screenshots the judge saw are kept with the report and served like its outputs (design R3)", async () => {
+  const JPG = Buffer.from("ffd8ffe000104a464946", "hex");
+  assert.equal((await upload(JPG)).status, 201);
+  const p = payload(COMBOS.opusFlash);
+  for (const t of p.tasks[0].trials as Record<string, unknown>[]) {
+    t.shots = [{ path: "_shots/index.html-desktop-load.jpg", page: "index.html", id: "desktop-load", label: "桌面 · 載入後 0.5 秒", viewport: [1280, 800], bytes: JPG.length, sha256: sha(JPG), uploaded: true }];
+    t.render = { pages: { "index.html": { errors: [], animates: true, controls: 3, blank: false, phone_overflow: 0 } } };
+    (t.grades as Record<string, unknown>[])[1] = { ...(t.grades as Record<string, unknown>[])[1], screens: 3, shot: 2 };
+  }
+  const r = await route.POST(new Request("http://localhost/api/v1/evals", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${tok}` }, body: JSON.stringify(p) }));
+  assert.equal(r.status, 201, await r.clone().text());
+  const id = (await r.json()).id as number;
+  const saved = (await db.benchEval.findUnique({ where: { id } }))!.data as { tasks: { trials: { shots: unknown[]; render: { pages: Record<string, { animates: boolean }> }; grades: { screens?: number; shot?: number }[] }[] }[] };
+  const tr = saved.tasks[0].trials[0];
+  assert.equal(tr.shots.length, 1);
+  assert.equal(tr.render.pages["index.html"].animates, true);
+  assert.equal(tr.grades[1].screens, 3);
+  assert.equal(tr.grades[1].shot, 2);
+  const img = await read(id, `sha=${sha(JPG)}&path=_shots/index.html-desktop-load.jpg`);
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get("content-type"), "image/jpeg");
+});

@@ -58,7 +58,7 @@ export function trialFiles(tasks: EvalTask[], taskId: string, trial: number): Ma
 /** Every hash a report lists as uploaded: what its pages may serve */
 export function reportHashes(tasks: EvalTask[]): Set<string> {
   const s = new Set<string>();
-  for (const t of tasks) for (const x of t.trials) for (const o of x.outputs ?? []) if (o.sha256 && o.uploaded) s.add(o.sha256);
+  for (const t of tasks) for (const x of t.trials) for (const o of [...(x.outputs ?? []), ...(x.shots ?? [])]) if (o.sha256 && o.uploaded) s.add(o.sha256);
   return s;
 }
 

@@ -30,6 +30,9 @@ const grade = z.object({
   judge2_ok: z.boolean().nullish(),
   /** where the quoted evidence is in the trial's outputs (characters), found by SinoBee */
   where: z.object({ file: z.string().max(300), start: z.number().int().nonnegative(), end: z.number().int().nonnegative() }).nullish(),
+  /** judged on this many screenshots of the page (design R3); `shot`: the one its evidence is about (1-based) */
+  screens: z.number().int().nonnegative().max(10).nullish(),
+  shot: z.number().int().positive().max(10).nullish(),
 });
 const step = z.object({
   step: z.number().int().nullish(),
@@ -50,6 +53,24 @@ const output = z.object({
   uploaded: z.boolean().nullish(),
   missing: z.boolean().nullish(),
 });
+const shot = z.object({
+  path: z.string().max(300),
+  page: z.string().max(300).nullish(),
+  id: z.string().max(40).nullish(),
+  label: z.string().max(80).nullish(),
+  viewport: z.array(z.number().int().positive()).max(2).nullish(),
+  bytes: z.number().nonnegative().default(0),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).nullish(),
+  uploaded: z.boolean().nullish(),
+  missing: z.boolean().nullish(),
+});
+const pageFacts = z.object({
+  errors: z.array(z.string().max(300)).max(5).default([]),
+  animates: z.boolean().nullish(),
+  controls: z.number().int().nonnegative().nullish(),
+  blank: z.boolean().nullish(),
+  phone_overflow: z.number().nonnegative().nullish(),
+});
 const trial = z.object({
   trial: z.number().int().positive(),
   run: z.string().max(120).nullish(),
@@ -68,6 +89,9 @@ const trial = z.object({
   grades: z.array(grade).max(60),
   answer: z.string().max(2000).default(""),
   outputs: z.array(output).max(20).default([]),
+  /** the page as the evaluation's browser drew it - what `screens` rubrics were judged on (design R3) */
+  shots: z.array(shot).max(12).default([]),
+  render: z.object({ pages: z.record(z.string().max(300), pageFacts).default({}), skipped: z.string().max(300).nullish() }).nullish(),
 });
 const OWNERS = ["skill", "thinking", "execution"] as const;
 const STAGES = ["plan", "exec", "review", "output"] as const;

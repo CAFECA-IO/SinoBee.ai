@@ -2111,7 +2111,23 @@
       "evidence": "證據（評鑑模型引用）",
       "evidenceMissing": "在成果中找不到這段",
       "detail": "說明",
-      "answer": "模型最後的回答"
+      "answer": "模型最後的回答",
+      "shots": "評鑑截圖（{n}）",
+      "shotsTip": "評鑑模型看到的畫面",
+      "factErrors": "{n} 個程式錯誤",
+      "factNoErrors": "沒有程式錯誤",
+      "factMoves": "3 秒內畫面有變化",
+      "factStill": "0.5 秒與 3 秒的畫面相同",
+      "factControls": "控制元件 {n} 個",
+      "factBlank": "畫面空白",
+      "factDrawn": "有內容",
+      "factOverflow": "手機溢出 {n}px",
+      "shotN": "截圖 {n}",
+      "shotEvidence": "這題的證據",
+      "shotsNote": "在只能讀取這次試驗檔案、不能連網的瀏覽器中拍攝。標「看了截圖」的題目，評鑑模型拿到的就是截圖 1–4。",
+      "noScreen": "評分未含畫面",
+      "noScreenTip": "這次評分只讀了原始碼，沒有看過畫面",
+      "sawShots": "看了 {n} 張截圖"
     }
   }
 }

@@ -10,9 +10,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Markdown } from "@/components/markdown";
 
-type Grade = { ok: boolean; detail?: string; evidence?: string | null; votes?: unknown; where?: { file: string; start: number; end: number } | null };
+type Grade = { ok: boolean; detail?: string; evidence?: string | null; votes?: unknown; where?: { file: string; start: number; end: number } | null; screens?: number | null; shot?: number | null };
+type Shot = { path: string; page?: string | null; label?: string | null; sha256?: string | null; uploaded?: boolean | null };
+type Facts = { errors?: string[]; animates?: boolean | null; controls?: number | null; blank?: boolean | null; phone_overflow?: number | null };
 type Out = { path: string; kind?: string; bytes?: number; sha256?: string | null; uploaded?: boolean | null; missing?: boolean | null; text?: string | null };
-type Trial = { trial: number; run_trial?: number | null; q: number; qualified: boolean; status?: string | null; error?: string | null; answer?: string; grades: Grade[]; outputs?: Out[] };
+type Trial = { trial: number; run_trial?: number | null; q: number; qualified: boolean; status?: string | null; error?: string | null; answer?: string; grades: Grade[]; outputs?: Out[]; shots?: Shot[]; render?: { pages?: Record<string, Facts>; skipped?: string | null } | null };
 type Q = { label: string; category: string; kind: "det" | "judge"; critical?: boolean };
 export type OutTask = { id: string; title: string; prompt: string; questions: Q[]; trials: Trial[] };
 
@@ -41,7 +43,7 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
   const [ti, setTi] = useState(0);
   const [tr, setTr] = useState(firstTrial);
   const [file, setFile] = useState<string | null>(null);
-  const [tab, setTab] = useState<"view" | "src" | "files">("view");
+  const [tab, setTab] = useState<"view" | "src" | "files" | "shots">("view");
   const [qi, setQi] = useState<number | null>(null);
   const [run, setRun] = useState(false);
   const [phone, setPhone] = useState(false);
@@ -59,7 +61,8 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
   const q = (p: string) => `/api/v1/evals/${reportId}/outputs?${p}`;
   const fileUrl = (o: Out, dl = false) => q(`sha=${o.sha256}&path=${encodeURIComponent(o.path)}${dl ? "&download=1" : ""}`);
   const viewable = cur && cur.uploaded && ["html", "markdown", "image", "svg", "csv"].includes(cur.k);
-  const shownTab = tab === "view" && !viewable ? (cur?.uploaded ? "src" : "files") : tab;
+  const shots = trial?.shots ?? [];
+  const shownTab = tab === "view" && !viewable ? (cur?.uploaded ? "src" : "files") : tab === "shots" && !shots.length ? "view" : tab;
 
   useEffect(() => { setHtml(null); setText(null); setNotFound(false); }, [ti, tr, cur?.path]);
   useEffect(() => {          // the page, once the reader asked to run it
@@ -100,6 +103,7 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
     if (next != null && g?.where && g.where.file !== cur?.path) setFile(g.where.file);
     const target = outs.find((o) => o.path === (g?.where?.file ?? cur?.path));
     if (next != null && g?.where && target && !["html", "markdown"].includes(target.k)) setTab("src");
+    if (next != null && g?.screens && !g.where && shots.length) setTab("shots");          // judged on the screen
   };
   const src = text ?? "";
   const w = grade?.where && cur && grade.where.file === cur.path ? grade.where : null;
@@ -129,6 +133,7 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
           <div className="evo-vt">
             {viewable && <button type="button" className={shownTab === "view" ? "on" : ""} onClick={() => setTab("view")}>{t("view")}</button>}
             {cur?.uploaded && cur.k !== "image" && <button type="button" className={shownTab === "src" ? "on" : ""} onClick={() => setTab("src")}>{t("source")}</button>}
+            {shots.length > 0 && <button type="button" className={shownTab === "shots" ? "on" : ""} title={t("shotsTip")} onClick={() => setTab("shots")}>{t("shots", { n: shots.length })}</button>}
             <button type="button" className={shownTab === "files" ? "on" : ""} onClick={() => setTab("files")}>{t("files", { n: outs.length })}</button>
             {cur?.k === "html" && shownTab === "view" && run && (
               <>
@@ -140,7 +145,34 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
             )}
           </div>
           <div className="evo-stage">
-            {shownTab === "files" ? (
+            {shownTab === "shots" ? (
+              <div className="evo-shots">
+                {trial.render?.skipped && <p className="text-warn text-sm">{trial.render.skipped}</p>}
+                {Object.entries(trial.render?.pages ?? {}).map(([p, f]) => (
+                  <div key={p} className="evo-facts">
+                    <b>{p}</b>
+                    <span className={f.errors?.length ? "n" : "y"}>{f.errors?.length ? `✗ ${t("factErrors", { n: f.errors.length })}: ${f.errors[0].slice(0, 120)}` : `✓ ${t("factNoErrors")}`}</span>
+                    <span className={f.animates ? "y" : "n"}>{f.animates ? `✓ ${t("factMoves")}` : `✗ ${t("factStill")}`}</span>
+                    <span>{t("factControls", { n: f.controls ?? 0 })}</span>
+                    <span className={f.blank ? "n" : "y"}>{f.blank ? `✗ ${t("factBlank")}` : `✓ ${t("factDrawn")}`}</span>
+                    <span className={(f.phone_overflow ?? 0) > 8 ? "n" : "y"}>{t("factOverflow", { n: f.phone_overflow ?? 0 })}</span>
+                  </div>
+                ))}
+                <div className="evo-grid">
+                  {shots.map((sh, i) => {
+                    const hit = !!grade?.screens && grade.shot === i + 1;
+                    return (
+                      <figure key={sh.path} className={hit ? "hit" : ""} ref={(el) => { if (hit) el?.scrollIntoView({ block: "center" }); }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {sh.uploaded && sh.sha256 ? <a href={q(`sha=${sh.sha256}&path=${encodeURIComponent(sh.path)}`)} target="_blank" rel="noopener"><img src={q(`sha=${sh.sha256}&path=${encodeURIComponent(sh.path)}`)} alt={sh.label ?? sh.path} loading="lazy" /></a> : <div className="evo-empty">{t("notUploaded")}</div>}
+                        <figcaption>{i < 4 ? `${t("shotN", { n: i + 1 })} · ` : ""}{sh.page} · {sh.label}{hit && <b> · {t("shotEvidence")}</b>}</figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
+                <p className="evo-note">{t("shotsNote")}</p>
+              </div>
+            ) : shownTab === "files" ? (
               <table className="ev-table text-xs">
                 <thead><tr><th>{t("file")}</th><th className="r">{t("size")}</th><th>sha256</th></tr></thead>
                 <tbody>
@@ -185,6 +217,7 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
                 {cur.path} · {fmtBytes(cur.bytes)}{cur.sha256 && <> · <span title={`sha256 ${cur.sha256}`}>{t("hash", { h: cur.sha256.slice(0, 10) })}</span></>}
                 {cur.uploaded && <> · <a href={fileUrl(cur, true)}>{t("download")}</a></>}
                 {notFound && grade && <> · <span className="text-warn">{t("notOnPage")}</span></>}
+                {cur.k === "html" && !shots.length && <> · <span className="text-warn" title={t("noScreenTip")}>{t("noScreen")}</span></>}
               </>
             ) : null}
             {trial.status && trial.status !== "done" && <> · <b className="text-warn">{trial.status}{trial.error ? `: ${trial.error.slice(0, 120)}` : ""}</b></>}
@@ -200,10 +233,10 @@ export function EvalOutputs({ reportId, tasks, judge, note }: { reportId: number
                   <span className="mk">{g.ok ? "✓" : "✗"}</span>
                   <span>
                     <b>{qq?.label ?? `#${i + 1}`}</b>{qq?.critical && <span className="ev-chip warn ml-1">{t("critical")}</span>}
-                    <small>{qq?.category}{qq ? ` · ${qq.kind === "judge" ? t("byJudge", { m: judge }) : t("byCheck")}` : ""}</small>
+                    <small>{qq?.category}{qq ? ` · ${qq.kind === "judge" ? t("byJudge", { m: judge }) : t("byCheck")}` : ""}{g.screens ? ` · ${t("sawShots", { n: g.screens })}` : ""}</small>
                     {qi === i && (
                       <div className="evo-ev">
-                        {g.evidence && <><div className="k">{t("evidence")}{!g.where && (cur?.k !== "html" || notFound) && <span className="text-warn"> · {t("evidenceMissing")}</span>}</div><blockquote>{g.evidence}</blockquote></>}
+                        {g.evidence && <><div className="k">{t("evidence")}{!g.where && !g.shot && (cur?.k !== "html" || notFound) && <span className="text-warn"> · {t("evidenceMissing")}</span>}</div><blockquote>{g.evidence}</blockquote></>}
                         {g.detail && <><div className="k">{t("detail")}</div><div>{g.detail}</div></>}
                       </div>
                     )}

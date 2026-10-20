@@ -2111,7 +2111,23 @@
       "evidence": "Evidence (quoted by the judge)",
       "evidenceMissing": "not found in the outputs",
       "detail": "Reason",
-      "answer": "The model’s final answer"
+      "answer": "The model’s final answer",
+      "shots": "Judge screenshots ({n})",
+      "shotsTip": "what the judge saw",
+      "factErrors": "{n} script errors",
+      "factNoErrors": "no script errors",
+      "factMoves": "the picture changes within 3 s",
+      "factStill": "the same picture at 0.5 s and 3 s",
+      "factControls": "{n} controls",
+      "factBlank": "blank",
+      "factDrawn": "has content",
+      "factOverflow": "phone overflow {n}px",
+      "shotN": "screenshot {n}",
+      "shotEvidence": "evidence for this question",
+      "shotsNote": "Taken in a browser that can read only this trial’s files and has no network. Questions marked “saw screenshots” were judged on screenshots 1–4.",
+      "noScreen": "graded without the screen",
+      "noScreenTip": "This grading read the source only; it never saw the page",
+      "sawShots": "saw {n} screenshots"
     }
   }
 }
