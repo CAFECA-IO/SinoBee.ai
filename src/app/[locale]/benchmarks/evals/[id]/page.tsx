@@ -6,10 +6,11 @@ import { config } from "@/lib/config";
 import { modelLabels } from "@/lib/models";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
-import { LIST_SELECT, PUBLIC, board, categoryRates, comparable, family, reportStats, sameFamily, toBoardRow, verdict, weightsOf, type Axis, type Contender, type EvalTask } from "@/lib/bench-evals";
+import { LIST_SELECT, PUBLIC, board, categoryRates, comparable, family, reportStats, sameFamily, toBoardRow, trialScore, verdict, weightsOf, type Axis, type Contender, type EvalTask } from "@/lib/bench-evals";
 import { Bar, ComboBadge, Radar, fmtTime, fmtTok, fmtUsd, modelName, pct } from "@/components/evals-ui";
 import { CopyLink, QuestionTable, VisibilityToggle, type QTask } from "@/components/evals";
 import { currentUser } from "@/lib/auth";
+import { EvalOutputs, type OutTask } from "@/components/eval-outputs";
 
 export const dynamic = "force-dynamic";
 
@@ -118,8 +119,6 @@ export default async function EvalReportPage({ params }: P) {
   const roles = tr1.roles ?? {};
   const thTok = (roles.thinking?.input_tokens ?? 0) + (roles.thinking?.output_tokens ?? 0);
   const exTok = (roles.execution?.input_tokens ?? 0) + (roles.execution?.output_tokens ?? 0);
-  const texts = tr1.outputs.filter((o) => o.kind === "text" && o.text);
-  const evid = t0.questions.map((q, i) => ({ q, i, g: tr1.grades[i] })).filter((x) => x.g && (x.g.evidence || !x.g.ok));
   const fam = sameFamily(r.judgeModel, r.thinkingModel, r.executionModel);
   const url = `${config.origin}/${locale}/benchmarks/evals/${r.id}`;
   const evSkill = r.benchSuite?.evaluatorSkillVersion?.skill ?? null;
@@ -259,30 +258,9 @@ export default async function EvalReportPage({ params }: P) {
         </div>
       </section>
 
-      <section className="card p-5">
-        <h2 className="h3">{t("io")} <span className="text-xs font-normal text-muted">{t("ioTrial")}</span></h2>
-        <div className="ev-split mt-2">
-          <div>
-            <div className="text-xs text-muted">{t("input", { unit })}</div>
-            {d.tasks.map((x) => <pre key={x.id} className="ev-pre mt-1">{x.prompt}</pre>)}
-            {r.inputHash && <p className="mt-1 text-xs text-muted">{t("inputHash", { h: r.inputHash.slice(0, 4) + "…" + r.inputHash.slice(-3), unit })}</p>}
-          </div>
-          <div>
-            <div className="text-xs text-muted">{t("output")}: {tr1.outputs.map((o) => o.path.split("/").pop()).join(" · ")}</div>
-            <div className="ev-out mt-1">{texts.length ? texts.map((o) => <Markdown key={o.path}>{o.text!.replace(/!\[[^\]]*\]\([^)]*\)/g, "")}</Markdown>) : <p className="py-3 text-sm text-muted">{t("noText")}</p>}</div>
-          </div>
-        </div>
-        {evid.length > 0 && (
-          <>
-            <h3 className="mt-3 text-sm font-semibold">{t("evidence")}</h3>
-            <ul className="mt-1 space-y-1 text-sm">
-              {evid.map((x) => (
-                <li key={x.i}><a href={`#q-${t0.id}-${x.i + 1}`} className={`mr-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${x.g.ok ? "bg-ok" : "bg-err"}`}>{x.i + 1}</a>{x.q.label}<span className="text-xs text-muted"> — {x.g.evidence || x.g.detail}</span></li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+      <EvalOutputs reportId={r.id} judge={name(r.judgeModel)}
+        tasks={d.tasks.map((x) => ({ ...x, trials: x.trials.map((y) => ({ ...y, ...trialScore(x, y.grades.map((g) => g.ok), d.threshold ?? 70) })) })) as unknown as OutTask[]}
+        note={r.inputHash ? t("inputHash", { h: r.inputHash.slice(0, 4) + "…" + r.inputHash.slice(-3), unit }) : undefined} />
 
       <section className="card p-5">
         <h2 className="h3">{t("detail", { c: catList.length, q: d.tasks.reduce((a, x) => a + x.questions.length, 0), n })}</h2>

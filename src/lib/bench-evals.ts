@@ -28,6 +28,8 @@ const grade = z.object({
   evidence: z.string().max(400).nullish(),
   votes: z.array(z.number().int().nonnegative()).length(2).nullish(),
   judge2_ok: z.boolean().nullish(),
+  /** where the quoted evidence is in the trial's outputs (characters), found by SinoBee */
+  where: z.object({ file: z.string().max(300), start: z.number().int().nonnegative(), end: z.number().int().nonnegative() }).nullish(),
 });
 const step = z.object({
   step: z.number().int().nullish(),
@@ -38,10 +40,20 @@ const step = z.object({
   produced: z.boolean().default(false),
 });
 const role = z.object({ input_tokens: z.number().nonnegative().default(0), output_tokens: z.number().nonnegative().default(0), cost_usd: z.number().nonnegative().default(0) });
-const output = z.object({ path: z.string().max(300), kind: z.enum(["text", "image"]).default("text"), bytes: z.number().nonnegative().default(0), text: z.string().max(60_000).nullish() });
+const output = z.object({
+  path: z.string().max(300),
+  kind: z.enum(["text", "image"]).default("text"),
+  bytes: z.number().nonnegative().default(0),
+  text: z.string().max(60_000).nullish(),
+  /** the file as graded, uploaded apart by this hash (PUT /api/v1/evals/outputs/<sha256>) */
+  sha256: z.string().regex(/^[0-9a-f]{64}$/).nullish(),
+  uploaded: z.boolean().nullish(),
+  missing: z.boolean().nullish(),
+});
 const trial = z.object({
   trial: z.number().int().positive(),
   run: z.string().max(120).nullish(),
+  run_trial: z.number().int().positive().nullish(),
   status: z.string().max(40).nullish(),
   started: z.number().nullish(),
   duration_s: z.number().nonnegative().default(0),
