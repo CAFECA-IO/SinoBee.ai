@@ -1366,3 +1366,26 @@ model BenchSuite {
 
   @@index([subject])
 }
+
+/// Anonymous task outcomes SinoBee sends when the user turned on "回報匿名統計" (off by default): no user, no
+/// session, no content, only the day. Feeds the completion rate in model allocation (lib/llm/route.ts, plan P5).
+model RouteStat {
+  id        String  @id @default(cuid())
+  /// yyyy-mm-dd (UTC); no time of day
+  day       String
+  modelId   String
+  /// chat | page | code | research | data | other
+  taskKind  String  @default("other")
+  /// a published skill's name, else null (private skill names are not kept)
+  skill     String?
+  /// done | incomplete | failed | stopped
+  outcome   String
+  seconds   Float   @default(0)
+  tokensIn  Int     @default(0)
+  tokensOut Int     @default(0)
+  retries   Int     @default(0)
+  cutOff    Boolean @default(false)
+
+  @@index([modelId, taskKind])
+  @@index([day])
+}
