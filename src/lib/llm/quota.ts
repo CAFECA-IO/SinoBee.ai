@@ -5,6 +5,7 @@ import { audit } from "../roles";
 import { referenceBlended, type ModelPriceView } from "../models";
 import { freePlan, listPlans, type PlanView } from "../plans";
 import { subscriptionState } from "../subscriptions";
+import { bookPoints, pointBalance } from "../crowd/points";
 import type { UsageLedger } from "@/generated/prisma/client";
 
 /**
@@ -22,6 +23,11 @@ import type { UsageLedger } from "@/generated/prisma/client";
  *
  * Window membership: HELD rows count at heldTwd from createdAt; settled rows count at settledTwd from settledAt,
  * so quota frees up 6 h / 168 h after the moment the cost was incurred.
+ *
+ * Platform points (plan "模型分配與備援機制" P3, 2026-10-21): a call sent with `x-sinobee-billing: points` (the user
+ * agreed in SinoBee) is held against the points balance instead of the windows and leaves the windows alone. Points
+ * are charged 1:1 at the published TWD price (1 point = NT$1): after each settled points call the running total is
+ * rounded up to whole points and the difference booked (PointLedger reason "llm_usage", ref "llm:<ledger id>").
  */
 
 export const W6 = 6 * 3600_000;
@@ -39,8 +45,8 @@ export function costTwd(p: Prices, t: Tokens): number {
 }
 
 export class QuotaError extends HttpError {
-  constructor(public window: "6h" | "168h" | "concurrency" | "rpm" | "subscription" | "provider", message: string, public retryAt?: Date) {
-    super(window === "subscription" ? 402 : window === "provider" ? 503 : 429, message);
+  constructor(public window: "6h" | "168h" | "concurrency" | "rpm" | "subscription" | "provider" | "points", message: string, public retryAt?: Date) {
+    super(window === "subscription" || window === "points" ? 402 : window === "provider" ? 503 : 429, message);
   }
 }
 
@@ -70,8 +76,8 @@ async function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T>
 
 // ───────────── context ─────────────
 
-/** subscriptionId null: no subscription, the free plan's allowance */
-export type QuotaCtx = { userId: string; subscriptionId: string | null; plan: PlanView };
+/** subscriptionId null: no subscription, the free plan's allowance. billing points: paid with platform points */
+export type QuotaCtx = { userId: string; subscriptionId: string | null; plan: PlanView; billing?: "subscription" | "points" };
 
 /** The caller's current subscription period and plan, or a 402 */
 export async function quotaContext(userId: string): Promise<QuotaCtx> {
@@ -88,13 +94,20 @@ export async function quotaContext(userId: string): Promise<QuotaCtx> {
   return { userId, subscriptionId: st.current.id, plan };
 }
 
+/** A call paid with platform points: no subscription needed; the plan (when there is one) only sets concurrency */
+export async function pointsContext(userId: string): Promise<QuotaCtx> {
+  const base = await quotaContext(userId).catch(() => null);
+  const plan = base?.plan ?? ({ id: null, code: "points", name: "points", nameEn: "points", concurrency: 2, l6Twd: 0, l168Twd: 0 } as unknown as PlanView);
+  return { userId, subscriptionId: base?.subscriptionId ?? null, plan, billing: "points" };
+}
+
 type Row = Pick<UsageLedger, "status" | "heldTwd" | "settledTwd" | "createdAt" | "settledAt">;
 const amount = (r: Row) => Number(r.status === "HELD" ? r.heldTwd : (r.settledTwd ?? 0));
 const at = (r: Row) => (r.status === "HELD" ? r.createdAt : (r.settledAt ?? r.createdAt));
 
 async function windowRows(userId: string, now: Date) {
   return db.usageLedger.findMany({
-    where: { userId, OR: [{ status: "HELD" }, { settledAt: { gt: new Date(now.getTime() - W168) } }] },
+    where: { userId, billing: "subscription", OR: [{ status: "HELD" }, { settledAt: { gt: new Date(now.getTime() - W168) } }] },
     select: { status: true, heldTwd: true, settledTwd: true, createdAt: true, settledAt: true },
   });
 }
@@ -180,9 +193,29 @@ export async function hold(
   checkRpm(ctx.userId, now.getTime());
   await checkProvider(model.modelId, now);
   return withUserLock(ctx.userId, async () => {
-    const u = await windowUse(ctx.userId, now);
-    if (u.held >= ctx.plan.concurrency) throw new QuotaError("concurrency", `at most ${ctx.plan.concurrency} requests at a time on this plan`);
+    const heldNow = await db.usageLedger.count({ where: { userId: ctx.userId, status: "HELD" } });
+    if (heldNow >= ctx.plan.concurrency) throw new QuotaError("concurrency", `at most ${ctx.plan.concurrency} requests at a time on this plan`);
     const p = model.twd;
+    if (ctx.billing === "points") {
+      const free = await pointsAvailable(ctx.userId);
+      const promptCost = costTwd(p, { prompt: t.prompt, output: 0 });
+      let output = t.output;
+      if (meta.fit) {
+        const affordable = p.output > 0 ? Math.floor(((free - promptCost) * 1e6) / p.output) : output;
+        output = Math.max(t.minOutput ?? 1, Math.min(output, affordable));
+      }
+      const need = promptCost + costTwd(p, { prompt: 0, output });
+      if (need > free + 1e-9) throw new QuotaError("points", "platform points used up");
+      const ledger = await db.usageLedger.create({
+        data: {
+          userId: ctx.userId, subscriptionId: ctx.subscriptionId, planId: ctx.plan.id ?? null, deviceId: meta.deviceId ?? null,
+          modelId: model.modelId, endpoint: meta.endpoint, stream: meta.stream, status: "HELD", billing: "points",
+          heldTwd: need, priceTwd: p, promptTokens: t.prompt, heldOutput: output,
+        },
+      });
+      return { ledger, output };
+    }
+    const u = await windowUse(ctx.userId, now);
     const promptCost = costTwd(p, { prompt: t.prompt, output: 0 });
     let output = t.output;
     if (meta.fit) {
@@ -213,8 +246,11 @@ export async function topUp(ctx: QuotaCtx, ledgerId: string, tokens: number, cou
     const row = await db.usageLedger.findUnique({ where: { id: ledgerId } });
     if (!row || row.status !== "HELD") return false;
     const add = costTwd(row.priceTwd as Prices, { prompt: 0, output: tokens });
-    const u = await windowUse(ctx.userId);
-    if (u.w6 + add > ctx.plan.l6Twd + 1e-9 || u.w168 + add > ctx.plan.l168Twd + 1e-9) {
+    const full =
+      row.billing === "points"
+        ? add > (await pointsAvailable(ctx.userId)) + 1e-9
+        : await windowUse(ctx.userId).then((u) => u.w6 + add > ctx.plan.l6Twd + 1e-9 || u.w168 + add > ctx.plan.l168Twd + 1e-9);
+    if (full) {
       await db.usageLedger.update({ where: { id: ledgerId }, data: { countedOutput: counted } });
       return false;
     }
@@ -251,6 +287,7 @@ export async function settle(ledgerId: string, s: Settlement): Promise<UsageLedg
   const done = await db.usageLedger.updateMany({ where: { id: row.id, status: "HELD" }, data: { ...data, settledAt: new Date() } });
   if (done.count !== 1) return db.usageLedger.findUnique({ where: { id: row.id } });
   if (s.kind !== "refund" && s.output > 0) await recordOutput(row.userId, row.modelId, s.output);
+  if (row.billing === "points" && s.kind !== "refund") await chargePoints(row.userId, row.id, row.modelId);
   return db.usageLedger.findUnique({ where: { id: row.id } });
 }
 
@@ -275,6 +312,7 @@ export async function sweepHolds(now = new Date()) {
       data: { status: "EXPIRED", settledTwd: Math.max(Number(r.heldTwd), counted), outputTokens: r.countedOutput, settledAt: now, error: "not settled within the hold timeout" },
     });
     if (done.count) await audit(null, "llm.hold.expired", { type: "usage", id: r.id }, { userId: r.userId, model: r.modelId, heldTwd: Number(r.heldTwd) });
+    if (done.count && r.billing === "points") await chargePoints(r.userId, r.id, r.modelId);
   }
   return stale.length;
 }
@@ -283,8 +321,9 @@ export async function sweepHolds(now = new Date()) {
  * Response headers for a finished (non-streamed) call: this call's share of the 6-hour limit and how full both
  * windows are now. SinoBee shows "占 6 小時額度 x%" under each answer from these.
  */
-export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row: Pick<UsageLedger, "userId" | "settledTwd"> | null): Promise<Record<string, string>> {
+export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row: Pick<UsageLedger, "userId" | "settledTwd" | "billing"> | null): Promise<Record<string, string>> {
   if (!row) return {};
+  if (row.billing === "points") return { "x-sinobee-points": String(await pointBalance(row.userId)) };
   const u = await windowUse(row.userId);
   const pct = (v: number, limit: number) => (limit > 0 ? Math.min(100, (v / limit) * 100) : 100).toFixed(2);
   return {
@@ -292,6 +331,38 @@ export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row
     "x-sinobee-quota-6h": pct(u.w6, plan.l6Twd),
     "x-sinobee-quota-168h": pct(u.w168, plan.l168Twd),
   };
+}
+
+// ───────────── platform points ─────────────
+
+const sumTwd = (rows: { settledTwd: unknown }[]) => rows.reduce((a, r) => a + Number(r.settledTwd ?? 0), 0);
+
+/** Points charged for model use so far (positive) and the settled TWD of all points calls */
+async function pointsSpent(userId: string) {
+  const charged = await db.pointLedger.aggregate({ where: { userId, reason: "llm_usage" }, _sum: { delta: true } });
+  const rows = await db.usageLedger.findMany({ where: { userId, billing: "points", status: { not: "HELD" } }, select: { settledTwd: true } });
+  return { charged: -(charged._sum.delta ?? 0), settled: sumTwd(rows) };
+}
+
+/** Points that can still be spent on model calls: the balance less running holds, plus the unused part of the last
+ * whole point booked (the running total is rounded up) or less a part not booked yet */
+export async function pointsAvailable(userId: string): Promise<number> {
+  const [balance, held, s] = await Promise.all([
+    pointBalance(userId),
+    db.usageLedger.findMany({ where: { userId, billing: "points", status: "HELD" }, select: { heldTwd: true } }),
+    pointsSpent(userId),
+  ]);
+  const pending = held.reduce((a, r) => a + Number(r.heldTwd), 0);
+  return Math.max(0, balance - pending + (s.charged - s.settled));
+}
+
+/** Book the points a settled call used: 1:1 at the published TWD price, the running total rounded up to whole points */
+export async function chargePoints(userId: string, ledgerId: string, modelId: string) {
+  return withUserLock(userId, async () => {
+    const s = await pointsSpent(userId);
+    const due = Math.ceil(s.settled - 1e-9) - s.charged;
+    if (due > 0) await bookPoints({ userId, delta: -due, reason: "llm_usage", ref: `llm:${ledgerId}`, note: modelId });
+  });
 }
 
 // ───────────── status for the GUI (rings) ─────────────
@@ -327,7 +398,10 @@ export async function quotaStatus(userId: string, now = new Date()) {
     };
   };
   const st = await subscriptionState(userId);
+  const [balance, available] = await Promise.all([pointBalance(userId), pointsAvailable(userId)]);
   return {
+    // platform points: shown on SinoBee's card and offered when the allowance runs out (1 point = NT$1, charged 1:1)
+    points: { balance, available: Math.floor(available * 100) / 100, rate: 1, unit: "TWD" },
     plan: { code: ctx.plan.code, name: ctx.plan.name, nameEn: ctx.plan.nameEn, concurrency: ctx.plan.concurrency },
     endsAt: st.endsAt?.toISOString() ?? null,
     graceEndsAt: st.graceEndsAt?.toISOString() ?? null,

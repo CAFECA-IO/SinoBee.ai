@@ -2,7 +2,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { bearerAuth } from "../auth";
 import { currentModels, type ModelPriceView } from "../models";
-import { QuotaError, avgOutput, hold, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
+import { QuotaError, avgOutput, hold, pointsContext, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
 
 /**
  * Subscription model relay.
@@ -106,7 +106,8 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     const auth = await llmAuth(req);
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body || typeof body !== "object") throw new HttpError(400, "JSON body required");
-    const ctx = await quotaContext(auth.user.id);
+    // `x-sinobee-billing: points`: the user agreed in SinoBee to continue with platform points (1:1, quota.ts)
+    const ctx = req.headers.get("x-sinobee-billing") === "points" ? await pointsContext(auth.user.id) : await quotaContext(auth.user.id);
     const { model, provider, upstreamName } = await resolveModel(body.model, fmt);
     const p = config.llm.providers[provider];
     const key = p.key;

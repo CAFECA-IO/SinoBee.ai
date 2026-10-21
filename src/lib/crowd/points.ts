@@ -3,8 +3,9 @@ import { HttpError } from "../errors";
 
 /**
  * Platform points: 1 point = NT$1. Earned when a crowdfunded task finishes under budget (the backer's share of the
- * leftover), spent only on crowdfunding pledges. Not transferable and never paid out in cash. Every change is one
- * PointLedger row; `ref` makes each grant or spend happen at most once.
+ * leftover); cannot be bought. Spent on crowdfunding pledges, or on SinoBee.ai model calls the user agreed to pay with
+ * points (1:1 at the published price, reason "llm_usage", lib/llm/quota.ts). Not transferable and never paid out in
+ * cash. Every change is one PointLedger row; `ref` makes each grant or spend happen at most once.
  */
 
 export async function pointBalance(userId: string): Promise<number> {

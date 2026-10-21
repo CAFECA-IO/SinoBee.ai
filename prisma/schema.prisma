@@ -715,9 +715,14 @@ model UsageLedger {
   createdAt        DateTime    @default(now())
   settledAt        DateTime?
 
+  /// subscription | points: who paid. Points rows stay out of the 6 h / 168 h windows; each settled points row
+  /// takes platform points 1:1 at the published TWD price (PointLedger reason "llm_usage")
+  billing          String      @default("subscription")
+
   @@index([userId, status])
   @@index([userId, settledAt])
   @@index([userId, createdAt])
+  @@index([userId, billing, status])
   @@index([status, createdAt])
 }
 
@@ -1166,7 +1171,7 @@ model PointLedger {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   delta     Int
-  /// leftover | pledge | release | platform | admin
+  /// leftover | pledge | release | platform | admin | llm_usage (model calls paid with points, 1:1)
   reason    String
   /// idempotency key, e.g. "leftover:<pledgeId>"
   ref       String?  @unique

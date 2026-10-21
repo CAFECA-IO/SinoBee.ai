@@ -343,3 +343,60 @@ test("a model that no longer accepts temperature: retried without it, remembered
   assert.equal(llm.requests.length, 1, "not retried");
   compat.resetParamCompat();
 });
+
+// ───────────── platform points (plan "模型分配與備援機制" P3, 2026-10-21) ─────────────
+
+test("points: a call the user agreed to pay with points takes points 1:1 and leaves the windows alone", async () => {
+  const points = await import("../src/lib/crowd/points");
+  await subscribe(840);
+  await db.pointLedger.deleteMany({ where: { userId } });
+  await points.bookPoints({ userId, delta: 5, reason: "admin", ref: "llm-points:grant" });
+  llm.next = { ...StubLlm.defaults(), promptTokens: 2000, chunks: 10 };
+  const r = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }], max_tokens: 500 }, { "x-sinobee-billing": "points" }), "openai", "chat");
+  assert.equal(r.status, 200);
+  const [row] = await rows();
+  assert.equal(row.billing, "points");
+  assert.equal(row.status, "SETTLED");
+  // well under NT$1: the running total is rounded up to one whole point
+  const booked = await db.pointLedger.findMany({ where: { userId, reason: "llm_usage" } });
+  assert.deepEqual(booked.map((b) => b.delta), [-1]);
+  assert.equal(booked[0].ref, `llm:${row.id}`);
+  assert.equal(r.headers.get("x-sinobee-points"), "4");
+  assert.equal(r.headers.get("x-sinobee-quota-6h"), null, "no window share for a points call");
+  const st = await quota.quotaStatus(userId);
+  assert.equal(st.windows[0].usedPct, 0, "the subscription windows are untouched");
+  assert.deepEqual([st.points.balance, st.points.rate, st.points.unit], [4, 1, "TWD"]);
+  assert.ok(st.points.available > 4 && st.points.available < 5, `${st.points.available}: plus the unused part of the point paid`);
+  // a second small call fits in the point already paid for: nothing new is booked
+  llm.next = { ...StubLlm.defaults(), promptTokens: 2000, chunks: 10 };
+  await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }], max_tokens: 500 }, { "x-sinobee-billing": "points" }), "openai", "chat");
+  assert.equal((await db.pointLedger.findMany({ where: { userId, reason: "llm_usage" } })).length, 1);
+  // a subscription call is still charged to the windows
+  llm.next = { ...StubLlm.defaults(), chunks: 1 };
+  await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.ok((await quota.quotaStatus(userId)).windows[0].usedPct > 0);
+});
+
+test("points: refused when the points run out; works without a subscription; the quota API reports the balance", async () => {
+  const points = await import("../src/lib/crowd/points");
+  await subscribe(840);
+  await db.pointLedger.deleteMany({ where: { userId } });
+  const none = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }, { "x-sinobee-billing": "points" }), "openai", "chat");
+  assert.equal(none.status, 402);
+  const j = await none.json();
+  assert.equal(j.error.quota, "points");
+  assert.equal((await rows()).length, 0, "nothing held");
+  await points.bookPoints({ userId, delta: 3, reason: "admin", ref: "llm-points:grant2" });
+  await db.subscription.deleteMany({ where: { userId } });
+  const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
+  await plans.saveFreePlan(admin.id, { name: "免費", nameEn: "Free", maxCostTwd: 48, concurrency: 1, active: false });
+  llm.next = { ...StubLlm.defaults(), chunks: 1 };
+  const ok = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }, { "x-sinobee-billing": "points" }), "openai", "chat");
+  assert.equal(ok.status, 200, "points pay without a subscription");
+  const route = await import("../src/app/api/v1/llm/quota/route");
+  const q = await route.GET(new Request("http://localhost/api/v1/llm/quota", { headers: { authorization: `Bearer ${token}` } }));
+  assert.equal(q.status, 402);
+  const body = await q.json();
+  assert.equal(body.error.code, "subscription");
+  assert.deepEqual(body.points, { balance: 2, rate: 1, unit: "TWD" });
+});
