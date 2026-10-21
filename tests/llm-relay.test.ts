@@ -297,6 +297,28 @@ test("windows release 6 h / 168 h after the cost was incurred; stale holds are s
   assert.equal(Number(swept.settledTwd), 0.5);
 });
 
+test("Claude thinking effort passes through (output_config), the relay says so, and a model that refuses it still answers", async () => {
+  const compat = await import("../src/lib/llm/param-compat");
+  compat.resetParamCompat();
+  await subscribe(840);
+  llm.requests = [];
+  llm.next = { ...StubLlm.defaults(), chunks: 1 };
+  const body = { model: "claude-sonnet-5.5", max_tokens: 100, output_config: { effort: "low" }, messages: [{ role: "user", content: "hi" }] };
+  const r = await relay.relay(post("/api/v1/llm/anthropic/v1/messages", body), "anthropic", "messages");
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("x-sinobee-relay-features"), "output_config", "SinoBee sends effort only to a relay that passes it");
+  assert.deepEqual(llm.requests[0].body.output_config, { effort: "low" });
+  // a model without effort control: sent again without it, the client told
+  llm.requests = [];
+  llm.next = { ...StubLlm.defaults(), chunks: 1, reject: ["output_config"] };
+  const s = await relay.relay(post("/api/v1/llm/anthropic/v1/messages", { ...body, stream: true }), "anthropic", "messages");
+  assert.equal(s.status, 200);
+  await readAll(s);
+  assert.equal(s.headers.get("x-sinobee-dropped-params"), "output_config");
+  assert.deepEqual(llm.requests.map((q) => q.body.output_config), [{ effort: "low" }, undefined]);
+  compat.resetParamCompat();
+});
+
 test("embeddings are billed as input tokens", async () => {
   await subscribe(840);
   await (await import("../src/lib/models")).savePrice(userId, { modelId: "openai/text-embedding-3-small", label: "Embedding 3 small", vendor: "OpenAI", usd: { input: 0.02, cacheRead: 0.02, cacheWrite: 0.02, output: 0 }, enabled: true });

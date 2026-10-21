@@ -85,7 +85,11 @@ export const estimateTokens = (v: unknown) => (v == null ? 0 : Math.ceil(Buffer.
 // ───────────── request shaping ─────────────
 
 const OPENAI_KEYS = ["model", "messages", "tools", "tool_choice", "temperature", "top_p", "max_tokens", "max_completion_tokens", "stream", "stop", "response_format", "parallel_tool_calls", "reasoning_effort", "seed", "presence_penalty", "frequency_penalty", "user"];
-const ANTHROPIC_KEYS = ["model", "messages", "system", "tools", "tool_choice", "max_tokens", "temperature", "top_p", "top_k", "stop_sequences", "stream", "thinking"];
+// output_config carries the thinking effort of Claude 4.6+ (low / medium / high), which think by default and hide it
+const ANTHROPIC_KEYS = ["model", "messages", "system", "tools", "tool_choice", "max_tokens", "temperature", "top_p", "top_k", "stop_sequences", "stream", "thinking", "output_config"];
+
+/** What this relay passes on that older ones did not; SinoBee only sends these when the header says so */
+export const RELAY_FEATURES = "output_config";
 
 function pick(body: Record<string, unknown>, keys: string[]) {
   return Object.fromEntries(Object.entries(body).filter(([k]) => keys.includes(k)));
@@ -214,7 +218,10 @@ async function upstream(p: Prepared, signal?: AbortSignal): Promise<Response> {
 }
 
 /** Tells the client which parameters were left out, so it can stop sending them */
-const droppedHeader = (p: Prepared): Record<string, string> => (p.dropped.length ? { "x-sinobee-dropped-params": p.dropped.join(",") } : {});
+const droppedHeader = (p: Prepared): Record<string, string> => ({
+  "x-sinobee-relay-features": RELAY_FEATURES,
+  ...(p.dropped.length ? { "x-sinobee-dropped-params": p.dropped.join(",") } : {}),
+});
 
 /** Refund the hold and answer with the upstream error, details that could identify our account stripped. A hard
  * failure of our account at the vendor (breaker.ts) takes the vendor out for 30 minutes and says so: code

@@ -7,8 +7,9 @@
  * client - also old SinoBee versions that always send temperature - keeps working without a release.
  */
 
-/** sampling knobs that may be left out; never content, tools or limits */
-export const OPTIONAL_PARAMS = ["temperature", "top_p", "top_k"] as const;
+/** sampling and reasoning knobs that may be left out; never content, tools or limits. thinking / output_config: how
+ * much a Claude model thinks (output_config.effort on 4.6+); a model that does not take them thinks as it would */
+export const OPTIONAL_PARAMS = ["temperature", "top_p", "top_k", "thinking", "output_config"] as const;
 
 const REJECT = (p: string) =>
   new RegExp(
