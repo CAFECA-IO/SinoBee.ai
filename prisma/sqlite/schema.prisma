@@ -32,6 +32,9 @@ model User {
   /// kept in sync with role (true for ADMIN and SUPERADMIN); change roles only through src/lib/roles.ts
   isAdmin           Boolean  @default(false)
   role              UserRole @default(USER)
+  /// set by an admin: sign-in, sessions and API tokens stop working until cleared
+  disabledAt        DateTime?
+  disabledReason    String?
   /// last buyer details used at checkout {name, email, invoice}, to prefill the next one
   billing           Json?
   createdAt         DateTime @default(now())

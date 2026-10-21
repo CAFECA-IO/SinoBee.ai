@@ -5,7 +5,7 @@ import { audit } from "./roles";
 import { pricesAt, savePrice, PRICE_KINDS, type Prices } from "./models";
 
 /**
- * AI models SinoBee itself uses, configured in /admin → AI 模型:
+ * AI models SinoBee itself uses, configured in /admin → 模型與定價:
  *  - the catalog: the models each provider's API says exist (synced from GET /models, never typed by hand)
  *  - tiers: high / standard / light, each an ordered list (primary first, then fallbacks)
  *  - jobs: which tier each platform job uses (spec drafting, screening, checklist edits, price lookups)

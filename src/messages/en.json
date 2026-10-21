@@ -494,22 +494,18 @@
     "verifyPublisher": "Mark publisher verified",
     "verifiedPublisher": "Verified publisher",
     "tab": {
-      "pending": "Skills to review",
-      "approved": "Listed skills",
-      "tools": "Tool reviews",
       "reports": "Reports",
-      "storage": "Boltchain storage",
-      "users": "Users & roles",
-      "prices": "Model prices",
+      "storage": "Storage",
+      "users": "Users",
       "plans": "Plans",
       "audit": "Audit log",
-      "payments": "Payments & refunds",
+      "payments": "Payments",
       "settings": "Settings",
       "overview": "Overview",
-      "disputes": "Crowdfunding disputes",
-      "screening": "Proposal review",
       "checklist": "Screening checklist",
-      "ai": "AI models"
+      "review": "Content review",
+      "crowd": "Crowdfunding",
+      "models": "Models & pricing"
     },
     "st": {
       "enabled": "Enabled",
@@ -521,7 +517,12 @@
       "objects": "Objects",
       "anchors": "Anchors",
       "errors": "Recent errors",
-      "low": "The wallet is running low: new objects stay in the mirror until BOLT is topped up."
+      "low": "The wallet is running low: new objects stay in the mirror until BOLT is topped up.",
+      "on": "On",
+      "offShort": "Off",
+      "offTitle": "Boltchain storage is off",
+      "setUp": "Set up",
+      "noObjects": "No objects yet."
     },
     "takedown": "Take down",
     "dismiss": "Dismiss",
@@ -723,62 +724,14 @@
         "hub": "Key that signs approved skills.",
         "runner": "Resources and image of task containers.",
         "crowd": "Share price, proposal fee, durations and fees, reference files, quota pledges."
-      }
+      },
+      "custom": "customised"
     },
     "nav": {
-      "start": "Start",
-      "content": "Content review",
-      "business": "Business",
+      "review": "Review",
+      "business": "Users & revenue",
+      "models": "Models",
       "system": "System"
-    },
-    "overview": {
-      "checklist": "Go-live checklist",
-      "todo": "To do",
-      "fix": "Fix",
-      "open": "Open",
-      "stat": {
-        "activeSubscriptions": "Active subscriptions",
-        "revenue30": "Received, 30 days",
-        "refunds30": "Refunded, 30 days",
-        "relay24h": "Model relay, 24 h",
-        "users": "Users"
-      },
-      "todoItem": {
-        "pending": "Skills awaiting review",
-        "tools": "Tools awaiting review",
-        "reports": "Open reports",
-        "payments": "Payments unconfirmed for 15+ minutes"
-      },
-      "check": {
-        "payments": {
-          "title": "Payments: Oen domain and API token",
-          "fix": "Enter the Oen domain and API token, then press Check Oen settings."
-        },
-        "paymentsLive": {
-          "title": "Payments use production",
-          "fix": "Switch to production after testing (needs the server IP on Oen's allowlist)."
-        },
-        "modelKeys": {
-          "title": "Model API keys",
-          "fix": "Add at least one provider key so subscribers can use models."
-        },
-        "legal": {
-          "title": "Company details (tax ID, address)",
-          "fix": "Add the tax ID and address shown in the policies."
-        },
-        "hubKey": {
-          "title": "Skill signing key",
-          "fix": "Generated automatically when the site restarts."
-        },
-        "boltchain": {
-          "title": "Boltchain storage",
-          "fix": "Set a node RPC, or start a local node with npm run swarm."
-        },
-        "signatures": {
-          "title": "Relay accepts signed devices only",
-          "fix": "Once users have updated SinoBee, turn on Require device signatures."
-        }
-      }
     },
     "ai": {
       "catalogTitle": "Provider model lists",
@@ -830,7 +783,7 @@
     },
     "ollama": {
       "title": "Ollama (local open models)",
-      "lead": "Ollama is a model source for the platform's AI: downloaded models appear as ollama/<name> in the model lists and tiers above after a sync — no API key, no API cost.",
+      "lead": "Ollama is a model source for the platform's AI: downloaded models appear as ollama/‹name› in the model lists and tiers above after a sync — no API key, no API cost.",
       "connected": "Connected · v{version}",
       "offline": "Unreachable",
       "notConfigured": "Ollama is not set up: start it with npm run swarm (it writes OLLAMA_URL to .env), or set Settings → Ollama URL.",
@@ -864,7 +817,474 @@
     "evBehaviorHow": "Run sinobee eval evaluator <name> --test in SinoBee, then record:",
     "evPass": "Behavior test passed",
     "evFail": "Behavior test failed",
-    "evKind": "Evaluation skill"
+    "evKind": "Evaluation skill",
+    "wait": {
+      "min": "{n} min",
+      "hour": "{n} h",
+      "day": "{n} days"
+    },
+    "ov": {
+      "modeLive": "Live",
+      "modeTest": "Test mode on",
+      "blocking": "{n} {n, plural, one {thing blocks} other {things block}} users before going live",
+      "adviceCount": "plus {n} {n, plural, one {suggestion} other {suggestions}}",
+      "advice": "Suggestions before going live · {n}",
+      "show": "show / hide",
+      "fixIt": "Fix",
+      "metrics": "Key numbers",
+      "revenue30": "Revenue, last 30 days",
+      "revenue30Sub": "{n} payments · refunds {refunds} ({r})",
+      "subs": "Active subscriptions",
+      "subsNone": "No subscriptions yet",
+      "relay": "Model relay, 24 h",
+      "calls": "{n} calls",
+      "relaySub": "error rate {err} · cost {cost}",
+      "users": "Users",
+      "usersSub": "{n} new in 7 days",
+      "inbox": "Waiting for you · {n}",
+      "inboxSort": "longest wait first",
+      "inboxEmpty": "Nothing is waiting.",
+      "inboxFilteredEmpty": "Nothing of this kind is waiting.",
+      "filter": {
+        "all": "All",
+        "review": "Review",
+        "report": "Reports",
+        "crowd": "Crowdfunding",
+        "payment": "Payments"
+      },
+      "kind": {
+        "skill": "Skill",
+        "tool": "Tool",
+        "report": "Report",
+        "screening": "Proposal",
+        "dispute": "Dispute",
+        "payment": "Payment"
+      },
+      "act": {
+        "skill": "Review",
+        "tool": "Review",
+        "report": "Handle",
+        "screening": "Confirm",
+        "dispute": "Decide",
+        "payment": "Open"
+      },
+      "detail": {
+        "scanFindings": "{n} scan {n, plural, one {finding} other {findings}} to check",
+        "scanClean": "Scan found nothing",
+        "report": {
+          "task": "Task reported by @{who}: {reason}",
+          "share": "Share reported by @{who}: {reason}",
+          "tool": "Tool reported by @{who}: {reason}"
+        },
+        "aiApprove": "AI suggests approval ({passed} / {total}); waiting for you",
+        "aiReject": "AI suggests sending it back ({passed} / {total}); waiting for you",
+        "screeningBusy": "AI screening in progress",
+        "dispute": "Acceptance rejected with no rework left: {note}",
+        "payment": {
+          "SUBSCRIPTION": "Subscription payment Oen has not reported back on",
+          "CROWD_PLEDGE": "Crowdfunding pledge Oen has not reported back on",
+          "CROWD_PROPOSAL": "Proposal fee Oen has not reported back on"
+        }
+      },
+      "waiting": "waiting {t}",
+      "more": "{n} more",
+      "recent": "Recent admin actions",
+      "allAudit": "Full audit log",
+      "adminNote": "You are an admin: only the super admin can change settings.",
+      "check": {
+        "payments": {
+          "title": "Oen payments not set up",
+          "fix": "Without the domain and API token nobody can pay or bind a card."
+        },
+        "paymentsLive": {
+          "title": "Switch payments to production",
+          "fix": "Switch to production after testing (needs the server IP on Oen's allowlist)."
+        },
+        "modelKeys": {
+          "title": "Model API keys",
+          "fix": "Without a key, subscribers cannot use any model."
+        },
+        "legal": {
+          "title": "Tax ID and address",
+          "fix": "Shown in the terms and policies."
+        },
+        "hubKey": {
+          "title": "Skill signing key",
+          "fix": "Generated automatically when the site restarts."
+        },
+        "boltchain": {
+          "title": "Boltchain node",
+          "fix": "Set a node RPC, or start a local node with npm run swarm."
+        },
+        "signatures": {
+          "title": "Require device signatures",
+          "fix": "Turn on once users have updated SinoBee; the relay then takes signed requests only."
+        }
+      }
+    },
+    "rv": {
+      "search": "Search name or publisher",
+      "list": "Review queue",
+      "status": {
+        "pending": "Waiting",
+        "approved": "Approved",
+        "rejected": "Sent back"
+      },
+      "kind": {
+        "all": "Skills & tools",
+        "skill": "Skill",
+        "tool": "Tool"
+      },
+      "empty": {
+        "pending": "Nothing is waiting for review.",
+        "approved": "Nothing approved yet.",
+        "rejected": "Nothing sent back or revoked."
+      },
+      "noMatch": "No version matches.",
+      "pick": "Pick a version on the left.",
+      "findings": "{n} {n, plural, one {finding} other {findings}}",
+      "clean": "scan clean",
+      "waiting": "waiting {t}",
+      "revoked": "revoked",
+      "st": {
+        "PENDING_REVIEW": "Waiting",
+        "APPROVED": "Approved",
+        "REJECTED": "Sent back",
+        "REVOKED": "Revoked"
+      },
+      "openHub": "Open in Skill Hub",
+      "openTool": "Open tool page",
+      "publisher": "Publisher",
+      "previous": "previous {v} ({st})",
+      "firstVersion": "first version",
+      "submitted": "submitted",
+      "lastNote": "Review note",
+      "findingsTitle": "The scanner found {n} {n, plural, one {thing} other {things}}; read before deciding",
+      "rule": {
+        "network-egress": "network access",
+        "prompt-injection": "prompt injection",
+        "secret": "possible secret",
+        "shell": "shell command",
+        "warn": "note",
+        "error": "error"
+      },
+      "views": "View",
+      "diffWith": "Changes since {v}",
+      "diffNone": "Content",
+      "filesN": "Files · {n}",
+      "file": {
+        "added": "added",
+        "removed": "removed",
+        "changed": "changed",
+        "same": "same"
+      },
+      "noChange": "Same as the previous version.",
+      "diffSummary": "+{added} lines, −{removed} lines",
+      "skipped": "{n} unchanged lines",
+      "decide": "Decision",
+      "approve": "Approve & sign",
+      "reject": "Send back",
+      "ack": "I read the {n} scan {n, plural, one {finding} other {findings}} and they are not a risk",
+      "noteOptional": "Note to the publisher (optional)",
+      "rejectReason": "Why (required; the publisher receives it)",
+      "rejectPlaceholder": "e.g. scripts/upload.py sends data to an undisclosed address; remove it or explain it in SKILL.md.",
+      "approveGo": "Approve & sign",
+      "rejectGo": "Send back",
+      "saving": "Sending…",
+      "thenNext": "then on to the next one",
+      "more": "More",
+      "revokeHelp": "Revoking lists this version as revoked: installed SinoBee stops using it, and the publisher is told.",
+      "revokeReason": "Why (required; the publisher receives it)",
+      "revoke": "Revoke this version",
+      "revokeConfirm": "Revoking cannot be undone. Revoke?",
+      "closed": "Decided on {at}."
+    },
+    "us": {
+      "filter": {
+        "all": "All",
+        "subscribed": "Subscribed",
+        "staff": "Staff",
+        "publishers": "Publishers",
+        "disabled": "Disabled"
+      },
+      "col": {
+        "user": "User",
+        "plan": "Plan",
+        "usage": "Usage, 30 days",
+        "payments": "Payments",
+        "last": "Last sign-in"
+      },
+      "disabled": "Disabled",
+      "pendingN": "{n} pending",
+      "failedN": "{n} failed",
+      "prev": "Previous",
+      "next": "Next",
+      "range": "{from}–{to} of {total}",
+      "close": "Close",
+      "joined": "Joined",
+      "publisherId": "publisher {id}",
+      "subUsage": "Plan and usage",
+      "plan": "Plan",
+      "freePlan": "Free allowance",
+      "until": "until {d}",
+      "upcoming": "{n} more paid",
+      "usage30": "Usage, 30 days",
+      "calls": "{n} calls",
+      "topModels": "Top models",
+      "payments": "Payments",
+      "allPayments": "Open in Payments",
+      "published": "Published",
+      "skill": "skill",
+      "tool": "tool",
+      "permissions": "Permissions",
+      "selfNote": "This is your own account.",
+      "grant": "Make admin",
+      "grantConfirm": "Admins can review content, refund payments and disable accounts. Continue?",
+      "disable": "Disable account",
+      "disableHelp": "A disabled user cannot sign in, and their sessions and API tokens stop working at once. You can undo it.",
+      "disableReason": "Reason (kept in the audit log)",
+      "disableGo": "Disable",
+      "disableConfirm": "Disable this account?",
+      "enable": "Re-enable",
+      "transfer": "Transfer super admin",
+      "transferHelp": "You become an admin after the transfer. Type their full account address to confirm."
+    },
+    "pay": {
+      "summary": "Last 30 days: {amount} ({n}) · refunds {refunded}",
+      "stale": "{n} {n, plural, one {payment has} other {payments have}} had no result for over 15 minutes",
+      "staleRow": "@{user} {amount}, {ago} ago",
+      "showPending": "Show pending",
+      "search": "User, account, transaction or task",
+      "period": "Period",
+      "days": "{n} days",
+      "allTime": "All time",
+      "csv": "Export CSV",
+      "none": "No payment matches.",
+      "first100": "Showing the newest 100; search or export CSV for more.",
+      "amountCol": "Amount (TWD)",
+      "close": "Close",
+      "transaction": "Oen transaction",
+      "provider": "Provider",
+      "card": "Card",
+      "cancelled": "cancelled",
+      "task": "Task",
+      "confirmedAt": "Confirmed",
+      "refunded": "Refunded",
+      "error": "Error",
+      "pendingTitle": "No result yet",
+      "pendingHelp": "Oen's notice has not arrived; asking Oen updates the status from its transaction record.",
+      "refundTitle": "Refund",
+      "refundRules": "One refund per transaction, back to the card through Oen.",
+      "amount": "Amount (up to NT${max})",
+      "reason": "Reason (kept in the audit log)",
+      "reasonPh": "e.g. bought by mistake",
+      "refundGo": "Refund NT${amount}",
+      "refundConfirm": "Refund NT${amount} through Oen? Each transaction can be refunded once.",
+      "effectSub": "The period is cancelled at once and later periods move up; without another period @{user} falls back to the free allowance.",
+      "effectPledge": "A pledge refund is capped by the task's unspent budget.",
+      "effectOther": "No second refund is possible.",
+      "noRefund": "Nothing left to refund.",
+      "noRefundProposal": "Proposal fees are not refunded here (handle a platform error in the Oen CRM)."
+    },
+    "md": {
+      "formula": "Published price = vendor USD × FX {fx} × buffer {buffer}",
+      "addModel": "Add model",
+      "close": "Close",
+      "unknownTitle": "{n} offered {n, plural, one {model is} other {models are}} not in the vendor's list",
+      "noKeyTitle": "{n} offered {n, plural, one {model has} other {models have}} no API key and would fail",
+      "addKeys": "Add keys",
+      "tiersTitle": "Tiers and fallback order",
+      "tiersHelp": "When a model fails the next one in line is used; complex work (pages, code) never gets the Haiku / Luna / Flash Lite / mini / nano class.",
+      "auto": "(automatic: the first offered model with a key)",
+      "issue": {
+        "noKey": "no key",
+        "paused": "vendor paused",
+        "unpriced": "not priced",
+        "withdrawn": "withdrawn",
+        "unknown": "not in vendor list"
+      },
+      "jobsLine": "Platform jobs: {list}",
+      "editTiers": "Edit tiers and jobs",
+      "keyOk": "key set",
+      "offeredN": "{n} of {all} offered",
+      "noModels": "No priced model yet.",
+      "ollamaNone": "Ollama models appear here once synced.",
+      "model": "Model",
+      "state": "State",
+      "upcoming": "scheduled",
+      "offered": "offered",
+      "changeScheduled": "change scheduled",
+      "unitNote": "Published prices, NT$ per 1M tokens; hover a number for the vendor USD. Click a model to change it.",
+      "vendorPaused": "paused",
+      "history": "Price history",
+      "scheduled": "scheduled",
+      "currentPrice": "current",
+      "usdLegend": "Vendor USD per 1M tokens",
+      "impact": "Plan margins do not change (published prices follow the vendor's); the tokens an allowance buys do.",
+      "when": "Takes effect",
+      "now": "Now",
+      "at": "At",
+      "saveNew": "Save new price",
+      "withdrawConfirm": "Withdraw {model}? SinoBee switches to other models.",
+      "formulaEdit": "Change FX rate and buffer",
+      "bufferNote": "The buffer moves every plan's worst-case margin and the token price of crowdfunded tasks.",
+      "local": "local, no key needed"
+    },
+    "pl": {
+      "close": "Close",
+      "compare": "Plans side by side",
+      "onSale": "On sale",
+      "offSale": "Not on sale",
+      "edit": "Edit",
+      "freeWho": "for every signed-in user",
+      "perMonth": "/ month",
+      "basisActual": "from {n} {n, plural, one {period} other {periods}} of real use",
+      "basisFull": "no usage yet: assumes the whole allowance is used",
+      "profit": "profit {p}%",
+      "loss": "loss {p}%",
+      "noCost": "almost no cost",
+      "barLoss": "loss",
+      "barEven": "break-even",
+      "barHealthy": "healthy (≥ 50%)",
+      "worstCase": "If the whole allowance is used: {m}",
+      "freeCost": "average cost per user {cost} ({n} users, 30 days)",
+      "freeCostFull": "cost per user who uses it all: {cost}",
+      "allowance": "Allowance per 30 days",
+      "about": "About",
+      "tokens": "{n} tokens",
+      "tokensShort": "≈ tokens",
+      "cap6": "Per 6 hours, at most",
+      "cap7": "Per 7 days, at most",
+      "subscribers": "Subscribers",
+      "people": "{n}",
+      "avgUse": "Average use",
+      "fixLoss": "Stop {plan} losing money",
+      "fixThin": "Raise {plan}'s margin",
+      "sugMult": "Usage multiple {from} → {to}",
+      "sugMultHealthy": "This plan only: allowance {from} → {to}, 50% profit.",
+      "sugMultEven": "This plan only: allowance {from} → {to}, break-even.",
+      "sugFee": "Monthly fee {from} → {to}",
+      "sugFeeHelp": "50% profit at today's average use; the allowance stays the same.",
+      "sugBuffer": "Buffer {from} → {to}",
+      "sugBufferHelp": "Every published price and crowdfunded token price rises {pct}%.",
+      "toModels": "Change in Models & pricing",
+      "applyTo": "Apply to {plan}",
+      "applyConfirm": "Change {plan}? Its {n} subscribers get it from their next period.",
+      "applyFeeConfirm": "Change {plan}'s fee? Periods already bought are not affected.",
+      "how": "Allowances are at published prices; the 6-hour and 7-day caps follow from the 30-day allowance (÷ 4.8, then ÷ 10); tokens are counted at {model}'s published price (input:output = 3:1). Profit is relative to cost: 50% means revenue is 1.5× the vendor cost.",
+      "headSub": "Buffer {buffer}",
+      "bufferWhere": "(set in Models & pricing)",
+      "losing": "{n} {n, plural, one {plan on sale loses} other {plans on sale lose}} money",
+      "fee": "Monthly fee (TWD)",
+      "multiplier": "Usage multiple",
+      "multiplierHelp": "Allowance per 30 days = fee × this",
+      "codeHelp": "lowercase slug; avoid changing it later",
+      "marginFull": "If all of it is used",
+      "ofPro": "about 1/{r} of {plan}",
+      "setOfPro": "Set to 1/{r} of {plan}"
+    },
+    "set": {
+      "security": "Encryption & backup",
+      "securityHelp": "Where the settings key lives, and its fingerprint.",
+      "goLive": "{n} {n, plural, one {thing} other {things}} left before going live",
+      "goLiveSub": "{done} of {total} done · {blocking} in red block users"
+    },
+    "cr": {
+      "sub": "{s} in screening · {d} disputed",
+      "disputes": "Disputes to decide",
+      "noDisputes": "No dispute is waiting.",
+      "dispute": "Dispute",
+      "backers": "{n} {n, plural, one {backer} other {backers}}",
+      "disputeHelp": "Backers rejected the result and no rework is left. Pass: settle as usual. Fail: the whole budget, spent part included, goes back to the backers as platform points.",
+      "noScreening": "No proposal is in screening.",
+      "days": "{n} days",
+      "sentBackTag": "Sent back",
+      "recent": "Recent results",
+      "passed": "Passed",
+      "rejected": "Sent back"
+    },
+    "rp": {
+      "count": "{n} reports · {targets} targets",
+      "none": "No open report.",
+      "type": {
+        "task": "Task",
+        "share": "Share",
+        "tool": "Tool"
+      },
+      "owner": "owner @{who}",
+      "gone": "gone",
+      "times": "reported {n} times",
+      "effect": {
+        "task": "Take down: a campaign still raising money closes (nobody is charged); a running or finished task is hidden from public listings. The owner is told.",
+        "share": "Take down: the share is destroyed for good, the owner is told.",
+        "tool": "Take down: the tool leaves the directory, the owner is told."
+      }
+    },
+    "au": {
+      "count": "{n} entries",
+      "all": "All",
+      "area": {
+        "review": "Review",
+        "people": "Accounts & roles",
+        "money": "Payments",
+        "pricing": "Prices & plans",
+        "models": "Models",
+        "crowd": "Crowdfunding & reports",
+        "settings": "Settings"
+      },
+      "who": "Who (handle or account)",
+      "go": "Filter",
+      "system": "System",
+      "prev": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {pages}",
+      "action": {
+        "ai_catalog_sync": "synced vendor model lists",
+        "ai_ollama_delete": "deleted an Ollama model",
+        "ai_ollama_pull": "pulled an Ollama model",
+        "ai_prices_lookup": "looked up model prices with AI",
+        "ai_tiers": "changed the model tiers",
+        "crowd_checklist_publish": "published a new checklist version",
+        "crowd_dispute": "decided a crowdfunding dispute",
+        "crowd_screening_confirm": "confirmed a screening result",
+        "crowd_screening_rerun": "asked the AI to screen again",
+        "llm_hold_expired": "settled expired model holds",
+        "llm_vendor_pause": "paused a vendor",
+        "llm_vendor_resume": "resumed a vendor",
+        "owner_bootstrap": "became super admin",
+        "owner_claim_fail": "entered a wrong claim code",
+        "payment_mismatch": "payment amount mismatch",
+        "payment_refund": "refunded a payment",
+        "payments_export": "exported payments as CSV",
+        "plan_update": "changed a plan",
+        "plan_create": "added a plan",
+        "pricing_settings": "changed FX rate and buffer",
+        "price_update": "changed a model price",
+        "price_create": "added a model",
+        "role_grant": "granted admin",
+        "role_revoke": "revoked admin",
+        "role_transfer": "transferred super admin",
+        "settings_update": "changed a setting",
+        "settings_clear": "cleared a setting",
+        "settings_generated": "generated secrets",
+        "settings_import_env": "imported settings from .env",
+        "settings_rotate": "rotated the skill signing key",
+        "skill_approve": "approved a skill",
+        "skill_reject": "sent back a skill",
+        "skill_revoke": "revoked a skill",
+        "skill_behavior_pass": "recorded an evaluator behavior test pass",
+        "skill_behavior_fail": "recorded an evaluator behavior test failure",
+        "tool_approve": "approved a tool",
+        "tool_reject": "sent back a tool",
+        "publisher_verify": "verified a publisher",
+        "publisher_unverify": "unverified a publisher",
+        "report_takedown": "took down reported content",
+        "report_dismiss": "dismissed a report",
+        "user_disable": "disabled an account",
+        "user_enable": "re-enabled an account",
+        "device_refresh_reuse": "saw a reused device refresh token"
+      }
+    }
   },
   "hubApi": {
     "lead": "The sinobee.ai Skill Hub protocol v1, compatible with the SinoBee client (sinobee skills search / install / publish / sync-revocations).",
@@ -1758,7 +2178,11 @@
       "safety": "Safety and ethics",
       "feasibility": "Feasibility",
       "spec": "Spec and acceptance"
-    }
+    },
+    "allDims": "All",
+    "find": "Find an item",
+    "done": "Done",
+    "edit": "Edit"
   },
   "test": {
     "ribbon": "TEST",

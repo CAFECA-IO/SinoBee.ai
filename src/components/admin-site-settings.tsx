@@ -38,13 +38,15 @@ async function post(url: string, body: unknown) {
 const missing = (i: SettingItem) => !!i.required && (i.type === "secret" ? !i.secretSet : !i.value);
 
 /**
- * Settings as one board: section index with status dots, search, a "needs attention" filter, and per-section
- * drafts saved together (or discarded) — so several related values (e.g. Oen domain + token) change at once.
+ * Settings as one board: groups on the left with what each still needs, one group at a time (search and "needs
+ * attention" look across all of them), and per-group drafts saved together (or discarded) — so several related
+ * values (e.g. Oen domain + token) change at once.
  */
-export function SettingsBoard({ sections, items, canEdit }: { sections: SettingsSection[]; items: SettingItem[]; canEdit: boolean }) {
+export function SettingsBoard({ sections, items, canEdit, initial, counts }: { sections: SettingsSection[]; items: SettingItem[]; canEdit: boolean; initial?: string; counts?: Record<string, number> }) {
   const t = useTranslations("admin.settings");
   const [q, setQ] = useState("");
   const [onlyTodo, setOnlyTodo] = useState(false);
+  const [group, setGroup] = useState(() => (sections.some((s) => s.id === initial) ? initial! : sections[0]?.id));
   const match = (i: SettingItem) => {
     if (onlyTodo && !missing(i)) return false;
     if (!q.trim()) return true;
@@ -52,39 +54,57 @@ export function SettingsBoard({ sections, items, canEdit }: { sections: Settings
     return [i.label, i.key, i.env ?? "", i.help ?? ""].some((x) => x.toLowerCase().includes(s));
   };
   const todo = items.filter(missing).length;
+  const across = !!q.trim() || onlyTodo;
+  const pick = (id: string) => {
+    setGroup(id);
+    setQ("");
+    setOnlyTodo(false);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("group", id);
+      window.history.replaceState(null, "", u);
+    } catch {}
+  };
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
       <nav className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label={t("sections")}>
-        <ul className="flex gap-1 overflow-x-auto pb-1 text-sm lg:flex-col lg:overflow-visible">
+        <ul className="card flex gap-1 overflow-x-auto p-1.5 text-sm lg:flex-col lg:overflow-visible">
           {sections.map((s) => {
-            const its = items.filter((i) => i.group === s.id);
-            const warn = its.some(missing);
+            const n = counts?.[s.id] ?? items.filter((i) => i.group === s.id && missing(i)).length;
+            const on = !across && group === s.id;
             return (
               <li key={s.id}>
-                <a href={`#set-${s.id}`} className="flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-1.5 text-muted hover:bg-panel-2 hover:text-ink">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${warn ? "bg-warn" : "bg-ok"}`} aria-hidden />
-                  {s.title}
-                </a>
+                <button
+                  type="button"
+                  onClick={() => pick(s.id)}
+                  aria-current={on ? "true" : undefined}
+                  className={`flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left ${on ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                  data-group-link={s.id}
+                >
+                  <span className="flex-1">{s.title}</span>
+                  {n > 0 && <span className="rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn">{n}</span>}
+                </button>
               </li>
             );
           })}
         </ul>
       </nav>
-      <div className="min-w-0 space-y-5">
-        <div className="card flex flex-wrap items-center gap-3 p-3">
-          <span className="text-muted"><Icon name="search" /></span>
+      <div className="min-w-0 space-y-4">
+        <div className="card flex flex-wrap items-center gap-3 p-2.5">
+          <span className="pl-1 text-muted"><Icon name="search" /></span>
           <input className="input min-w-0 flex-1 !border-0 !bg-transparent !shadow-none" placeholder={t("search")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("search")} />
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 pr-2 text-sm">
             <input type="checkbox" role="switch" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} />
             {t("onlyTodo", { n: todo })}
           </label>
         </div>
         {sections.map((s) => {
+          if (!across && s.id !== group) return null;
           const its = items.filter((i) => i.group === s.id && match(i));
-          if (!its.length && (q || onlyTodo)) return null;
+          if (!its.length && across) return null;
           return <Section key={s.id} section={s} items={its} canEdit={canEdit} />;
         })}
-        {q && !items.some(match) && <p className="text-sm text-muted">{t("noMatch")}</p>}
+        {across && !items.some(match) && <p className="text-sm text-muted">{t("noMatch")}</p>}
       </div>
     </div>
   );
@@ -231,10 +251,12 @@ function Field({ item, canEdit, value, error, onChange, onClear }: { item: Setti
           {need && <span className="badge bg-warn-soft text-warn">{t("needed")}</span>}
         </div>
         {item.help && <div className="mt-0.5 text-xs text-muted">{item.help}</div>}
-        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-          <span className={`badge ${locked ? "bg-warn-soft text-warn" : item.source === "db" ? "bg-accent-soft text-ok" : "bg-panel-2 text-muted"}`} data-tip={item.env ? `env ${item.env}` : item.key}>
-            {locked ? t("source.env", { env: item.env ?? "" }) : t(`source.${item.source}`)}
-          </span>
+        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] empty:hidden">
+          {locked ? (
+            <span className="badge bg-warn-soft text-warn" data-tip={item.key}>{t("source.env", { env: item.env ?? "" })}</span>
+          ) : item.source === "db" && item.type !== "secret" ? (
+            <span className="badge bg-accent-soft text-ok" data-tip={item.env ? `env ${item.env}` : item.key}>{t("custom")}</span>
+          ) : null}
           {item.type === "secret" && item.secretSet && <span className="badge bg-panel-2 text-muted">{item.generated ? t("generated") : t("set", { hint: item.hint ?? "" })}</span>}
           {item.restart && <span className="badge bg-panel-2 text-muted">{t("restart")}</span>}
         </div>

@@ -23,7 +23,7 @@ export type ModelInfo = {
 
 /**
  * Starting price list, copied into the ModelPrice table by the seed (and on first use when the table is empty).
- * After that the admin backend (/admin?tab=prices) is the only source; see src/lib/models.ts.
+ * After that the admin backend (/admin?tab=models) is the only source; see src/lib/models.ts.
  * Prices mirror sinobee/pricing.py (checked 2026-10-13). Vendors that don't bill cache writes: cacheWrite = input.
  */
 export const DEFAULT_MODELS: ModelInfo[] = [

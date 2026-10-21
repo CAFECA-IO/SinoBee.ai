@@ -119,7 +119,7 @@ export function parseAnswers(out: string): Map<string, { pass: boolean; note?: s
 /** Every checklist item for this proposal; { error } when no model could answer (the worker retries) */
 async function aiScreen(task: Task, items: ChecklistItem[], notes: ReviewerNote[], onDimension: () => Promise<void>): Promise<{ results: ItemResult[] } | { error: string }> {
   if (!(await jobHasModel("screening"))) {
-    if (process.env.NODE_ENV === "production") return { error: "no screening model is set up (/admin → AI 模型)" };
+    if (process.env.NODE_ENV === "production") return { error: "no screening model is set up (/admin → 模型與定價)" };
     // development stand-in: everything passes unless the proposal is marked [review] (a reviewer note with [clear] clears it)
     const flagged = `${task.title}\n${task.prompt}`.includes("[review]") && !notes.some((n) => n.text.includes("[clear]"));
     return { results: items.map((i, n) => ({ id: i.id, pass: !(flagged && n === 0), note: flagged && n === 0 ? "flagged by the development stand-in" : undefined })) };

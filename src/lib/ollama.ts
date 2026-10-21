@@ -3,7 +3,7 @@ import { HttpError } from "./errors";
 import { audit } from "./roles";
 
 /**
- * Ollama as a platform model source (/admin → AI 模型 → Ollama): the installed models appear in the model lists as
+ * Ollama as a platform model source (/admin → 模型與定價 → Ollama): the installed models appear in the model lists as
  * `ollama/<name>` after a sync, and admins pull recommended open models (or any Ollama model) from the admin page.
  * Pulls run in the background in the web process; the admin page polls ollamaStatus().
  */

@@ -494,22 +494,18 @@
     "verifyPublisher": "設為已驗證發布者",
     "verifiedPublisher": "已驗證發布者",
     "tab": {
-      "pending": "技能待審核",
-      "approved": "已上架技能",
-      "tools": "工具審核",
       "reports": "檢舉",
-      "storage": "Boltchain 儲存",
-      "users": "用戶與角色",
-      "prices": "模型定價",
+      "storage": "儲存狀態",
+      "users": "用戶",
       "plans": "訂閱方案",
       "audit": "操作紀錄",
       "payments": "付款與退款",
       "settings": "系統設定",
       "overview": "總覽",
-      "disputes": "眾籌爭議",
-      "screening": "提案審核",
       "checklist": "審核清單",
-      "ai": "AI 模型"
+      "review": "內容審核",
+      "crowd": "眾籌提案與爭議",
+      "models": "模型與定價"
     },
     "st": {
       "enabled": "啟用",
@@ -521,7 +517,12 @@
       "objects": "物件",
       "anchors": "存證",
       "errors": "最近的錯誤",
-      "low": "錢包餘額偏低：新物件會先留在鏡像儲存，補足 BOLT 後才會上鏈。"
+      "low": "錢包餘額偏低：新物件會先留在鏡像儲存，補足 BOLT 後才會上鏈。",
+      "on": "已啟用",
+      "offShort": "未啟用",
+      "offTitle": "Boltchain 儲存尚未啟用",
+      "setUp": "前往設定",
+      "noObjects": "還沒有任何物件。"
     },
     "takedown": "下架",
     "dismiss": "不處理",
@@ -723,62 +724,14 @@
         "hub": "技能審核通過後的簽章金鑰。",
         "runner": "任務容器的資源與映像檔。",
         "crowd": "每份金額、提案費、眾籌期與服務費、參考檔案、額度出資。"
-      }
+      },
+      "custom": "已自訂"
     },
     "nav": {
-      "start": "開始",
-      "content": "內容審核",
-      "business": "營運",
+      "review": "審核",
+      "business": "用戶與營收",
+      "models": "模型",
       "system": "系統"
-    },
-    "overview": {
-      "checklist": "上線檢查",
-      "todo": "待處理",
-      "fix": "前往設定",
-      "open": "查看",
-      "stat": {
-        "activeSubscriptions": "訂閱中",
-        "revenue30": "近 30 天收款",
-        "refunds30": "近 30 天退款",
-        "relay24h": "24 小時模型轉接",
-        "users": "用戶數"
-      },
-      "todoItem": {
-        "pending": "技能待審核",
-        "tools": "工具待審核",
-        "reports": "未處理檢舉",
-        "payments": "超過 15 分鐘未確認的付款"
-      },
-      "check": {
-        "payments": {
-          "title": "金流：Oen 網域與 API Token",
-          "fix": "填入 Oen 網域名稱與 API Token，再按「檢查 Oen 設定」。"
-        },
-        "paymentsLive": {
-          "title": "金流使用正式環境",
-          "fix": "測試完成後切換為 production（需先申請固定 IP 白名單）。"
-        },
-        "modelKeys": {
-          "title": "模型 API 金鑰",
-          "fix": "至少填入一家模型供應商的 API 金鑰，訂閱用戶才能使用模型。"
-        },
-        "legal": {
-          "title": "公司資訊（統一編號、地址）",
-          "fix": "補上統一編號與地址，會顯示在條款與政策頁。"
-        },
-        "hubKey": {
-          "title": "技能簽章金鑰",
-          "fix": "重新啟動網站會自動產生。"
-        },
-        "boltchain": {
-          "title": "Boltchain 儲存",
-          "fix": "設定節點 RPC，或以 npm run swarm 啟動本機節點。"
-        },
-        "signatures": {
-          "title": "模型轉接只接受裝置簽章",
-          "fix": "用戶都更新 SinoBee 後，開啟「要求裝置簽章」。"
-        }
-      }
     },
     "ai": {
       "catalogTitle": "供應商模型清單",
@@ -830,7 +783,7 @@
     },
     "ollama": {
       "title": "Ollama（本機開源模型）",
-      "lead": "Ollama 是平台 AI 的一個模型來源：已下載的模型同步後會以 ollama/<名稱> 出現在上方的模型清單與分級中，不需要 API 金鑰、沒有 API 費用。",
+      "lead": "Ollama 是平台 AI 的一個模型來源：已下載的模型同步後會以 ollama/‹名稱› 出現在上方的模型清單與分級中，不需要 API 金鑰、沒有 API 費用。",
       "connected": "已連線 · v{version}",
       "offline": "無法連線",
       "notConfigured": "尚未設定 Ollama：用 npm run swarm 啟動（會自動寫入 .env 的 OLLAMA_URL），或在「設定 → Ollama 網址」填入。",
@@ -864,7 +817,474 @@
     "evBehaviorHow": "用 SinoBee 執行 sinobee eval evaluator <名稱> --test 後記錄結果：",
     "evPass": "行為測試通過",
     "evFail": "行為測試不通過",
-    "evKind": "評鑑技能"
+    "evKind": "評鑑技能",
+    "wait": {
+      "min": "{n} 分鐘",
+      "hour": "{n} 小時",
+      "day": "{n} 天"
+    },
+    "ov": {
+      "modeLive": "正式模式",
+      "modeTest": "測試模式開啟中",
+      "blocking": "上線前還有 {n} 項會擋住用戶",
+      "adviceCount": "另有 {n} 項建議",
+      "advice": "上線建議 · {n}",
+      "show": "顯示 / 收合",
+      "fixIt": "前往設定",
+      "metrics": "營運指標",
+      "revenue30": "近 30 天收款",
+      "revenue30Sub": "{n} 筆 · 退款 {refunds}（{r} 筆）",
+      "subs": "訂閱中",
+      "subsNone": "目前沒有訂閱",
+      "relay": "模型轉接（24 小時）",
+      "calls": "{n} 次",
+      "relaySub": "錯誤率 {err} · 成本 {cost}",
+      "users": "用戶",
+      "usersSub": "近 7 天新增 {n}",
+      "inbox": "待處理 · {n}",
+      "inboxSort": "等最久的在最上面",
+      "inboxEmpty": "目前沒有待處理的事。",
+      "inboxFilteredEmpty": "這一類目前沒有待處理的事。",
+      "filter": {
+        "all": "全部",
+        "review": "審核",
+        "report": "檢舉",
+        "crowd": "眾籌",
+        "payment": "付款"
+      },
+      "kind": {
+        "skill": "技能",
+        "tool": "工具",
+        "report": "檢舉",
+        "screening": "提案",
+        "dispute": "爭議",
+        "payment": "付款"
+      },
+      "act": {
+        "skill": "審核",
+        "tool": "審核",
+        "report": "處理",
+        "screening": "確認",
+        "dispute": "裁決",
+        "payment": "查看"
+      },
+      "detail": {
+        "scanFindings": "自動掃描發現 {n} 項，需要檢查",
+        "scanClean": "掃描沒有發現問題",
+        "report": {
+          "task": "任務被 @{who} 檢舉：{reason}",
+          "share": "分享頁被 @{who} 檢舉：{reason}",
+          "tool": "工具被 @{who} 檢舉：{reason}"
+        },
+        "aiApprove": "AI 建議通過（{passed} / {total} 項符合），等待確認",
+        "aiReject": "AI 建議退回（{passed} / {total} 項符合），等待確認",
+        "screeningBusy": "AI 審核中",
+        "dispute": "驗收被否決且已無重做次數：{note}",
+        "payment": {
+          "SUBSCRIPTION": "訂閱付款，Oen 還沒回報結果",
+          "CROWD_PLEDGE": "眾籌出資，Oen 還沒回報結果",
+          "CROWD_PROPOSAL": "提案費，Oen 還沒回報結果"
+        }
+      },
+      "waiting": "等待 {t}",
+      "more": "另有 {n} 項",
+      "recent": "最近的管理操作",
+      "allAudit": "全部操作紀錄",
+      "adminNote": "你是管理者：系統設定只有超級管理者能修改。",
+      "check": {
+        "payments": {
+          "title": "Oen 金流未設定",
+          "fix": "缺網域名稱與 API Token，無法收款與綁卡。"
+        },
+        "paymentsLive": {
+          "title": "金流切到正式環境",
+          "fix": "測試完成後切換為 production（需先申請固定 IP 白名單）。"
+        },
+        "modelKeys": {
+          "title": "模型 API 金鑰",
+          "fix": "沒有金鑰，訂閱用戶無法使用任何模型。"
+        },
+        "legal": {
+          "title": "統一編號與地址",
+          "fix": "會顯示在條款與政策頁。"
+        },
+        "hubKey": {
+          "title": "技能簽章金鑰",
+          "fix": "重新啟動網站會自動產生。"
+        },
+        "boltchain": {
+          "title": "Boltchain 節點",
+          "fix": "設定節點 RPC，或以 npm run swarm 啟動本機節點。"
+        },
+        "signatures": {
+          "title": "要求裝置簽章",
+          "fix": "用戶都更新 SinoBee 後開啟，模型轉接只接受簽章請求。"
+        }
+      }
+    },
+    "rv": {
+      "search": "搜尋名稱或發布者",
+      "list": "審核清單",
+      "status": {
+        "pending": "待審",
+        "approved": "已上架",
+        "rejected": "已退回"
+      },
+      "kind": {
+        "all": "技能與工具",
+        "skill": "技能",
+        "tool": "工具"
+      },
+      "empty": {
+        "pending": "沒有等待審核的版本。",
+        "approved": "還沒有上架的版本。",
+        "rejected": "沒有退回或撤銷的版本。"
+      },
+      "noMatch": "沒有符合的版本。",
+      "pick": "從左邊選一個版本。",
+      "findings": "掃描發現 {n}",
+      "clean": "掃描無異常",
+      "waiting": "等待 {t}",
+      "revoked": "已撤銷",
+      "st": {
+        "PENDING_REVIEW": "待審",
+        "APPROVED": "已上架",
+        "REJECTED": "已退回",
+        "REVOKED": "已撤銷"
+      },
+      "openHub": "在 Skill Hub 開啟",
+      "openTool": "開啟工具頁",
+      "publisher": "發布者",
+      "previous": "上一版 {v}（{st}）",
+      "firstVersion": "第一個版本",
+      "submitted": "送審",
+      "lastNote": "審核備註",
+      "findingsTitle": "自動掃描發現 {n} 項，請先看過再決定",
+      "rule": {
+        "network-egress": "對外連線",
+        "prompt-injection": "提示注入",
+        "secret": "疑似密鑰",
+        "shell": "執行指令",
+        "warn": "提示",
+        "error": "錯誤"
+      },
+      "views": "檢視",
+      "diffWith": "與 {v} 的差異",
+      "diffNone": "內容",
+      "filesN": "檔案 · {n}",
+      "file": {
+        "added": "新增",
+        "removed": "移除",
+        "changed": "修改",
+        "same": "相同"
+      },
+      "noChange": "與上一版內容相同。",
+      "diffSummary": "+{added} 行、−{removed} 行",
+      "skipped": "{n} 行未變更",
+      "decide": "決定",
+      "approve": "通過並簽章",
+      "reject": "退回給發布者",
+      "ack": "我已看過 {n} 項掃描發現，確認不構成風險",
+      "noteOptional": "給發布者的備註（選填）",
+      "rejectReason": "退回原因（必填，發布者會收到）",
+      "rejectPlaceholder": "例如：scripts/upload.py 會把資料送到未說明的外部網址，請移除或在 SKILL.md 說明用途。",
+      "approveGo": "通過並簽章",
+      "rejectGo": "退回",
+      "saving": "送出中…",
+      "thenNext": "送出後自動跳到下一筆",
+      "more": "更多操作",
+      "revokeHelp": "撤銷後這個版本會列入撤銷清單，已安裝的 SinoBee 會停止使用它，並通知發布者。",
+      "revokeReason": "撤銷原因（必填，發布者會收到）",
+      "revoke": "撤銷這個版本",
+      "revokeConfirm": "撤銷後無法復原。確定撤銷？",
+      "closed": "已於 {at} 處理。"
+    },
+    "us": {
+      "filter": {
+        "all": "全部",
+        "subscribed": "訂閱中",
+        "staff": "管理團隊",
+        "publishers": "發布者",
+        "disabled": "已停用"
+      },
+      "col": {
+        "user": "用戶",
+        "plan": "方案",
+        "usage": "30 天用量",
+        "payments": "付款",
+        "last": "最後登入"
+      },
+      "disabled": "已停用",
+      "pendingN": "{n} 筆待確認",
+      "failedN": "{n} 筆失敗",
+      "prev": "上一頁",
+      "next": "下一頁",
+      "range": "第 {from}–{to} 筆，共 {total} 筆",
+      "close": "關閉",
+      "joined": "加入",
+      "publisherId": "發布者 {id}",
+      "subUsage": "訂閱與用量",
+      "plan": "方案",
+      "freePlan": "免費額度",
+      "until": "到 {d}",
+      "upcoming": "另有 {n} 期已購",
+      "usage30": "30 天用量",
+      "calls": "{n} 次呼叫",
+      "topModels": "最常用模型",
+      "payments": "付款",
+      "allPayments": "在付款頁查看",
+      "published": "發布的內容",
+      "skill": "技能",
+      "tool": "工具",
+      "permissions": "權限",
+      "selfNote": "這是你自己的帳號。",
+      "grant": "設為管理者",
+      "grantConfirm": "管理者可以審核內容、處理付款與退款、停用帳號。確定？",
+      "disable": "停用帳號",
+      "disableHelp": "停用後無法登入，現有的登入與 API 權杖立即失效；可隨時恢復。",
+      "disableReason": "停用原因（寫入操作紀錄）",
+      "disableGo": "停用",
+      "disableConfirm": "確定停用這個帳號？",
+      "enable": "恢復帳號",
+      "transfer": "移轉超級管理者",
+      "transferHelp": "移轉後你會變成一般管理者。請輸入對方完整的帳號地址確認。"
+    },
+    "pay": {
+      "summary": "近 30 天收款 {amount}（{n} 筆）· 退款 {refunded}",
+      "stale": "{n} 筆付款超過 15 分鐘沒有結果",
+      "staleRow": "@{user} {amount}，{ago}前",
+      "showPending": "查看待確認",
+      "search": "用戶、帳號、交易編號或任務",
+      "period": "期間",
+      "days": "{n} 天",
+      "allTime": "全部",
+      "csv": "匯出 CSV",
+      "none": "沒有符合的付款。",
+      "first100": "只列出最新 100 筆；用搜尋或匯出 CSV 看更多。",
+      "amountCol": "金額（TWD）",
+      "close": "關閉",
+      "transaction": "Oen 交易",
+      "provider": "通道",
+      "card": "付款卡",
+      "cancelled": "已取消",
+      "task": "任務",
+      "confirmedAt": "確認時間",
+      "refunded": "已退款",
+      "error": "錯誤",
+      "pendingTitle": "尚未收到結果",
+      "pendingHelp": "Oen 的付款通知沒有到；向 Oen 查詢會以交易紀錄為準更新狀態。",
+      "refundTitle": "退款",
+      "refundRules": "每筆交易只能退款一次；退款透過 Oen 退回原付款卡。",
+      "amount": "金額（最多 NT${max}）",
+      "reason": "原因（寫入操作紀錄）",
+      "reasonPh": "例如：用戶誤購",
+      "refundGo": "退款 NT${amount}",
+      "refundConfirm": "透過 Oen 退款 NT${amount}？每筆交易只能退款一次。",
+      "effectSub": "退款後這一期訂閱立即取消，後續期間往前遞補；@{user} 沒有其他訂閱時改回免費額度。",
+      "effectPledge": "出資退款以任務尚未使用的預算為上限。",
+      "effectOther": "退款後無法再次退款。",
+      "noRefund": "這筆付款已無可退金額。",
+      "noRefundProposal": "提案費不能從這裡退款（平台錯誤請在 Oen CRM 處理）。"
+    },
+    "md": {
+      "formula": "公告價 = 原廠 USD × 匯率 {fx} × 緩衝 {buffer}",
+      "addModel": "新增模型",
+      "close": "關閉",
+      "unknownTitle": "{n} 個提供中的模型不在供應商清單裡",
+      "noKeyTitle": "{n} 個提供中的模型沒有 API 金鑰，呼叫會失敗",
+      "addKeys": "填入金鑰",
+      "tiersTitle": "等級與備援順序",
+      "tiersHelp": "主要模型失敗時依箭頭順序改用下一個；網頁、程式等複雜工作不會分到 Haiku、Luna、Flash Lite、mini、nano 這一級。",
+      "auto": "（自動：第一個有金鑰的上架模型）",
+      "issue": {
+        "noKey": "無金鑰",
+        "paused": "供應商暫停",
+        "unpriced": "未定價",
+        "withdrawn": "已下架",
+        "unknown": "不在供應商清單"
+      },
+      "jobsLine": "平台工作：{list}",
+      "editTiers": "調整等級與平台工作",
+      "keyOk": "金鑰已設定",
+      "offeredN": "{n} / {all} 個提供中",
+      "noModels": "還沒有定價的模型。",
+      "ollamaNone": "Ollama 的模型同步後會出現在這裡。",
+      "model": "模型",
+      "state": "狀態",
+      "upcoming": "排定上架",
+      "offered": "提供中",
+      "changeScheduled": "已排定調價",
+      "unitNote": "價格為公告價，NT$ / 每 100 萬 tokens；滑過數字可看原廠 USD。點模型名稱修改。",
+      "vendorPaused": "已暫停",
+      "history": "價格紀錄",
+      "scheduled": "排定",
+      "currentPrice": "目前",
+      "usdLegend": "原廠 USD / 每 100 萬 tokens",
+      "impact": "訂閱方案的毛利不受影響（公告價隨原廠價格調整）；同樣的額度能用的 tokens 會跟著改變。",
+      "when": "何時生效",
+      "now": "立即",
+      "at": "指定時間",
+      "saveNew": "儲存新價格",
+      "withdrawConfirm": "下架 {model}？使用中的 SinoBee 會改用其他模型。",
+      "formulaEdit": "修改匯率與緩衝係數",
+      "bufferNote": "緩衝係數同時影響所有方案的毛利（以用滿額度估算時）與眾籌任務的 token 價格。",
+      "local": "本機模型，不需金鑰"
+    },
+    "pl": {
+      "close": "關閉",
+      "compare": "方案比較",
+      "onSale": "上架中",
+      "offSale": "未上架",
+      "edit": "編輯",
+      "freeWho": "登入即有",
+      "perMonth": "/ 月",
+      "basisActual": "依 {n} 期實際用量",
+      "basisFull": "尚無用量資料，以用滿額度估算",
+      "profit": "獲利 {p}%",
+      "loss": "虧損 {p}%",
+      "noCost": "幾乎沒有成本",
+      "barLoss": "虧損",
+      "barEven": "打平",
+      "barHealthy": "健康（≥ 50%）",
+      "worstCase": "用滿額度時：{m}",
+      "freeCost": "每位使用者平均成本 {cost}（近 30 天 {n} 人）",
+      "freeCostFull": "每人用滿時成本 {cost}",
+      "allowance": "每 30 天可用",
+      "about": "約等於",
+      "tokens": "{n} tokens",
+      "tokensShort": "約 tokens",
+      "cap6": "每 6 小時最多",
+      "cap7": "每 7 天最多",
+      "subscribers": "訂閱中",
+      "people": "{n} 人",
+      "avgUse": "平均用量",
+      "fixLoss": "讓 {plan} 不虧損",
+      "fixThin": "提高 {plan} 的毛利",
+      "sugMult": "用量倍數 {from} → {to}",
+      "sugMultHealthy": "只影響這個方案：每 30 天可用 {from} → {to}，獲利 50%。",
+      "sugMultEven": "只影響這個方案：每 30 天可用 {from} → {to}，剛好打平。",
+      "sugFee": "月費 {from} → {to}",
+      "sugFeeHelp": "依實際平均用量，獲利 50%；可用額度維持不變。",
+      "sugBuffer": "緩衝係數 {from} → {to}",
+      "sugBufferHelp": "所有模型的公告價與眾籌任務的 token 價格都提高 {pct}%。",
+      "toModels": "到模型與定價調整",
+      "applyTo": "套用到 {plan}",
+      "applyConfirm": "修改 {plan}？目前 {n} 位訂閱者從下一期開始適用。",
+      "applyFeeConfirm": "調整 {plan} 的月費？已購買的期間不受影響。",
+      "how": "可用額度以公告價計；6 小時與 7 天上限由 30 天額度推算（÷ 4.8、再 ÷ 10）；tokens 以 {model} 的公告價換算（輸入：輸出 = 3：1）。毛利以「相對成本」表示：獲利 50% 代表收入是原廠成本的 1.5 倍。",
+      "headSub": "緩衝係數 {buffer}",
+      "bufferWhere": "（在模型與定價修改）",
+      "losing": "{n} 個上架方案正在虧損",
+      "fee": "月費（TWD）",
+      "multiplier": "用量倍數",
+      "multiplierHelp": "每 30 天可用額度 = 月費 × 用量倍數",
+      "codeHelp": "小寫英數，建立後不建議修改",
+      "marginFull": "用滿額度時",
+      "ofPro": "約 {plan} 的 1/{r}",
+      "setOfPro": "設為 {plan} 的 1/{r}"
+    },
+    "set": {
+      "security": "加密與備份",
+      "securityHelp": "設定加密金鑰的位置與指紋。",
+      "goLive": "上線還差 {n} 項",
+      "goLiveSub": "完成 {done} / {total} · 紅色 {blocking} 項會擋住用戶"
+    },
+    "cr": {
+      "sub": "審核中 {s} · 爭議 {d}",
+      "disputes": "待裁決的爭議",
+      "noDisputes": "沒有待裁決的爭議。",
+      "dispute": "爭議",
+      "backers": "{n} 位出資者",
+      "disputeHelp": "出資者否決了成果，且重做次數已用完。判定通過：照常結算；判定不通過：全部經費（含已使用部分）依出資比例轉為出資者的平台點數。",
+      "noScreening": "沒有審核中的提案。",
+      "days": "{n} 天",
+      "sentBackTag": "已退回",
+      "recent": "最近的審核結果",
+      "passed": "通過",
+      "rejected": "退回"
+    },
+    "rp": {
+      "count": "{n} 筆檢舉 · {targets} 個對象",
+      "none": "沒有未處理的檢舉。",
+      "type": {
+        "task": "任務",
+        "share": "分享頁",
+        "tool": "工具"
+      },
+      "owner": "擁有者 @{who}",
+      "gone": "已不存在",
+      "times": "被檢舉 {n} 次",
+      "effect": {
+        "task": "下架：募資中的眾籌會關閉（不扣款）；已在執行或完成的任務改為不公開。並通知提案者。",
+        "share": "下架：分享內容永久刪除（無法復原），通知擁有者。",
+        "tool": "下架：工具從目錄移除，通知擁有者。"
+      }
+    },
+    "au": {
+      "count": "共 {n} 筆",
+      "all": "全部",
+      "area": {
+        "review": "審核",
+        "people": "帳號與角色",
+        "money": "付款",
+        "pricing": "價格與方案",
+        "models": "模型",
+        "crowd": "眾籌與檢舉",
+        "settings": "設定"
+      },
+      "who": "操作者（代稱或帳號）",
+      "go": "篩選",
+      "system": "系統",
+      "prev": "上一頁",
+      "next": "下一頁",
+      "pageOf": "第 {page} / {pages} 頁",
+      "action": {
+        "ai_catalog_sync": "同步供應商模型清單",
+        "ai_ollama_delete": "刪除 Ollama 模型",
+        "ai_ollama_pull": "下載 Ollama 模型",
+        "ai_prices_lookup": "用 AI 查詢模型價格",
+        "ai_tiers": "修改模型等級",
+        "crowd_checklist_publish": "發布審核清單新版本",
+        "crowd_dispute": "裁決眾籌爭議",
+        "crowd_screening_confirm": "確認提案審核結果",
+        "crowd_screening_rerun": "請 AI 重審提案",
+        "llm_hold_expired": "結清逾時的模型用量",
+        "llm_vendor_pause": "暫停供應商",
+        "llm_vendor_resume": "恢復供應商",
+        "owner_bootstrap": "成為超級管理者",
+        "owner_claim_fail": "認領碼輸入錯誤",
+        "payment_mismatch": "付款金額不符",
+        "payment_refund": "退款",
+        "payments_export": "匯出付款 CSV",
+        "plan_update": "修改方案",
+        "plan_create": "新增方案",
+        "pricing_settings": "修改匯率與緩衝係數",
+        "price_update": "修改模型價格",
+        "price_create": "新增模型",
+        "role_grant": "授予管理者",
+        "role_revoke": "撤銷管理者",
+        "role_transfer": "移轉超級管理者",
+        "settings_update": "修改設定",
+        "settings_clear": "清除設定",
+        "settings_generated": "自動產生密鑰",
+        "settings_import_env": "從 .env 匯入設定",
+        "settings_rotate": "更換技能簽章金鑰",
+        "skill_approve": "通過技能",
+        "skill_reject": "退回技能",
+        "skill_revoke": "撤銷技能",
+        "skill_behavior_pass": "記錄評鑑技能行為測試通過",
+        "skill_behavior_fail": "記錄評鑑技能行為測試未通過",
+        "tool_approve": "通過工具",
+        "tool_reject": "退回工具",
+        "publisher_verify": "驗證發布者",
+        "publisher_unverify": "取消發布者驗證",
+        "report_takedown": "下架被檢舉的內容",
+        "report_dismiss": "不處理檢舉",
+        "user_disable": "停用帳號",
+        "user_enable": "恢復帳號",
+        "device_refresh_reuse": "偵測到重複使用的裝置更新權杖"
+      }
+    }
   },
   "hubApi": {
     "lead": "sinobee.ai Skill Hub 協定 v1，與 SinoBee 用戶端（sinobee skills search / install / publish / sync-revocations）相容。",
@@ -1758,7 +2178,11 @@
       "safety": "安全與倫理",
       "feasibility": "技術可行性",
       "spec": "規格完整與可驗收"
-    }
+    },
+    "allDims": "全部",
+    "find": "搜尋題目",
+    "done": "完成",
+    "edit": "編輯"
   },
   "test": {
     "ribbon": "測試版",

@@ -50,6 +50,7 @@ export async function upsertUser(v: VerifiedSignIn) {
       ...(v.claims.kyc_level !== undefined ? { kycLevel: v.claims.kyc_level } : {}),
     },
   });
+  if (user.disabledAt) throw new HttpError(403, "account disabled");
   return applySignInRole(user);
 }
 
@@ -82,7 +83,7 @@ export async function currentUser(): Promise<CurrentUser | null> {
   const t = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!t) return null;
   const s = await db.session.findUnique({ where: { tokenHash: sha256Hex(t) }, include: { user: true } });
-  if (!s || s.expiresAt < new Date()) return null;
+  if (!s || s.expiresAt < new Date() || s.user.disabledAt) return null;
   return { ...s.user, sessionId: s.id, channelId: s.channelId };
 }
 
@@ -130,7 +131,7 @@ async function checkBearer(req: Request): Promise<BearerAuth | null> {
   const raw = /^Bearer\s+(sbh_[A-Za-z0-9_-]{20,})$/.exec(h)?.[1] ?? (/^sbh_[A-Za-z0-9_-]{20,}$/.test(req.headers.get("x-api-key") ?? "") ? req.headers.get("x-api-key")! : null);
   if (!raw) return null;
   const tok = await db.apiToken.findUnique({ where: { tokenHash: sha256Hex(raw) }, include: { user: true, device: true } });
-  if (!tok || tok.revokedAt || tok.kind === "refresh") return null;
+  if (!tok || tok.revokedAt || tok.kind === "refresh" || tok.user.disabledAt) return null;
   const now = new Date();
   if (tok.expiresAt && tok.expiresAt < now) return null;
   if (tok.device?.revokedAt) return null;

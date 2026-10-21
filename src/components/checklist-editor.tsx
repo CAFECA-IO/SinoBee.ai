@@ -25,6 +25,10 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+  const [dim, setDim] = useState("");
+  const [find, setFind] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
   const counts = useMemo(() => Object.fromEntries(dimensions.map((d) => [d, items.filter((i) => i.dimension === d).length])), [items, dimensions]);
   const problems = [...(items.length < min ? [t("needMin", { min, n: items.length })] : []), ...dimensions.filter((d) => !counts[d]).map((d) => t("emptyDim", { d: t(`dim.${d}`) }))];
   const update = (idx: number, patch: Partial<Item>) => {
@@ -68,46 +72,77 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-semibold">{t("total", { n: items.length, min })}</span>
-        {dimensions.map((d) => (
-          <span key={d} className="chip">{t(`dim.${d}`)} {counts[d]}</span>
-        ))}
         {(changed || dirty) && <span className="badge bg-warn-soft text-warn">{t("draftBadge", { v: version })}</span>}
       </div>
 
-      {dimensions.map((d) => (
-        <section key={d} className="card space-y-3 p-5">
-          <h3 className="font-semibold">{t(`dim.${d}`)}</h3>
-          {items.map((it, idx) =>
-            it.dimension !== d ? null : (
-              <div key={`${it.id}-${idx}`} className="grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-[56px_1fr_1fr_auto]">
-                <span className="font-mono text-xs text-muted">{it.id || t("new")}</span>
-                <textarea className="input min-h-14 text-sm" value={it.zh} onChange={(e) => update(idx, { zh: e.target.value })} aria-label="zh" />
-                <textarea className="input min-h-14 text-sm" value={it.en} onChange={(e) => update(idx, { en: e.target.value })} aria-label="en" />
-                <button
-                  className="text-xs text-err"
-                  onClick={() => {
-                    setItems(items.filter((_, i) => i !== idx));
-                    setDirty(true);
-                  }}
-                >
-                  {t("remove")}
-                </button>
-              </div>
-            ),
-          )}
-          <button
-            className="btn-ghost !py-1.5 text-sm"
-            onClick={() => {
-              setItems([...items, { id: "", dimension: d, zh: "", en: "" }]);
-              setDirty(true);
-            }}
-          >
-            {t("add")}
-          </button>
-        </section>
-      ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={`chip !py-1 ${dim === "" ? "!border-accent bg-accent-soft font-semibold !text-ink" : ""}`} onClick={() => setDim("")}>{t("allDims")}</button>
+        {dimensions.map((d) => (
+          <button key={d} type="button" className={`chip !py-1 ${dim === d ? "!border-accent bg-accent-soft font-semibold !text-ink" : ""}`} onClick={() => setDim(d)}>{t(`dim.${d}`)} {counts[d]}</button>
+        ))}
+        <span className="flex-1" />
+        <input className="input !w-56 !py-1.5" value={find} onChange={(e) => setFind(e.target.value)} placeholder={t("find")} aria-label={t("find")} />
+      </div>
 
-      <div className="card sticky bottom-4 space-y-3 p-5">
+      {dimensions.filter((d) => !dim || d === dim).map((d) => {
+        const rows = items.map((it, idx) => ({ it, idx })).filter(({ it }) => it.dimension === d && (!find.trim() || `${it.id} ${it.zh} ${it.en}`.toLowerCase().includes(find.trim().toLowerCase())));
+        if (find.trim() && !rows.length) return null;
+        return (
+          <section key={d} className="card overflow-hidden">
+            <h3 className="border-b border-line px-4 py-2.5 font-semibold">{t(`dim.${d}`)} <span className="text-sm font-normal text-muted">· {counts[d]}</span></h3>
+            <ul className="divide-y divide-line">
+              {rows.map(({ it, idx }) =>
+                editing === idx ? (
+                  <li key={`${it.id}-${idx}`} className="space-y-2 bg-panel-2/50 px-4 py-3">
+                    <div className="font-mono text-xs text-muted">{it.id || t("new")}</div>
+                    <textarea className="input min-h-14 text-sm" value={it.zh} onChange={(e) => update(idx, { zh: e.target.value })} aria-label="中文" autoFocus />
+                    <textarea className="input min-h-14 text-sm" value={it.en} onChange={(e) => update(idx, { en: e.target.value })} aria-label="English" />
+                    <div className="flex gap-2">
+                      <button type="button" className="btn-ghost !py-1.5 text-sm" onClick={() => setEditing(null)}>{t("done")}</button>
+                      <button
+                        type="button"
+                        className="btn-ghost !py-1.5 text-sm text-err"
+                        onClick={() => {
+                          setItems(items.filter((_, i) => i !== idx));
+                          setEditing(null);
+                          setDirty(true);
+                        }}
+                      >
+                        {t("remove")}
+                      </button>
+                    </div>
+                  </li>
+                ) : (
+                  <li key={`${it.id}-${idx}`} className="flex items-start gap-3 px-4 py-2.5 text-sm">
+                    <span className="w-10 shrink-0 pt-0.5 font-mono text-xs text-muted">{it.id || t("new")}</span>
+                    <div className="min-w-0 flex-1">
+                      <div>{it.zh || <span className="text-muted">—</span>}</div>
+                      <div className="text-xs text-muted">{it.en}</div>
+                    </div>
+                    <button type="button" className="shrink-0 text-xs text-accent" onClick={() => setEditing(idx)}>{t("edit")}</button>
+                  </li>
+                ),
+              )}
+            </ul>
+            <div className="border-t border-line px-4 py-2.5">
+              <button
+                type="button"
+                className="btn-ghost !py-1.5 text-sm"
+                onClick={() => {
+                  setItems([...items, { id: "", dimension: d, zh: "", en: "" }]);
+                  setEditing(items.length);
+                  setDirty(true);
+                }}
+              >
+                {t("add")}
+              </button>
+            </div>
+          </section>
+        );
+      })}
+
+      {(dirty || changed || !!ok || !!err) && (
+      <div className="card sticky bottom-4 space-y-3 p-4 shadow-lg">
         {problems.length > 0 && <p className="text-sm text-warn">{problems.join("；")}</p>}
         <div className="flex flex-wrap gap-2">
           <button className="btn-ghost !py-2" disabled={!!busy || !dirty} onClick={() => run("save", async () => { const r = await send("/api/admin/checklist", "PUT", { items }); setItems(r.items); setDirty(false); router.refresh(); })}>
@@ -127,7 +162,7 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
                 if (!(await confirmDialog(t("confirmPublish")))) return;
                 const r = await send("/api/admin/checklist/publish", "POST", { note });
                 setNote("");
-                alert(t("published", { v: r.version }));
+                setOk(t("published", { v: r.version }));
                 router.refresh();
               })
             }
@@ -136,8 +171,10 @@ export function ChecklistEditor({ items: initial, dimensions, min, version, chan
           </button>
         </div>
         {dirty && <p className="text-xs text-muted">{t("saveFirst")}</p>}
+        {ok && <p className="text-sm text-ok" role="status">{ok}</p>}
         {err && <p className="text-sm text-err" role="alert">{err}</p>}
       </div>
+      )}
     </div>
   );
 }
