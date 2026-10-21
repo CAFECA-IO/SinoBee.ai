@@ -4,6 +4,7 @@ import { config } from "../config";
 import { currentModels, type ModelPriceView } from "../models";
 import { quotaContext, headroom } from "./quota";
 import { downVendors } from "./breaker";
+import { pausedVendors } from "./pause";
 
 /**
  * Model allocation for SinoBee (plan "模型分配與備援機制" P4/P5, 2026-10-21).
@@ -151,7 +152,8 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
   }
   if (!own) {
     const down = await downVendors();                       // hard failures: the vendor is out for 30 minutes
-    models = models.filter((m) => !down.has(m.split("/")[0]));
+    const paused = await pausedVendors();                   // paused by an admin
+    models = models.filter((m) => !down.has(m.split("/")[0]) && !paused.has(m.split("/")[0]));
   }
   if (!models.length) throw new HttpError(404, "no model fits this request");
 

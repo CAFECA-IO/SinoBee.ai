@@ -585,7 +585,18 @@
       "bufferNeed": "上架方案最高用量倍數 {mult}×：緩衝係數 ≥ {even} 打平，≥ {healthy} 保有 50% 利潤。緩衝係數同時影響眾籌任務的 token 價格。",
       "unknownIds": "以下上架模型不在供應商的模型清單中，呼叫會失敗（404）：{models}。請更正代號或下架。",
       "syncHint": "模型代號請以供應商清單為準：",
-      "syncLink": "AI 模型 → 從供應商同步"
+      "syncLink": "AI 模型 → 從供應商同步",
+      "vendorsTitle": "供應商",
+      "vendorsHelp": "暫停後，這個供應商的所有模型一次停用（訂閱中繼、自動分配都不再使用）；各模型的「提供」開關保持原狀，恢復後回到暫停前的狀態。",
+      "vendorModels": "{n} 個模型（{offered} 個提供中）",
+      "pauseVendor": "暫停此供應商",
+      "running": "使用中",
+      "pausedFor": "已暫停 {span}",
+      "pausedTotal": "累計暫停 {span}",
+      "pauseConfirm": "暫停 {vendor}？它提供中的 {n} 個模型會立即停用，使用中的 SinoBee 會自動改用其他供應商的模型。",
+      "spanDH": "{d} 天 {h} 小時",
+      "spanHM": "{h} 小時 {m} 分",
+      "spanM": "{m} 分"
     },
     "plans": {
       "help": "輸入月費與用量倍數（30 天可用量 ÷ 月費，以公告價計），系統自動計算可用量、6 小時（L6）與 7 天（L168）額度。公告價已含緩衝係數，方案的獲利倍數 = 緩衝係數 ÷ 用量倍數；請到「價格」調整緩衝係數確保獲利。",

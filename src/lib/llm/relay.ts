@@ -3,6 +3,7 @@ import { HttpError } from "../errors";
 import { bearerAuth } from "../auth";
 import { currentModels, type ModelPriceView } from "../models";
 import { hardFailure, hardReason, vendorDown, HARD_MS } from "./breaker";
+import { isPaused, pausedVendors } from "./pause";
 import { QuotaError, avgOutput, hold, pointsContext, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
 
 /**
@@ -64,6 +65,7 @@ export async function resolveModel(name: unknown, fmt: Fmt): Promise<{ model: Mo
   if (!p) throw new HttpError(400, `provider ${provider} is not available through the relay`);
   if (p.kind !== fmt) throw new HttpError(400, fmt === "openai" ? `${m.modelId} uses the Anthropic format: POST /api/v1/llm/anthropic/v1/messages` : `${m.modelId} uses the OpenAI format: POST /api/v1/llm/chat/completions`);
   if (!p.key) throw new QuotaError("provider", `${provider} models are temporarily unavailable`);
+  if (await isPaused(provider)) throw new QuotaError("provider", `${provider} models are paused on SinoBee.ai by the administrator (vendor_down)`);
   const down = await vendorDown(provider);
   if (down) throw new QuotaError("provider", `${provider} models are unavailable on SinoBee.ai for now (vendor_down; ${down.reason.slice(0, 160)})`, down.until);
   return { model: m, provider, upstreamName: m.modelId.split("/").slice(1).join("/") };
@@ -427,6 +429,7 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
 /** OpenAI-style model list with published prices (TWD per 1M tokens) */
 export async function modelList() {
   const models = await currentModels();
+  const paused = await pausedVendors();
   return {
     object: "list",
     data: models
@@ -438,7 +441,7 @@ export async function modelList() {
         name: m.label,
         format: config.llm.providers[m.modelId.split("/")[0]].kind,
         price_twd_per_1m: m.twd,
-        available: !!config.llm.providers[m.modelId.split("/")[0]].key,
+        available: !!config.llm.providers[m.modelId.split("/")[0]].key && !paused.has(m.modelId.split("/")[0]),
       })),
   };
 }

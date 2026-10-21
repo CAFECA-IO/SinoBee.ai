@@ -585,7 +585,18 @@
       "bufferNeed": "Highest active plan multiplier is {mult}×: a buffer ≥ {even} breaks even, ≥ {healthy} keeps a 50% margin. The buffer also sets token prices for crowdfunded tasks.",
       "unknownIds": "These offered models are not in their provider's model list and will fail (404): {models}. Fix the IDs or withdraw them.",
       "syncHint": "Use model IDs from the provider lists:",
-      "syncLink": "AI models → Sync from providers"
+      "syncLink": "AI models → Sync from providers",
+      "vendorsTitle": "Vendors",
+      "vendorsHelp": "Pausing a vendor stops all its models at once (the subscription relay and allocation stop using them); each model's Offered switch is kept, so resuming restores what was offered before.",
+      "vendorModels": "{n} models ({offered} offered)",
+      "pauseVendor": "Pause this vendor",
+      "running": "In use",
+      "pausedFor": "Paused for {span}",
+      "pausedTotal": "{span} paused in total",
+      "pauseConfirm": "Pause {vendor}? Its {n} offered models stop at once; SinoBee switches to models from other vendors.",
+      "spanDH": "{d} d {h} h",
+      "spanHM": "{h} h {m} min",
+      "spanM": "{m} min"
     },
     "plans": {
       "help": "Enter the fee and the usage multiplier (30-day usage ÷ fee, at published prices); the allowance and the 6-hour (L6) and 7-day (L168) limits are calculated. Published prices include the buffer, so a plan's margin = buffer ÷ usage multiplier — keep it profitable with the buffer under Prices.",

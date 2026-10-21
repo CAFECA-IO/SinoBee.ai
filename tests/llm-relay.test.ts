@@ -445,3 +445,35 @@ test("route: exclude leaves out the models that just failed", async () => {
   assert.equal(r.model, SONNET);
   assert.ok(!r.ranking.some((x) => x.model === LUNA));
 });
+
+test("vendor pause: every model of the vendor stops at once, the models' own switches stay, and the time adds up", async () => {
+  await subscribe(840);
+  const P = await import("../src/lib/llm/pause");
+  const R = await import("../src/lib/llm/route");
+  const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
+  await P.setPaused(admin.id, "openai", true);
+  llm.requests = [];
+  const r = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(r.status, 503);
+  assert.match((await r.json()).error.message, /paused .*vendor_down/);
+  assert.equal(llm.requests.length, 0, "not sent to the vendor");
+  assert.ok(!(await R.route({ preference: "cost" }, userId)).ranking.some((x) => x.model.startsWith("openai/")));
+  const list = await relay.modelList();
+  assert.ok(list.data.filter((m) => m.id.startsWith("openai/")).every((m) => !m.available));
+  assert.ok(list.data.some((m) => m.id.startsWith("openai/")), "still listed, as unavailable");
+  // an hour paused, then resumed: the total is kept, a later pause adds to it
+  const st = await P.pauses(true);
+  st.openai.since = new Date(Date.now() - 3600_000).toISOString();
+  await db.siteSetting.update({ where: { key: "llm.vendorPause" }, data: { value: JSON.stringify(st) } });
+  const back = await P.setPaused(admin.id, "openai", false);
+  assert.equal(back.since, null);
+  assert.ok(back.totalMs >= 3600_000 && back.totalMs < 3600_000 + 5000);
+  assert.equal(P.durations(back).total, back.totalMs);
+  llm.next = { ...StubLlm.defaults(), chunks: 1 };
+  const ok = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(ok.status, 200, "resumed");
+  const again = await P.setPaused(admin.id, "openai", true);
+  assert.ok(P.durations(again).total >= 3600_000);
+  await P.setPaused(admin.id, "openai", false);
+  assert.ok(await db.adminAudit.findFirst({ where: { action: "llm.vendor.pause", targetId: "openai" } }));
+});

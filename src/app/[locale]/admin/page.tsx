@@ -18,7 +18,8 @@ import { isAdminRole } from "@/lib/roles";
 import { referenceBlended, formatPrice, pricesAt, pricingSettings, scheduledPrices } from "@/lib/models";
 import { freePlan, listPlans } from "@/lib/plans";
 import { icontains } from "@/lib/db";
-import { FreePlanEditor, PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions } from "@/components/admin-settings";
+import { FreePlanEditor, PaymentActions, PlanEditor, PriceEditor, PricingSettingsForm, RoleActions, VendorPauses } from "@/components/admin-settings";
+import { pauses } from "@/lib/llm/pause";
 import { refundable } from "@/lib/payments";
 import { settingsForAdmin } from "@/lib/settings/store";
 import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type SettingsSection } from "@/components/admin-site-settings";
@@ -461,6 +462,12 @@ async function AiModels() {
 async function Prices() {
   const t = await getTranslations("admin.prices");
   const [rows, scheduled, s, plans, catalog] = await Promise.all([pricesAt(new Date()), scheduledPrices(), pricingSettings(), listPlans({ activeOnly: true }), modelCatalogFromApi()]);
+  const paused = await pauses(true);
+  const vendorRows = [...new Set(rows.map((m) => m.modelId.split("/")[0]))].map((v) => {
+    const mine = rows.filter((m) => m.modelId.split("/")[0] === v);
+    const p = paused[v];
+    return { vendor: v, label: mine[0]?.vendor || v, models: mine.length, offered: mine.filter((m) => m.enabled).length, paused: !!p?.since, since: p?.since ?? null, totalMs: p?.totalMs ?? 0 };
+  });
   // offered models the provider's own model list does not have (they would fail with 404)
   const unknown = rows.filter((m) => {
     const [p, ...rest] = m.modelId.split("/");
@@ -493,6 +500,7 @@ async function Prices() {
           ))}
         </section>
       )}
+      <VendorPauses vendors={vendorRows} />
       <section className="card">
         <div className="flex flex-wrap items-baseline gap-3 p-4">
           <h2 className="h3">{t("models")}</h2>

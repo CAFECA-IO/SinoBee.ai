@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { HEALTHY_MARGIN, MAX_MULTIPLIER, bufferFor, formatPrice, limitsFromMax, planLimits, planMargin, publishedTwd } from "@/lib/price-math";
@@ -410,5 +410,72 @@ export function PaymentActions({ id, refundable, provider, status }: { id: strin
       )}
       {err && <span className="text-xs text-err" role="alert">{err}</span>}
     </div>
+  );
+}
+
+
+export type VendorRow = { vendor: string; label: string; models: number; offered: number; paused: boolean; since: string | null; totalMs: number };
+
+/** 1 天 3 小時 / 2 小時 14 分 / 5 分 */
+function span(ms: number, t: (k: string, v?: Record<string, number>) => string) {
+  const m = Math.floor(ms / 60_000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return d ? t("spanDH", { d, h }) : h ? t("spanHM", { h, m: mm }) : t("spanM", { m: Math.max(mm, ms > 0 ? 1 : 0) });
+}
+
+/** "暫停此供應商": every model of the vendor at once; the models' own 提供 switches stay as they are */
+export function VendorPauses({ vendors }: { vendors: VendorRow[] }) {
+  const t = useTranslations("admin.prices");
+  const router = useRouter();
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <section className="card">
+      <div className="flex flex-wrap items-baseline gap-3 p-4">
+        <h2 className="h3">{t("vendorsTitle")}</h2>
+        <span className="text-xs text-muted">{t("vendorsHelp")}</span>
+      </div>
+      {vendors.map((v) => {
+        const current = v.paused && v.since ? Math.max(0, now - new Date(v.since).getTime()) : 0;
+        const total = v.totalMs + current;
+        return (
+          <div key={v.vendor} className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line p-4 text-sm ${v.paused ? "bg-warn/5" : ""}`} data-vendor={v.vendor}>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{v.label} <span className="font-mono text-xs text-muted">{v.vendor}</span></div>
+              <div className="text-xs text-muted">{t("vendorModels", { n: v.models, offered: v.offered })}</div>
+            </div>
+            <div className={`text-xs ${v.paused ? "text-warn" : "text-muted"}`} aria-live="polite">
+              {v.paused ? t("pausedFor", { span: span(current, t) }) : t("running")}
+              {total > 0 && <span className="text-muted">{" · "}{t("pausedTotal", { span: span(total, t) })}</span>}
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={v.paused}
+                disabled={!!busy}
+                aria-label={t("pauseVendor") + " " + v.label}
+                onChange={async (e) => {
+                  const paused = e.target.checked;
+                  if (paused && !(await confirmDialog(t("pauseConfirm", { vendor: v.label, n: v.offered })))) return;
+                  setBusy(v.vendor);
+                  setErr("");
+                  const e2 = await send("/api/admin/llm/vendors", "POST", { vendor: v.vendor, paused });
+                  setBusy("");
+                  if (e2) return setErr(e2);
+                  router.refresh();
+                }}
+              />
+              {t("pauseVendor")}
+            </label>
+          </div>
+        );
+      })}
+      {err && <p className="px-4 pb-4 text-sm text-danger" role="alert">{err}</p>}
+    </section>
   );
 }
