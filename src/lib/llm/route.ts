@@ -3,6 +3,7 @@ import { HttpError } from "../errors";
 import { config } from "../config";
 import { currentModels, type ModelPriceView } from "../models";
 import { quotaContext, headroom } from "./quota";
+import { downVendors } from "./breaker";
 
 /**
  * Model allocation for SinoBee (plan "模型分配與備援機制" P4/P5, 2026-10-21).
@@ -43,6 +44,8 @@ export type RouteRequest = {
   needs?: { tools?: boolean; vision?: boolean; context_tokens?: number };
   /** the user's own models ("vendor/model"): rank these instead of the relay's (the fallback pool) */
   candidates?: string[];
+  /** models that just failed for this caller: left out (SinoBee asks again after a vendor failure) */
+  exclude?: string[];
 };
 
 export type Ranked = {
@@ -142,6 +145,14 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
   const byId = new Map((await currentModels()).map((m) => [m.modelId.toLowerCase(), m]));
   let models = own ? [...new Set(req.candidates!.map((c) => norm(String(c))).filter(Boolean))].slice(0, 30) : catalog.map((m) => m.modelId.toLowerCase());
   if (req.needs?.vision) models = models.filter(sees);
+  if (Array.isArray(req.exclude) && req.exclude.length) {
+    const ex = new Set(req.exclude.map((x) => norm(String(x))));
+    models = models.filter((m) => !ex.has(m));
+  }
+  if (!own) {
+    const down = await downVendors();                       // hard failures: the vendor is out for 30 minutes
+    models = models.filter((m) => !down.has(m.split("/")[0]));
+  }
   if (!models.length) throw new HttpError(404, "no model fits this request");
 
   const w = { ...WEIGHTS[pref] };

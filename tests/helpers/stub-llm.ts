@@ -16,6 +16,8 @@ export type StubPlan = {
   noUsage: boolean;
   /** respond with this HTTP status and no output */
   status: number;
+  /** the upstream error message with that status (default "upstream exploded") */
+  errorMessage?: string;
   promptTokens: number;
   cacheRead: number;
   cacheWrite: number;
@@ -56,7 +58,7 @@ export class StubLlm {
         if (plan.status !== 200) {
           res.statusCode = plan.status;
           res.setHeader("content-type", "application/json");
-          return res.end(JSON.stringify({ error: { message: "upstream exploded", type: "server_error" } }));
+          return res.end(JSON.stringify({ error: { message: plan.errorMessage ?? "upstream exploded", type: "server_error" } }));
         }
         const outTokens = Math.ceil((plan.text.length * plan.chunks) / 4);
         let closed = false;

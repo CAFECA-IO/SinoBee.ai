@@ -400,3 +400,48 @@ test("points: refused when the points run out; works without a subscription; the
   assert.equal(body.error.code, "subscription");
   assert.deepEqual(body.points, { balance: 2, rate: 1, unit: "TWD" });
 });
+
+// ───────────── vendor breaker (2026-10-21) ─────────────
+
+test("breaker: a hard upstream failure takes the vendor out for 30 minutes at once; a passing one does not", async () => {
+  await subscribe(840);
+  const R = await import("../src/lib/llm/route");
+  llm.next = { ...StubLlm.defaults(), status: 503, errorMessage: "overloaded, try again" };
+  const soft = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(soft.status, 503);
+  assert.equal((await soft.json()).error.code, null, "an overload is not a breaker");
+  assert.ok((await R.route({ preference: "cost" }, userId)).ranking.some((x) => x.model === LUNA));
+
+  llm.next = { ...StubLlm.defaults(), status: 429, errorMessage: "You have no credits remaining. Add credits to continue using the API" };
+  const hard = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(hard.status, 503);
+  const j = await hard.json();
+  assert.equal(j.error.code, "vendor_down");
+  assert.equal(hard.headers.get("retry-after"), "1800");
+  const row = (await rows()).at(-1)!;
+  assert.equal(row.status, "REFUNDED");
+  assert.match(row.error ?? "", /^upstream hard 429/);
+  // the next call does not even reach the vendor, and the allocation leaves the vendor out
+  llm.requests = [];
+  const next = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "x" }] }), "openai", "chat");
+  assert.equal(next.status, 503);
+  assert.match((await next.json()).error.message, /vendor_down/);
+  assert.equal(llm.requests.length, 0);
+  const r = await R.route({ preference: "cost" }, userId);
+  assert.ok(!r.ranking.some((x) => x.model.startsWith("openai/")), "openai is out");
+  // after 30 minutes it is tried again
+  await db.usageLedger.updateMany({ where: { error: { startsWith: "upstream hard" } }, data: { createdAt: new Date(Date.now() - 31 * 60_000) } });
+  assert.ok((await R.route({ preference: "cost" }, userId)).ranking.some((x) => x.model === LUNA));
+  // 401 / 403 are hard by status alone
+  const b = await import("../src/lib/llm/breaker");
+  assert.equal(b.hardFailure(401, "whatever"), true);
+  assert.equal(b.hardFailure(500, "internal"), false);
+  assert.equal(b.hardFailure(429, "Rate limit reached for requests"), false);
+});
+
+test("route: exclude leaves out the models that just failed", async () => {
+  const R = await import("../src/lib/llm/route");
+  const r = await R.route({ preference: "cost", candidates: [LUNA, SONNET], exclude: ["sinobee/" + LUNA] });
+  assert.equal(r.model, SONNET);
+  assert.ok(!r.ranking.some((x) => x.model === LUNA));
+});

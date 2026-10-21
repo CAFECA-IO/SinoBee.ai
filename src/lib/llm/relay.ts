@@ -2,6 +2,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { bearerAuth } from "../auth";
 import { currentModels, type ModelPriceView } from "../models";
+import { hardFailure, hardReason, vendorDown, HARD_MS } from "./breaker";
 import { QuotaError, avgOutput, hold, pointsContext, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
 
 /**
@@ -63,6 +64,8 @@ export async function resolveModel(name: unknown, fmt: Fmt): Promise<{ model: Mo
   if (!p) throw new HttpError(400, `provider ${provider} is not available through the relay`);
   if (p.kind !== fmt) throw new HttpError(400, fmt === "openai" ? `${m.modelId} uses the Anthropic format: POST /api/v1/llm/anthropic/v1/messages` : `${m.modelId} uses the OpenAI format: POST /api/v1/llm/chat/completions`);
   if (!p.key) throw new QuotaError("provider", `${provider} models are temporarily unavailable`);
+  const down = await vendorDown(provider);
+  if (down) throw new QuotaError("provider", `${provider} models are unavailable on SinoBee.ai for now (vendor_down; ${down.reason.slice(0, 160)})`, down.until);
   return { model: m, provider, upstreamName: m.modelId.split("/").slice(1).join("/") };
 }
 
@@ -190,8 +193,10 @@ async function upstream(p: Prepared, signal?: AbortSignal): Promise<Response> {
 /** Tells the client which parameters were left out, so it can stop sending them */
 const droppedHeader = (p: Prepared): Record<string, string> => (p.dropped.length ? { "x-sinobee-dropped-params": p.dropped.join(",") } : {});
 
-/** Strip upstream error details that could identify our account; keep the type and message */
-async function upstreamError(p: Prepared, r: Response): Promise<Response> {
+/** Refund the hold and answer with the upstream error, details that could identify our account stripped. A hard
+ * failure of our account at the vendor (breaker.ts) takes the vendor out for 30 minutes and says so: code
+ * "vendor_down", so SinoBee asks for another model instead of retrying. Every upstream failure is logged. */
+async function upstreamError(p: Prepared, r: Response, ledgerId: string): Promise<Response> {
   const text = await r.text().catch(() => "");
   let message = `upstream error ${r.status}`;
   try {
@@ -199,6 +204,15 @@ async function upstreamError(p: Prepared, r: Response): Promise<Response> {
     message = j?.error?.message ?? j?.message ?? message;
   } catch {
     /* not JSON */
+  }
+  const hard = hardFailure(r.status, String(message));
+  await settle(ledgerId, { kind: "refund", reason: hard ? hardReason(r.status, String(message)) : `upstream ${r.status}` });
+  console.warn(`llm upstream ${p.model.modelId} ${r.status}${hard ? " (vendor out for 30 min)" : ""}: ${String(message).slice(0, 300)}`);
+  if (hard) {
+    const msg = `${p.provider} models are unavailable on SinoBee.ai for now (vendor_down): ${message}`;
+    const headers = { "retry-after": String(HARD_MS / 1000) };
+    const body = p.fmt === "anthropic" ? { type: "error", error: { type: "overloaded_error", message: msg, code: "vendor_down" } } : { error: { message: msg, type: "upstream_unavailable", code: "vendor_down" } };
+    return Response.json(body, { status: 503, headers });
   }
   const status = r.status === 429 || r.status >= 500 ? 503 : r.status;
   const body = p.fmt === "anthropic" ? { type: "error", error: { type: status === 503 ? "overloaded_error" : "invalid_request_error", message } } : { error: { message, type: status === 503 ? "upstream_unavailable" : "invalid_request_error", code: null } };
@@ -244,8 +258,7 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
   try {
     r = await upstream(p, p.signal);
     if (!r.ok) {
-      await settle(ledger.id, { kind: "refund", reason: `upstream ${r.status}` });
-      return upstreamError(p, r);
+      return upstreamError(p, r, ledger.id);
     }
     text = await r.text();
     if (gone()) throw new Error("client aborted");
@@ -302,8 +315,7 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
     throw new HttpError(503, "model provider unreachable");
   }
   if (!r.ok || !r.body) {
-    await settle(ledger.id, { kind: "refund", reason: `upstream ${r.status}` });
-    return upstreamError(p, r);
+    return upstreamError(p, r, ledger.id);
   }
 
   const reader = r.body.getReader();
