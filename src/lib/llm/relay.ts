@@ -4,6 +4,7 @@ import { bearerAuth } from "../auth";
 import { currentModels, type ModelPriceView } from "../models";
 import { hardFailure, hardReason, vendorDown, HARD_MS } from "./breaker";
 import { isPaused, pausedVendors } from "./pause";
+import * as streams from "./streams";
 import { QuotaError, avgOutput, hold, pointsContext, quotaContext, quotaHeaders, settle, topUp, type QuotaCtx, type Settlement } from "./quota";
 
 /**
@@ -17,6 +18,11 @@ import { QuotaError, avgOutput, hold, pointsContext, quotaContext, quotaHeaders,
  * whitelist of parameters, max_tokens capped, the platform key added and usage reporting forced on. Responses
  * are forwarded unchanged except that a stream which runs out of quota ends with finish_reason / stop_reason
  * "quota". Billing is in quota.ts.
+ *
+ * Streams survive the edge without touching NGINX or Cloudflare (streams.ts): ": ping" after 15 s without a byte,
+ * and with `x-sinobee-request-id` the call keeps running when the caller goes away and can be resumed
+ * (GET /api/v1/llm/streams/{id}, Last-Event-ID) or polled as a job (POST /api/v1/llm/jobs) - one upstream call,
+ * one charge.
  *
  * A model that no longer accepts an optional sampling parameter (Claude Opus 5.5: "`temperature` is deprecated for
  * this model") gets the request again without it - same hold, settled once - and is remembered, so later requests
@@ -103,12 +109,23 @@ type Prepared = {
   deviceId: string | null;
   /** aborted when the caller goes away (a proxy timeout, a closed app): the upstream call is stopped with it */
   signal?: AbortSignal;
+  /** x-sinobee-request-id: the call outlives the connection and can be resumed (streams.ts) */
+  requestId?: string | null;
+  /** Last-Event-ID of a POST that joins a running call */
+  after?: number;
+  /** a job: answer 202 at once, the events are polled */
+  detach?: boolean;
 };
 
-export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages" | "embeddings"): Promise<Response> {
+export type RelayOptions = { requestId?: string; detach?: boolean };
+
+export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages" | "embeddings", opts: RelayOptions = {}): Promise<Response> {
   let prepared: Prepared | null = null;
   try {
     const auth = await llmAuth(req);
+    const requestId = opts.requestId ?? streams.validRequestId(req.headers.get("x-sinobee-request-id"));
+    const after = Number(req.headers.get("last-event-id")) || 0;
+    const resumable = { requestId, after, detach: opts.detach === true };
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body || typeof body !== "object") throw new HttpError(400, "JSON body required");
     // `x-sinobee-billing: points`: the user agreed in SinoBee to continue with platform points (1:1, quota.ts)
@@ -124,6 +141,10 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
       return await runPlain(prepared, 0);
     }
 
+    if (opts.detach) {
+      if (!requestId) throw new HttpError(400, "a job needs a request id");
+      body.stream = true; // a job is a stream nobody is connected to
+    }
     const stream = body.stream === true;
     const cap = config.llm.maxOutputTokens;
     if (fmt === "openai") {
@@ -133,7 +154,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
       const asked = Number(payload.max_completion_tokens ?? payload.max_tokens ?? 0) || 0;
       const maxOut = Math.min(asked || (stream ? cap : config.llm.defaultOutputTokens), cap);
       const promptEstimate = estimateTokens({ m: payload.messages, t: payload.tools });
-      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal };
+      prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/chat/completions`, headers: { authorization: `Bearer ${key}` }, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal, ...resumable };
       const setMax = (n: number) => {
         delete payload.max_tokens;
         delete payload.max_completion_tokens;
@@ -156,7 +177,7 @@ export async function relay(req: Request, fmt: Fmt, endpoint: "chat" | "messages
     const beta = req.headers.get("anthropic-beta");
     if (beta && /^[a-z0-9,\-. ]{1,300}$/i.test(beta)) headers["anthropic-beta"] = beta;
     const promptEstimate = estimateTokens({ m: payload.messages, s: payload.system, t: payload.tools });
-    prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal };
+    prepared = { fmt, dropped: stripKnown(upstreamName, payload), ctx, model, provider, url: `${p.base}/v1/messages`, headers, payload, stream, promptEstimate, endpoint, deviceId: auth.device?.id ?? null, signal: req.signal, ...resumable };
     if (stream) return await runStream(prepared, Math.min(await avgOutput(ctx.userId, model.modelId), maxOut), maxOut);
     return await runPlain(prepared, maxOut, (n) => (payload.max_tokens = n));
   } catch (e) {
@@ -285,7 +306,6 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
 
 // ───────────── streaming ─────────────
 
-const enc = new TextEncoder();
 
 /** Text-ish deltas we count as output while streaming */
 function deltaText(fmt: Fmt, ev: Record<string, unknown>): string {
@@ -307,21 +327,54 @@ function deltaText(fmt: Fmt, ev: Record<string, unknown>): string {
 }
 
 async function runStream(p: Prepared, expected: number, maxOut: number): Promise<Response> {
-  const { ledger } = await hold(p.ctx, p.model, { prompt: p.promptEstimate, output: expected }, { endpoint: p.endpoint, stream: true, deviceId: p.deviceId });
-  const ac = new AbortController();
+  // a known request id: join the call that is already running (a retry after a cut connection) - no second charge
+  let kept: streams.Live | null = null;
+  if (p.requestId) {
+    const b = await streams.begin(p.ctx.userId, p.requestId);
+    if (b.joined) return p.detach ? Response.json({ id: p.requestId, status: "running", joined: true }, { status: 202 }) : streams.sseResponse(b.source, { after: p.after, ids: true });
+    kept = b.live;
+  }
+  let ledger: { id: string };
   let r: Response;
+  const ac = new AbortController();
+  try {
+    ({ ledger } = await hold(p.ctx, p.model, { prompt: p.promptEstimate, output: expected }, { endpoint: p.endpoint, stream: true, deviceId: p.deviceId }));
+  } catch (e) {
+    if (kept) await streams.drop(kept);
+    throw e;
+  }
   try {
     r = await upstream(p, ac.signal);
   } catch (e) {
+    if (kept) await streams.drop(kept);
     await settle(ledger.id, { kind: "refund", reason: `upstream unreachable: ${(e as Error).message}` });
     throw new HttpError(503, "model provider unreachable");
   }
   if (!r.ok || !r.body) {
+    if (kept) await streams.drop(kept);
     return upstreamError(p, r, ledger.id);
   }
+  const sink = kept ?? new streams.Live(null, null);
+  const gone = { v: false };
+  void pump(p, r, ledger.id, expected, maxOut, ac, sink, gone);
+  const headers = { ...droppedHeader(p), ...(p.requestId ? { "x-sinobee-request-id": p.requestId } : {}) };
+  if (p.detach) return Response.json({ id: p.requestId, status: "running" }, { status: 202, headers });
+  return streams.sseResponse(sink, {
+    ids: !!kept,
+    headers,
+    // without a request id nobody can come back for the answer: stop the upstream call (it bills what it made)
+    onCancel: kept ? undefined : () => ((gone.v = true), ac.abort()),
+  });
+}
 
-  const reader = r.body.getReader();
+/** Read the upstream stream to its end: count output, top up the hold, stop at the quota, settle once. The events go
+ * to `sink`, which the caller (or a later resume) reads at its own pace. */
+async function pump(p: Prepared, r: Response, ledgerId: string, expected: number, maxOut: number, ac: AbortController, sink: streams.Live, gone: { v: boolean }) {
+  const reader = r.body!.getReader();
   const dec = new TextDecoder();
+  const started = Date.now();
+  let lastByte = started;
+  let longest = 0;
   let buf = "";
   let counted = 0; // estimated output tokens so far
   let chars = ""; // pending text not yet converted to tokens
@@ -335,7 +388,8 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
   const finish = async (s: Settlement) => {
     if (settled) return null;
     settled = true;
-    return await settle(ledger.id, s).catch((e) => {
+    if (longest > 30_000) console.info(`llm stream ${p.model.modelId}: ${Math.round((Date.now() - started) / 1000)} s, longest upstream silence ${Math.round(longest / 1000)} s (${s.kind}${"reason" in s && s.reason ? `: ${s.reason}` : ""})`);
+    return await settle(ledgerId, s).catch((e) => {
       console.error("llm settle", e);
       return null;
     });
@@ -349,81 +403,82 @@ async function runStream(p: Prepared, expected: number, maxOut: number): Promise
         `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "quota", stop_sequence: null }, usage: { output_tokens: counted } })}\n\n` +
         `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`;
 
-  const out = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (done && !buf.trim()) {
-          const row = await finish(usage ? { kind: "usage", ...usage } : ({ ...estimateNow(), reason: "stream ended without usage" } as Settlement));
-          // headers left before the answer existed: the answer's share of the quota goes last, as an SSE comment
-          // (ignored by SSE parsers that do not look for it)
-          const q = await quotaHeaders(p.ctx.plan, row).catch(() => ({}));
-          if (Object.keys(q).length) controller.enqueue(enc.encode(`: x-sinobee-quota ${JSON.stringify(q)}\n\n`));
-          controller.close();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      const now = Date.now();
+      longest = Math.max(longest, now - lastByte);
+      lastByte = now;
+      if (done && !buf.trim()) {
+        const row = await finish(usage ? { kind: "usage", ...usage } : ({ ...estimateNow(), reason: "stream ended without usage" } as Settlement));
+        // headers left before the answer existed: the answer's share of the quota goes last, as an SSE comment
+        // (ignored by SSE parsers that do not look for it)
+        const q = await quotaHeaders(p.ctx.plan, row).catch(() => ({}));
+        if (Object.keys(q).length) sink.push(`: x-sinobee-quota ${JSON.stringify(q)}\n\n`);
+        sink.end();
+        return;
+      }
+      if (done) buf += "\n\n"; // flush a last event without its blank line
+      else buf += dec.decode(value, { stream: true });
+      // forward complete SSE events only, so we can stop cleanly between them
+      const cut = buf.lastIndexOf("\n\n");
+      if (cut < 0) continue;
+      const chunk = buf.slice(0, cut + 2);
+      buf = buf.slice(cut + 2);
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        let ev: Record<string, unknown>;
+        try {
+          ev = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (typeof ev.id === "string") lastId = ev.id;
+        if (p.fmt === "openai") {
+          if (ev.usage) usage = openaiUsage(ev.usage as Record<string, unknown>);
+        } else {
+          if (ev.type === "message_start") usage = anthropicUsage((ev.message as { usage?: Record<string, unknown> })?.usage, usage ?? undefined);
+          if (ev.type === "message_delta") usage = anthropicUsage(ev.usage as Record<string, unknown>, usage ?? undefined);
+          if (ev.type === "content_block_start") openBlock = Number(ev.index ?? 0);
+          if (ev.type === "content_block_stop") openBlock = null;
+        }
+        const t = deltaText(p.fmt, ev);
+        if (t) {
+          sawOutput = true;
+          chars += t;
+          if (chars.length > 64) {
+            counted += estimateTokens(chars);
+            chars = "";
+          }
+        }
+      }
+      // reserve more as the stream outgrows its hold
+      while (counted + estimateTokens(chars) > heldOutput && heldOutput < maxOut) {
+        const step = Math.min(config.llm.topUpTokens, maxOut - heldOutput);
+        if (!(await topUp(p.ctx, ledgerId, step, counted))) {
+          // this chunk would go past what is reserved: drop it and end the stream
+          ac.abort();
+          sink.push(quotaTail());
+          await finish({ kind: "estimate", prompt: usage?.prompt || p.promptEstimate, output: heldOutput, reason: "stopped: quota used up" });
+          sink.end();
           return;
         }
-        if (done) buf += "\n\n"; // flush a last event without its blank line
-        else buf += dec.decode(value, { stream: true });
-        // forward complete SSE events only, so we can stop cleanly between them
-        const cut = buf.lastIndexOf("\n\n");
-        if (cut < 0) return;
-        const chunk = buf.slice(0, cut + 2);
-        buf = buf.slice(cut + 2);
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (!data || data === "[DONE]") continue;
-          let ev: Record<string, unknown>;
-          try {
-            ev = JSON.parse(data);
-          } catch {
-            continue;
-          }
-          if (typeof ev.id === "string") lastId = ev.id;
-          if (p.fmt === "openai") {
-            if (ev.usage) usage = openaiUsage(ev.usage as Record<string, unknown>);
-          } else {
-            if (ev.type === "message_start") usage = anthropicUsage((ev.message as { usage?: Record<string, unknown> })?.usage, usage ?? undefined);
-            if (ev.type === "message_delta") usage = anthropicUsage(ev.usage as Record<string, unknown>, usage ?? undefined);
-            if (ev.type === "content_block_start") openBlock = Number(ev.index ?? 0);
-            if (ev.type === "content_block_stop") openBlock = null;
-          }
-          const t = deltaText(p.fmt, ev);
-          if (t) {
-            sawOutput = true;
-            chars += t;
-            if (chars.length > 64) {
-              counted += estimateTokens(chars);
-              chars = "";
-            }
-          }
-        }
-        // reserve more as the stream outgrows its hold
-        while (counted + estimateTokens(chars) > heldOutput && heldOutput < maxOut) {
-          const step = Math.min(config.llm.topUpTokens, maxOut - heldOutput);
-          if (!(await topUp(p.ctx, ledger.id, step, counted))) {
-            // this chunk would go past what is reserved: drop it and end the stream
-            ac.abort();
-            controller.enqueue(enc.encode(quotaTail()));
-            await finish({ kind: "estimate", prompt: usage?.prompt || p.promptEstimate, output: heldOutput, reason: "stopped: quota used up" });
-            controller.close();
-            return;
-          }
-          heldOutput += step;
-        }
-        controller.enqueue(enc.encode(chunk));
-      } catch (e) {
-        await finish(sawOutput ? ({ ...estimateNow(), reason: `stream error: ${(e as Error).message}` } as Settlement) : { kind: "refund", reason: `stream error: ${(e as Error).message}` });
-        controller.error(e);
+        heldOutput += step;
       }
-    },
-    async cancel() {
-      // client went away: stop the upstream call and settle what was produced (upstream bills it anyway)
-      ac.abort();
+      sink.push(chunk);
+    }
+  } catch (e) {
+    if (gone.v) {
+      // client went away (no request id): the upstream call was stopped; settle what was produced
       await finish({ ...estimateNow(), reason: "client aborted" } as Settlement);
-    },
-  });
-  return new Response(out, { status: 200, headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform", "x-accel-buffering": "no", ...droppedHeader(p) } });
+      sink.end("client aborted");
+      return;
+    }
+    await finish(sawOutput ? ({ ...estimateNow(), reason: `stream error: ${(e as Error).message}` } as Settlement) : { kind: "refund", reason: `stream error: ${(e as Error).message}` });
+    sink.end(`stream error: ${(e as Error).message}`);
+  }
 }
 
 /** OpenAI-style model list with published prices (TWD per 1M tokens) */

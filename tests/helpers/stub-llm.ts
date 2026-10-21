@@ -25,6 +25,8 @@ export type StubPlan = {
   reject?: string[];
   /** ms before a non-streaming reply is sent (a model writing a long answer) */
   replyDelayMs?: number;
+  /** ms of silence after a stream's first event (a model buffering a big tool argument) */
+  silenceMs?: number;
 };
 
 export class StubLlm {
@@ -110,6 +112,7 @@ export class StubLlm {
           const ev = (type: string, data: object) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
           ev("message_start", { message: { id: "msg_1", type: "message", role: "assistant", content: [], usage: plan.noUsage ? undefined : { ...usage, output_tokens: 1 } } });
           ev("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+          if (plan.silenceMs) await new Promise((r) => setTimeout(r, plan.silenceMs));
           for (let i = 0; i < plan.chunks && !closed; i++) {
             ev("content_block_delta", { index: 0, delta: { type: "text_delta", text: plan.text } });
             this.lastChunkAt = Date.now();

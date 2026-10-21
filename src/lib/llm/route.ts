@@ -20,6 +20,10 @@ import { pausedVendors } from "./pause";
  * by the user's preference (speed | quality | cost | balanced) and the role (thinking leans to quality; summary and
  * review to cost); when less than a fifth of the 6-hour allowance is left, cost counts more.
  *
+ * Quality floor: a complex task (a page or code, or one SinoBee marks complex) never gets a "cheap and fast" model
+ * (Haiku, Luna, Flash Lite, mini, nano) for its main or thinking role - whatever the preference, cost included. When
+ * only such models are left (the others are down, paused or excluded) they are used rather than nothing.
+ *
  * A pinned model never gets here: SinoBee does not ask while the user has locked a model.
  * Nothing about the request is stored: only POST /api/v1/llm/stats (opt-in) writes RouteStat rows.
  */
@@ -47,7 +51,17 @@ export type RouteRequest = {
   candidates?: string[];
   /** models that just failed for this caller: left out (SinoBee asks again after a vendor failure) */
   exclude?: string[];
+  /** SinoBee's own judgement that this turn is complex (long or multi-file work); page and code always are */
+  complex?: boolean;
 };
+
+/** The "cheap and fast" tier kept away from complex work */
+export const CHEAP_FAST = /haiku|luna|flash[-_]?lite|flash[-_]?8b|(^|[-/._])(lite|mini|nano)($|[-._])/i;
+export const COMPLEX_KINDS = ["page", "code"];
+
+export function isComplex(req: RouteRequest) {
+  return req.complex === true || COMPLEX_KINDS.includes(String(req.task_kind));
+}
 
 export type Ranked = {
   model: string;
@@ -137,7 +151,7 @@ async function relayHealth(models: string[]) {
 }
 
 /** Rank candidates for one request. userId: for the allowance left (relay candidates only). */
-export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked: Ranked[]; weights: { q: number; c: number; s: number }; pool: "relay" | "own" }> {
+export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked: Ranked[]; weights: { q: number; c: number; s: number }; pool: "relay" | "own"; floored: boolean }> {
   const role: Role = ROLES.includes(req.role as Role) ? (req.role as Role) : "main";
   const pref: Preference = PREFERENCES.includes(req.preference as Preference) ? (req.preference as Preference) : "balanced";
   const kind = TASK_KINDS.includes(req.task_kind as (typeof TASK_KINDS)[number]) ? (req.task_kind as string) : "other";
@@ -156,6 +170,11 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
     models = models.filter((m) => !down.has(m.split("/")[0]) && !paused.has(m.split("/")[0]));
   }
   if (!models.length) throw new HttpError(404, "no model fits this request");
+  let floored = false;
+  if (isComplex(req) && (role === "main" || role === "thinking")) {
+    const strong = models.filter((m) => !CHEAP_FAST.test(m.split("/").slice(1).join("/")));
+    if (strong.length) (floored = strong.length < models.length), (models = strong);
+  }
 
   const w = { ...WEIGHTS[pref] };
   if (role === "thinking") (w.q += 0.15), (w.c -= 0.1), (w.s -= 0.05);
@@ -201,12 +220,12 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
     r.score = Math.round(r.score * 100) / 100;
   }
   use.sort((a, b) => b.score - a.score);
-  return { ranked: use, weights: w, pool: own ? "own" : "relay" };
+  return { ranked: use, weights: w, pool: own ? "own" : "relay", floored };
 }
 
 /** The pick and a short reason for SinoBee's "由 SinoBee.ai 分配" line */
 export async function route(req: RouteRequest, userId?: string) {
-  const { ranked, weights, pool } = await rank(req, userId);
+  const { ranked, weights, pool, floored } = await rank(req, userId);
   const best = ranked[0];
   const pref = PREFERENCES.includes(req.preference as Preference) ? req.preference : "balanced";
   const why =
@@ -223,7 +242,8 @@ export async function route(req: RouteRequest, userId?: string) {
   return {
     model: best.model,
     format: pool === "relay" ? fmt : null,
-    reason: why + (best.health === "degraded" ? "（服務略不穩）" : ""),
+    reason: why + (floored ? "（複雜任務不用快速便宜型）" : "") + (best.health === "degraded" ? "（服務略不穩）" : ""),
+    floor: floored,
     preference: pref,
     ttl: 600,
     weights,

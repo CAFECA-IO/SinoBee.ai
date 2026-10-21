@@ -1389,3 +1389,32 @@ model RouteStat {
   @@index([modelId, taskKind])
   @@index([day])
 }
+
+/// A relay call that outlives its connection (streams.ts): kept 15 minutes so SinoBee can resume or poll it
+model LlmStream {
+  id        String           @id @default(cuid())
+  /// userId:requestId
+  key       String           @unique
+  userId    String
+  /// running | done | error
+  status    String           @default("running")
+  error     String?
+  events    Int              @default(0)
+  bytes     Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  chunks    LlmStreamChunk[]
+
+  @@index([createdAt])
+}
+
+/// A batch of SSE events of an LlmStream; seq = the index of its first event
+model LlmStreamChunk {
+  id       String    @id @default(cuid())
+  streamId String
+  stream   LlmStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  seq      Int
+  events   Json
+
+  @@index([streamId, seq])
+}

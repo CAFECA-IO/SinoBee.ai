@@ -113,3 +113,22 @@ test("the endpoints: route and stats need the device token; the board is public"
   const b = await board.GET(new Request(`http://x/api/v1/llm/board?models=${LUNA},${SONNET}`));
   assert.equal((await b.json()).models.length, 2);
 });
+
+test("quality floor: a complex task never gets the cheap-and-fast tier for its main or thinking role, cost preference included", async () => {
+  const HAIKU = "anthropic/claude-haiku-5-5";
+  for (const task_kind of ["page", "code"]) {
+    const r = await R.route({ preference: "cost", task_kind, candidates: [LUNA, HAIKU, SONNET] });
+    assert.equal(r.model, SONNET, task_kind);
+    assert.ok(r.floor && /複雜任務/.test(r.reason));
+    assert.ok(r.ranking.every((x) => x.model !== LUNA && x.model !== HAIKU));
+  }
+  const thinking = await R.route({ role: "thinking", preference: "cost", complex: true, task_kind: "research", candidates: [LUNA, SONNET] });
+  assert.equal(thinking.model, SONNET, "SinoBee may mark any task complex");
+  // the cheap tier stays for simple work and for summaries of complex work
+  assert.equal((await R.route({ preference: "cost", task_kind: "chat", candidates: [LUNA, SONNET] })).model, LUNA);
+  assert.equal((await R.route({ role: "summary", preference: "cost", task_kind: "page", candidates: [LUNA, SONNET] })).model, LUNA);
+  // only cheap models left: they are used rather than nothing
+  const only = await R.route({ preference: "quality", task_kind: "page", candidates: [LUNA, HAIKU] });
+  assert.ok([LUNA, HAIKU].includes(only.model) && !only.floor);
+  assert.ok(R.CHEAP_FAST.test("gemini-flash-lite-latest") && R.CHEAP_FAST.test("gpt-5-mini") && !R.CHEAP_FAST.test("gemini-3.1-pro") && !R.CHEAP_FAST.test("gemini-3.8-flash"));
+});
