@@ -1660,7 +1660,22 @@
     "kindDoc": "報告／互動頁面",
     "back": "回到分享",
     "docs": "公開的分享",
-    "fullscreen": "全螢幕"
+    "fullscreen": "全螢幕",
+    "tl": {
+      "process": "過程",
+      "think": "思考",
+      "work": "工作",
+      "check": "檢查",
+      "steer": "補充",
+      "decision": "決定",
+      "answer": "答：",
+      "result": "結果：",
+      "key": "關鍵產出",
+      "tools": "{n} 個工具",
+      "steps": "{n} 個步驟",
+      "noAnswer": "（見下方工作的結果）",
+      "yourNote": "在執行中補充的指示"
+    }
   },
   "common": {
     "copy": "複製",

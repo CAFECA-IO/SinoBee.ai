@@ -1660,7 +1660,22 @@
     "kindDoc": "Report / interactive page",
     "back": "Back to the share",
     "docs": "Public shares",
-    "fullscreen": "Full screen"
+    "fullscreen": "Full screen",
+    "tl": {
+      "process": "Process",
+      "think": "Question",
+      "work": "Work",
+      "check": "Check",
+      "steer": "Added",
+      "decision": "Decision",
+      "answer": "Answer: ",
+      "result": "Result: ",
+      "key": "Key files",
+      "tools": "{n} tools",
+      "steps": "{n} steps",
+      "noAnswer": "(see the work below)",
+      "yourNote": "Instruction added while it ran"
+    }
   },
   "common": {
     "copy": "Copy",

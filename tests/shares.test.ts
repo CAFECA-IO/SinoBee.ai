@@ -189,3 +189,20 @@ test("shared pages that write formulas without a math library get KaTeX", async 
   assert.equal(withMath("<script src=katex.js></script><p>$x$</p>", "https://sinobee.ai"), null);
   assert.ok(withMath("<div class='formula'>F = ma</div>", "https://sinobee.ai"));
 });
+
+test("a large turn keeps its timeline (questions, work, checks, key files) and odd items are refused", async () => {
+  const timeline = { mode: "full", key: ["index.html"], items: [
+    { id: "ms-m1", kind: "phase", phase: "ms-m1", title: "m1 修正語法", status: "done" },
+    { id: "i1", kind: "think", phase: "ms-m1", q: "SyntaxError 在哪？", a: "地面段多了一段", source: "執行模型" },
+    { id: "i2", kind: "work", phase: "ms-m1", title: "重寫地面段", result: "SYNTAX_OK", status: "ok", notes: ["再跑一次"], tools: [{ name: "shell", brief: "node --check" }] },
+    { id: "i3", kind: "check", title: "成果檢查", ok: true, result: "通過" },
+  ] };
+  const b = body();
+  b.messages[1] = { ...b.messages[1], timeline } as never;
+  const s = await sh.createShare(owner, b);
+  const doc = await sh.readDoc((await sh.loadShare(s.id, null)).share!.objectKey);
+  assert.deepEqual(doc.messages[1].timeline, timeline);
+  const bad = body();
+  bad.messages[1] = { ...bad.messages[1], timeline: { mode: "full", items: [{ kind: "script", q: "x" }] } } as never;
+  await assert.rejects(() => sh.createShare(owner, bad));
+});

@@ -13,6 +13,7 @@ import { LocalDate } from "@/components/date";
 import { MermaidBlocks } from "@/components/mermaid-blocks";
 import { ContinueInSinoBee, ShareOwnerActions, ShareReport } from "@/components/share-actions";
 import { config } from "@/lib/config";
+import { ShareTimelineView } from "@/components/share-timeline";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,16 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
         return `](${f && isDocFile(f) ? docHref(f.name) : fileUrl(fid)})`;
       });
   const access_ = isOwner ? await db.shareAccess.findMany({ where: { shareId: id } }) : [];
+  // a large turn's key files link to the attached copy when the share carries one
+  const keyHref = (name: string) => {
+    const f = doc.files.find((x) => x.name === name || x.name.split("/").pop() === name);
+    return f ? (isDocFile(f) ? docHref(f.name) : fileUrl(f.id)) : null;
+  };
+  const tlLabels = {
+    process: t("tl.process"), think: t("tl.think"), work: t("tl.work"), check: t("tl.check"), steer: t("tl.steer"),
+    decision: t("tl.decision"), answer: t("tl.answer"), result: t("tl.result"), key: t("tl.key"), tools: t.raw("tl.tools") as string,
+    steps: t.raw("tl.steps") as string, noAnswer: t("tl.noAnswer"), yourNote: t("tl.yourNote"),
+  };
   return (
     <div className="container-x max-w-4xl space-y-6 py-10">
       <header className="space-y-2">
@@ -89,7 +100,8 @@ export default async function SharePage({ params }: { params: Promise<{ locale: 
             <div key={i} className={m.role === "user" ? "ml-auto max-w-[85%] rounded-2xl bg-accent-soft px-4 py-3" : "card px-5 py-4"}>
               <div className="mb-1 text-xs font-semibold text-muted">{m.role === "user" ? t("user") : "SinoBee"}</div>
               {m.text && <Markdown>{fix(m.text)}</Markdown>}
-              {m.tools && m.tools.length > 0 && (
+              {m.timeline?.mode === "full" && <ShareTimelineView tl={m.timeline} l={tlLabels} fileHref={keyHref} />}
+              {m.tools && m.tools.length > 0 && m.timeline?.mode !== "full" && (
                 <details className="mt-2 text-xs">
                   <summary className="cursor-pointer text-muted">{t("tools", { n: m.tools.length })}: {m.tools.map((x) => x.name).join(", ")}</summary>
                   {m.tools.map((x, j) => (

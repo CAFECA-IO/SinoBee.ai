@@ -25,12 +25,32 @@ const MAX_FILES = 40;
 export const DEFAULT_DAYS = 30;
 
 const tool = z.object({ name: z.string().max(80), input: z.string().max(4000).optional(), output: z.string().max(8000).optional() });
+const s600 = z.string().max(600).optional();
+/** a large turn as SinoBee showed it (SinoBee agent/timeline.py): questions and answers, work and results, checks */
+const timelineItem = z.object({
+  id: z.string().max(40).optional(),
+  kind: z.enum(["phase", "think", "work", "check", "steer"]),
+  phase: s600, title: s600, q: s600, a: s600, source: s600, result: s600, status: s600, text: s600, summary: s600,
+  ok: z.boolean().optional(),
+  notes: z.array(z.string().max(300)).max(20).optional(),
+  tools: z.array(z.object({ name: z.string().max(80), brief: z.string().max(200).optional() })).max(40).optional(),
+  files: z.array(z.string().max(200)).max(20).optional(),
+});
+const timeline = z.object({
+  mode: z.enum(["full", "compact"]),
+  items: z.array(timelineItem).max(300),
+  /** the turn's key files (deliverables) by name */
+  key: z.array(z.string().max(200)).max(6).default([]),
+});
 const message = z.object({
   role: z.enum(["user", "assistant"]),
   text: z.string().max(200_000),
   tools: z.array(tool).max(100).optional(),
   at: z.string().max(40).optional(),
+  timeline: timeline.optional(),
 });
+export type ShareTimeline = z.infer<typeof timeline>;
+export type ShareTimelineItem = z.infer<typeof timelineItem>;
 const file = z.object({ name: z.string().min(1).max(200), mime: z.string().max(100).default("application/octet-stream"), data: z.string().max(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8) });
 
 export const shareBody = z.object({
