@@ -1,5 +1,5 @@
 # SinoBee.ai — web (Next.js standalone) and worker images
-FROM node:22-bookworm-slim AS deps
+FROM node:24.22.1-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # bolt-vault (WASM) is a local package
@@ -12,7 +12,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 NEXT_OUTPUT=standalone
 RUN npm run db:generate && npx next build
 
 # ── web ──
-FROM node:22-bookworm-slim AS web
+FROM node:24.22.1-bookworm-slim AS web
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./

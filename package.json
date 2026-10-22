@@ -4,6 +4,9 @@
   "private": true,
   "description": "SinoBee official website: intro & install, Skill Hub, commissioned AI tasks, benchmarks",
   "license": "MIT",
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "prebuild": "node -e \"require('fs').rmSync('.next/dev/types',{recursive:true,force:true})\"",
@@ -57,7 +60,7 @@
     "@tailwindcss/postcss": "4.3.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/dockerode": "^3.3.44",
-    "@types/node": "^22.19.1",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.15.6",
     "@types/qrcode": "1.5.6",
     "@types/react": "^19.2.7",

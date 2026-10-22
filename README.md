@@ -31,6 +31,8 @@ prisma/sqlite/            SQLite schema (generated) + migrations
 
 ## Quick start (development, no Docker / no wallet needed)
 
+Node.js 24.22.1 (`.nvmrc`; `nvm use`). After switching Node versions run `npm rebuild` (better-sqlite3 is native).
+
 ```bash
 npm install
 npm run db:generate             # Prisma clients for PostgreSQL and SQLite
