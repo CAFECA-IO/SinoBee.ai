@@ -35,6 +35,10 @@ model User {
   /// set by an admin: sign-in, sessions and API tokens stop working until cleared
   disabledAt        DateTime?
   disabledReason    String?
+  /// set by an admin (resetWindows): model use up to this moment no longer counts in the 6 h quota window
+  quotaReset6hAt    DateTime?
+  /// set by an admin (resetWindows): model use up to this moment no longer counts in the current quota week
+  quotaResetWeekAt  DateTime?
   /// last buyer details used at checkout {name, email, invoice}, to prefill the next one
   billing           Json?
   createdAt         DateTime @default(now())

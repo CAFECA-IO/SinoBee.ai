@@ -13,7 +13,7 @@ import type { UsageLedger } from "@/generated/prisma/client";
  *
  *  hold     prompt tokens + expected output (stream: the user's average for the model, default 800;
  *           non-stream: the max_tokens we let through) at the published price, checked against both
- *           rolling windows (6 h ≤ L6, 168 h ≤ L168) in one locked step so concurrent calls cannot overshoot
+ *           windows (rolling 6 h ≤ L6, calendar week ≤ L168) in one locked step so concurrent calls cannot overshoot
  *  top-up   streams that outgrow the hold reserve another 256 output tokens; when that no longer fits the
  *           stream ends with finish_reason "quota"
  *  settle   from the upstream usage report as soon as the call ends (well within 2 s); without one, from
@@ -21,8 +21,12 @@ import type { UsageLedger } from "@/generated/prisma/client";
  *           the hold, so the windows never exceed the plan limits
  *  sweep    holds older than 10 minutes are settled at the hold (EXPIRED) and logged
  *
- * Window membership: HELD rows count at heldTwd from createdAt; settled rows count at settledTwd from settledAt,
- * so quota frees up 6 h / 168 h after the moment the cost was incurred.
+ * Window membership: HELD rows count at heldTwd from createdAt; settled rows count at settledTwd from settledAt.
+ *  6h    rolling: a cost frees up 6 h after the moment it was incurred
+ *  168h  the calendar week, Sunday 00:00:00 UTC to the next Sunday: the whole week's use is released at once at the
+ *        weekly reset (2026-10-22; the key stays "168h" for SinoBee and the response headers)
+ * An admin may reset either window for one user (resetWindows): costs incurred up to that moment no longer count in
+ * it (User.quotaReset6hAt / quotaResetWeekAt). Calls still running then count when they settle.
  *
  * Platform points (plan "模型分配與備援機制" P3, 2026-10-21): a call sent with `x-sinobee-billing: points` (the user
  * agreed in SinoBee) is held against the points balance instead of the windows and leaves the windows alone. Points
@@ -32,6 +36,16 @@ import type { UsageLedger } from "@/generated/prisma/client";
 
 export const W6 = 6 * 3600_000;
 export const W168 = 168 * 3600_000;
+
+/** Start of the quota week containing `now`: the last Sunday 00:00:00 UTC (inclusive) */
+export function weekStart(now = new Date()): Date {
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return d;
+}
+/** The next weekly reset after `now` (exclusive end of the current quota week) */
+export const weekEnd = (now = new Date()) => new Date(weekStart(now).getTime() + W168);
 
 export type Prices = { input: number; cacheRead: number; cacheWrite: number; output: number };
 export type Tokens = { prompt: number; output: number; cacheRead?: number; cacheWrite?: number };
@@ -105,35 +119,62 @@ type Row = Pick<UsageLedger, "status" | "heldTwd" | "settledTwd" | "createdAt" |
 const amount = (r: Row) => Number(r.status === "HELD" ? r.heldTwd : (r.settledTwd ?? 0));
 const at = (r: Row) => (r.status === "HELD" ? r.createdAt : (r.settledAt ?? r.createdAt));
 
-async function windowRows(userId: string, now: Date) {
+/**
+ * Where each window starts for this user now: the 6 h window at now − 6 h, the week at Sunday 00:00 UTC, either moved
+ * later by an admin reset. Settled rows count when their time is after the start (6 h: strictly; the week: from the
+ * Sunday 00:00:00 itself, also strictly after a reset).
+ */
+async function windowStarts(userId: string, now: Date) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { quotaReset6hAt: true, quotaResetWeekAt: true } });
+  const roll = now.getTime() - W6;
+  const week = weekStart(now).getTime();
+  const r6 = u?.quotaReset6hAt?.getTime() ?? -Infinity;
+  const rw = u?.quotaResetWeekAt?.getTime() ?? -Infinity;
+  return {
+    in6: (t: number) => t > roll && t > r6,
+    inWeek: (t: number) => t >= week && t > rw,
+    earliest: new Date(Math.min(roll, week)),
+  };
+}
+
+async function windowRows(userId: string, earliest: Date) {
   return db.usageLedger.findMany({
-    where: { userId, billing: "subscription", OR: [{ status: "HELD" }, { settledAt: { gt: new Date(now.getTime() - W168) } }] },
+    where: { userId, billing: "subscription", OR: [{ status: "HELD" }, { settledAt: { gte: earliest } }] },
     select: { status: true, heldTwd: true, settledTwd: true, createdAt: true, settledAt: true },
   });
 }
 
+/** Use of both windows (TWD; never below 0, e.g. after quota pledges came back), running holds counted in full */
 export async function windowUse(userId: string, now = new Date()) {
-  const rows = await windowRows(userId, now);
+  const s = await windowStarts(userId, now);
+  const all = await windowRows(userId, s.earliest);
   let w6 = 0;
   let w168 = 0;
   let held = 0;
-  for (const r of rows) {
+  const rows: Row[] = [];
+  for (const r of all) {
     const a = amount(r);
     const t = at(r).getTime();
-    if (r.status === "HELD") held++;
-    if (r.status === "HELD" || t > now.getTime() - W168) w168 += a;
-    if (r.status === "HELD" || t > now.getTime() - W6) w6 += a;
+    const h = r.status === "HELD";
+    if (h) held++;
+    const inWeek = h || s.inWeek(t);
+    const in6 = h || s.in6(t);
+    if (inWeek) w168 += a;
+    if (in6) {
+      w6 += a;
+      if (!h) rows.push(r); // what the 6 h window will release, for retry hints and the timeline
+    }
   }
-  return { w6, w168, held, rows };
+  return { w6: Math.max(0, w6), w168: Math.max(0, w168), held, rows, weekEndsAt: weekEnd(now) };
 }
 
-/** When enough settled cost leaves a window for `need` TWD to fit (for retry hints) */
-function retryAt(rows: Row[], windowMs: number, limit: number, used: number, need: number, now: Date): Date | undefined {
+/** When enough settled cost leaves the 6 h window for `need` TWD to fit (for retry hints) */
+function retryAt6(rows: Row[], limit: number, used: number, need: number): Date | undefined {
   let excess = used + need - limit;
-  const settled = rows.filter((r) => r.status !== "HELD" && at(r).getTime() > now.getTime() - windowMs).sort((a, b) => at(a).getTime() - at(b).getTime());
+  const settled = [...rows].sort((a, b) => at(a).getTime() - at(b).getTime());
   for (const r of settled) {
     excess -= amount(r);
-    if (excess <= 0) return new Date(at(r).getTime() + windowMs);
+    if (excess <= 0) return new Date(at(r).getTime() + W6);
   }
   return undefined;
 }
@@ -225,10 +266,13 @@ export async function hold(
       if (output < (t.minOutput ?? 1)) output = t.minOutput ?? 1; // fall through to the window check for a precise error
     }
     const need = promptCost + costTwd(p, { prompt: 0, output });
-    if (u.w6 + need > ctx.plan.l6Twd + 1e-9)
-      throw new QuotaError("6h", "6-hour quota used up", retryAt(u.rows, W6, ctx.plan.l6Twd, u.w6, need, now));
-    if (u.w168 + need > ctx.plan.l168Twd + 1e-9)
-      throw new QuotaError("168h", "7-day quota used up", retryAt(u.rows, W168, ctx.plan.l168Twd, u.w168, need, now));
+    const weekFull = u.w168 + need > ctx.plan.l168Twd + 1e-9;
+    if (u.w6 + need > ctx.plan.l6Twd + 1e-9) {
+      // when the week is full as well, room comes back only at the weekly reset
+      const retry = weekFull ? u.weekEndsAt : retryAt6(u.rows, ctx.plan.l6Twd, u.w6, need);
+      throw new QuotaError("6h", "6-hour quota used up", retry);
+    }
+    if (weekFull) throw new QuotaError("168h", "weekly quota used up (resets Sunday 00:00 UTC)", u.weekEndsAt);
     const ledger = await db.usageLedger.create({
       data: {
         userId: ctx.userId, subscriptionId: ctx.subscriptionId, planId: ctx.plan.id, deviceId: meta.deviceId ?? null,
@@ -373,11 +417,18 @@ export async function quotaStatus(userId: string, now = new Date()) {
   const ref = await referenceBlended();
   const tokens = (twd: number) => (ref ? Math.floor((Math.max(0, twd) / ref.blendedTwd) * 1e6) : 0);
   const win = (key: "6h" | "168h", ms: number, limit: number, used: number) => {
-    const releases = u.rows
-      .filter((r) => r.status !== "HELD" && at(r).getTime() > now.getTime() - ms && amount(r) > 0)
-      .sort((a, b) => at(a).getTime() - at(b).getTime())
-      .slice(0, 20)
-      .map((r) => ({ at: new Date(at(r).getTime() + ms).toISOString(), pct: limit > 0 ? (amount(r) / limit) * 100 : 0 }));
+    const usedPct = limit > 0 ? Math.min(100, (used / limit) * 100) : 100;
+    // 6 h: each cost frees up 6 h after it was incurred; the week: everything at the next Sunday 00:00 UTC
+    const releases =
+      key === "6h"
+        ? u.rows
+            .filter((r) => amount(r) > 0)
+            .sort((a, b) => at(a).getTime() - at(b).getTime())
+            .slice(0, 20)
+            .map((r) => ({ at: new Date(at(r).getTime() + ms).toISOString(), pct: limit > 0 ? (amount(r) / limit) * 100 : 0 }))
+        : used > 0
+          ? [{ at: u.weekEndsAt.toISOString(), pct: usedPct }]
+          : [];
     // the 6 h window as 12 half-hour buckets (oldest first, % of the limit): SinoBee draws them as a timeline, and
     // the oldest bucket is the next to be released
     const buckets = key === "6h" ? Array.from({ length: 12 }, () => 0) : undefined;
@@ -385,14 +436,16 @@ export async function quotaStatus(userId: string, now = new Date()) {
       const start = now.getTime() - ms;
       for (const r of u.rows) {
         const t = at(r).getTime();
-        if (r.status === "HELD" || t <= start || amount(r) <= 0) continue;
+        if (t <= start || amount(r) <= 0) continue;
         buckets[Math.min(11, Math.floor((t - start) / (ms / 12)))] += (amount(r) / limit) * 100;
       }
     }
     return {
       window: key,
-      usedPct: limit > 0 ? Math.min(100, (used / limit) * 100) : 100,
+      usedPct,
       remainingTokens: tokens(limit - used),
+      // the weekly window resets as a whole at this moment (Sunday 00:00:00 UTC)
+      ...(key === "168h" ? { resetsAt: u.weekEndsAt.toISOString() } : {}),
       releases,
       ...(buckets ? { buckets: buckets.map((b) => Math.round(b * 100) / 100) } : {}),
     };
@@ -410,3 +463,29 @@ export async function quotaStatus(userId: string, now = new Date()) {
     tokensBasis: ref ? { model: ref.model.modelId, label: ref.model.label, blendedTwdPer1M: ref.blendedTwd, mix: "input:output = 3:1" } : null,
   };
 }
+
+// ───────────── admin: reset a user's windows ─────────────
+
+export const RESET_WINDOWS = ["6h", "week", "both"] as const;
+export type ResetWindow = (typeof RESET_WINDOWS)[number];
+
+/**
+ * An admin gives one user a window back in full (support, an incident, goodwill): costs incurred up to now stop
+ * counting in the 6 h window, the current week or both. Calls still running count when they settle. The weekly
+ * schedule (Sunday 00:00 UTC) does not move. Audited as llm.quota.reset with the use it cleared.
+ */
+export async function resetWindows(actorId: string, userId: string, which: ResetWindow, reason?: string, now = new Date()) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!u) throw new HttpError(404, "user not found");
+  return withUserLock(userId, async () => {
+    const before = await windowUse(userId, now);
+    await db.user.update({
+      where: { id: userId },
+      data: { ...(which !== "week" ? { quotaReset6hAt: now } : {}), ...(which !== "6h" ? { quotaResetWeekAt: now } : {}) },
+    });
+    const cleared = { w6Twd: which !== "week" ? round2(before.w6) : 0, w168Twd: which !== "6h" ? round2(before.w168) : 0 };
+    await audit(actorId, "llm.quota.reset", { type: "user", id: userId }, { window: which, ...cleared, ...(reason?.trim() ? { reason: reason.trim().slice(0, 500) } : {}) });
+    return { window: which, at: now.toISOString(), ...cleared };
+  });
+}
+const round2 = (n: number) => Math.round(n * 100) / 100;

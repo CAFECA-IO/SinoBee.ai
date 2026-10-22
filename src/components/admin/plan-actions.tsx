@@ -47,7 +47,7 @@ export function ApplyPlanChange({ plan, change, label, confirm, primary }: { pla
 
 /**
  * A paid plan's form, in plain words: monthly fee and how many times the fee a subscriber may use; the allowance,
- * the 6-hour and 7-day caps and the worst-case margin follow live.
+ * the 6-hour and weekly caps and the worst-case margin follow live.
  */
 export function PlanForm({ plan, buffer, tokensPerTwd, closeHref }: { plan?: PlanData; buffer: number; tokensPerTwd: number; closeHref: string }) {
   const t = useTranslations("admin.pl");

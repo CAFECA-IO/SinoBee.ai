@@ -15,7 +15,7 @@ import { SHARE_OPTIONS, sharePrice } from "./rules";
  *  CARD    a saved card; nothing is charged until the goal is reached (then one charge per backer and task); with
  *          usePoints the backer's points pay first and the card only the rest (all points → a POINTS pledge)
  *  POINTS  platform points, deducted now and given back if the campaign fails
- *  QUOTA   subscription quota (published-price TWD), deducted now inside the 6 h / 168 h windows, given back as
+ *  QUOTA   subscription quota (published-price TWD), deducted now inside the 6 h window and the week, given back as
  *          quota only (never cash or points); capped per period and per task
  * After funding (start-early campaigns that stay open, or a task that ran out of budget) card pledges are charged
  * at once and every pledge adds to the budget immediately.

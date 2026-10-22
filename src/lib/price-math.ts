@@ -21,8 +21,9 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 /**
  * A plan's multiplier is the usage it includes, as a multiple of its fee, at published model prices:
  *   max usage V = fee × multiplier;  L168 = V ÷ 4.8;  L6 = L168 ÷ 10
- * 30 days = four full 168 h windows + 48 h, and 48 h = 8 six-hour windows, so maxing every window costs
- * 4·L168 + min(L168, 8·L6) = 4.8·L168 = V.
+ * 30 days = four full weeks + 48 h, and 48 h = 8 six-hour windows, so maxing every window costs
+ * 4·L168 + min(L168, 8·L6) = 4.8·L168 = V. The week is a calendar week (Sunday 00:00 UTC), so a period starting
+ * mid-week can reach 5·L168 ≈ 1.04·V at worst (accepted; see plans.ts).
  */
 export function planLimits(feeTwd: number, multiplier: number) {
   if (!(feeTwd > 0) || !(multiplier > 0)) return { maxCostTwd: 0, l168Twd: 0, l6Twd: 0 };

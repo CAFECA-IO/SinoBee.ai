@@ -81,3 +81,45 @@ export function UserPermissions({ userId, account, role, disabled, disabledReaso
     </div>
   );
 }
+
+/**
+ * Reset a user's model-quota windows (any admin): the 6-hour window, the current week (Sunday 00:00 UTC) or both
+ * come back in full; the weekly schedule does not move. Audited with the amount cleared.
+ */
+export function QuotaReset({ userId }: { userId: string }) {
+  const t = useTranslations("admin.us");
+  const router = useRouter();
+  const [why, setWhy] = useState("");
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const go = async (window: "6h" | "week" | "both") => {
+    if (!(await confirmDialog(t(`resetConfirm.${window}`)))) return;
+    setErr("");
+    setDone("");
+    setBusy(true);
+    const e = await post(`/api/admin/users/${userId}/quota-reset`, { window, reason: why.trim() || undefined });
+    setBusy(false);
+    if (e) return setErr(e);
+    setWhy("");
+    setDone(t("resetDone"));
+    router.refresh();
+  };
+  return (
+    <details>
+      <summary className="cursor-pointer text-sm text-muted hover:text-ink">{t("reset")}…</summary>
+      <div className="mt-2 space-y-2">
+        <p className="text-xs text-muted">{t("resetHelp")}</p>
+        <label className="sr-only" htmlFor="reset-why">{t("resetReason")}</label>
+        <input id="reset-why" className="input" placeholder={t("resetReason")} value={why} onChange={(e) => setWhy(e.target.value)} maxLength={500} />
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-ghost !py-1.5" disabled={busy} onClick={() => go("6h")}>{t("reset6h")}</button>
+          <button className="btn-ghost !py-1.5" disabled={busy} onClick={() => go("week")}>{t("resetWeek")}</button>
+          <button className="btn-ghost !py-1.5" disabled={busy} onClick={() => go("both")}>{t("resetBoth")}</button>
+        </div>
+        {done && <p className="text-sm text-ok" role="status">{done}</p>}
+        {err && <p className="text-sm text-err" role="alert">{err}</p>}
+      </div>
+    </details>
+  );
+}

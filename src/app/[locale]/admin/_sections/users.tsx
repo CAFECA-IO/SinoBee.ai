@@ -2,7 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { LocalDate } from "@/components/date";
 import { USER_FILTERS, type UserFilter, userCounts, userDetail, userList } from "@/lib/admin/users";
-import { UserPermissions } from "@/components/admin/user-actions";
+import { QuotaReset, UserPermissions } from "@/components/admin/user-actions";
 import { DetailPanel, Empty, FilterLink, KV, PageHead, Pager, PanelSection, Split, Tag, adminHref, twd } from "@/components/admin/kit";
 import type { CurrentUser } from "@/lib/auth";
 import type { AdminParams } from "../page";
@@ -90,6 +90,11 @@ export async function Users({ me, superAdmin, sp }: { me: CurrentUser; superAdmi
             rows={[
               [t("plan"), detail.current ? `${detail.current.plan} · ${t("until", { d: detail.current.endsAt.toISOString().slice(0, 10) })}${detail.upcoming ? ` · ${t("upcoming", { n: detail.upcoming })}` : ""}` : t("freePlan")],
               [t("usage30"), `${twd(detail.usage30Twd, 1)}${detail.allowanceTwd ? ` / ${twd(detail.allowanceTwd)} (${Math.round(pct)}%)` : ""} · ${t("calls", { n: detail.calls30 })}`],
+              [t("window6h"), detail.quota.l6Twd > 0 ? `${twd(detail.quota.w6Twd, 2)} / ${twd(detail.quota.l6Twd, 2)}` : "—"],
+              [t("windowWeek"), detail.quota.l168Twd > 0 ? <>{twd(detail.quota.w168Twd, 2)} / {twd(detail.quota.l168Twd, 2)} · {t("weekResets")} <LocalDate value={detail.quota.weekEndsAt} /></> : "—"],
+              ...(detail.quota.reset6hAt || detail.quota.resetWeekAt
+                ? [[t("lastReset"), <>{detail.quota.reset6hAt && <>{t("reset6h")} <LocalDate value={detail.quota.reset6hAt} /> </>}{detail.quota.resetWeekAt && <>{t("resetWeek")} <LocalDate value={detail.quota.resetWeekAt} /></>}</>] as [string, React.ReactNode]]
+                : []),
               [t("topModels"), detail.topModels.length ? detail.topModels.map((m) => `${m.modelId.split("/").slice(1).join("/")} ${Math.round(m.share * 100)}%`).join("、") : "—"],
             ]}
           />
@@ -98,6 +103,7 @@ export async function Users({ me, superAdmin, sp }: { me: CurrentUser; superAdmi
               <div className={`h-full ${pct >= 90 ? "bg-warn" : "bg-accent"}`} style={{ width: `${pct}%` }} />
             </div>
           )}
+          <QuotaReset userId={u.id} />
         </PanelSection>
         <PanelSection title={t("payments")} action={<Link className="text-xs text-accent" href={`/admin?tab=payments&q=${encodeURIComponent(u.account)}`}>{t("allPayments")}</Link>}>
           {detail.payments.length === 0 ? (

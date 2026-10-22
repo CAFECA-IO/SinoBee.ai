@@ -2,6 +2,7 @@ import { db, icontains } from "../db";
 import { HttpError } from "../errors";
 import { audit } from "../roles";
 import { listPlans } from "../plans";
+import { windowUse } from "../llm/quota";
 import type { User } from "@/generated/prisma/client";
 
 /** Users in /admin: a table with what support needs at a glance, and one user's whole picture */
@@ -73,6 +74,7 @@ export async function userDetail(id: string, locale = "zh-TW", now = new Date())
     db.tool.findMany({ where: { ownerId: id }, select: { name: true, latestVersion: true }, take: 10 }),
     listPlans({ includeFree: true }),
   ]);
+  const win = await windowUse(id, now);
   const current = subs.find((s) => s.startsAt <= now && s.endsAt > now) ?? null;
   const plan = plans.find((p) => p.code === (current?.plan ?? "free")) ?? null;
   const used = Number(usage._sum.settledTwd ?? 0);
@@ -84,6 +86,11 @@ export async function userDetail(id: string, locale = "zh-TW", now = new Date())
     usage30Twd: used,
     calls30: usage._count._all,
     topModels: byModel.map((m) => ({ modelId: m.modelId, twd: Number(m._sum.settledTwd ?? 0), share: used > 0 ? Number(m._sum.settledTwd ?? 0) / used : 0 })),
+    // the model-quota windows now (rolling 6 h; the week from Sunday 00:00 UTC), for the admin's reset buttons
+    quota: {
+      w6Twd: win.w6, l6Twd: plan?.l6Twd ?? 0, w168Twd: win.w168, l168Twd: plan?.l168Twd ?? 0, weekEndsAt: win.weekEndsAt,
+      reset6hAt: u.quotaReset6hAt, resetWeekAt: u.quotaResetWeekAt,
+    },
     payments,
     skills,
     tools,

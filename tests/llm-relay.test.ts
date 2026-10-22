@@ -268,16 +268,24 @@ test("Anthropic stream: cache reads and writes are priced separately; prompt = i
   assert.ok(text.trimEnd().endsWith("}"), "the comment comes after message_stop");
 });
 
-test("windows release 6 h / 168 h after the cost was incurred; stale holds are swept", async () => {
+test("the 6 h window releases each cost after 6 h, the week holds it until Sunday 00:00 UTC; stale holds are swept", async () => {
   const plan = await subscribe(840);
+  await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
+  // a fixed moment mid-week (Wednesday 12:00 UTC of this week), so the result does not depend on today's weekday
+  const now = new Date(quota.weekStart().getTime() + 3.5 * 86400_000);
   const base = { userId, modelId: LUNA, endpoint: "chat", priceTwd: { input: 7.02, cacheRead: 0.702, cacheWrite: 7.02, output: 42.12 } };
-  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 3, heldTwd: 3, settledAt: new Date(Date.now() - 7 * 3600_000) } });
-  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 1, heldTwd: 1, settledAt: new Date(Date.now() - 3600_000) } });
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 3, heldTwd: 3, settledAt: new Date(now.getTime() - 7 * 3600_000) } });
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 1, heldTwd: 1, settledAt: new Date(now.getTime() - 3600_000) } });
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 7, heldTwd: 7, settledAt: new Date(quota.weekStart(now).getTime() - 1) } });
   await db.usageLedger.create({ data: { ...base, status: "HELD", heldTwd: 0.5, createdAt: new Date(Date.now() - 11 * 60_000) } });
-  let u = await quota.windowUse(userId);
+  let u = await quota.windowUse(userId, now);
   assert.ok(Math.abs(u.w6 - 1.5) < 1e-9, "the 7-hour-old call left the 6 h window");
-  assert.ok(Math.abs(u.w168 - 4.5) < 1e-9);
-  const st = await quota.quotaStatus(userId);
+  assert.ok(Math.abs(u.w168 - 4.5) < 1e-9, "last week's call (Saturday 23:59:59.999 UTC) does not count");
+  assert.equal(u.weekEndsAt.toISOString(), new Date(quota.weekStart(now).getTime() + 7 * 86400_000).toISOString());
+  const st = await quota.quotaStatus(userId, now);
+  assert.equal(st.windows[1].window, "168h");
+  assert.equal(st.windows[1].resetsAt, u.weekEndsAt.toISOString());
+  assert.deepEqual(st.windows[1].releases.map((r) => r.at), [u.weekEndsAt.toISOString()], "the week is released at once");
   assert.equal(st.windows[0].window, "6h");
   assert.ok(Math.abs(st.windows[0].usedPct - (1.5 / plan.l6Twd) * 100) < 1e-6);
   assert.ok(st.windows[0].remainingTokens > 0);
@@ -291,7 +299,7 @@ test("windows release 6 h / 168 h after the cost was incurred; stale holds are s
   assert.equal(st.windows[1].buckets, undefined);
   assert.equal(st.tokensBasis?.model, "anthropic/claude-sonnet-5-5", "token counts use Claude Sonnet 5.5");
   assert.equal(await quota.sweepHolds(), 1);
-  u = await quota.windowUse(userId);
+  u = await quota.windowUse(userId, now);
   assert.equal(u.held, 0);
   const swept = await db.usageLedger.findFirstOrThrow({ where: { status: "EXPIRED" } });
   assert.equal(Number(swept.settledTwd), 0.5);
@@ -498,4 +506,54 @@ test("vendor pause: every model of the vendor stops at once, the models' own swi
   assert.ok(P.durations(again).total >= 3600_000);
   await P.setPaused(admin.id, "openai", false);
   assert.ok(await db.adminAudit.findFirst({ where: { action: "llm.vendor.pause", targetId: "openai" } }));
+});
+
+test("the quota week runs from Sunday 00:00:00 UTC to the next Sunday", () => {
+  // 2026-10-22 is a Thursday; 2026-10-18 a Sunday
+  assert.equal(quota.weekStart(new Date("2026-10-22T19:30:00Z")).toISOString(), "2026-10-18T00:00:00.000Z");
+  assert.equal(quota.weekStart(new Date("2026-10-18T00:00:00Z")).toISOString(), "2026-10-18T00:00:00.000Z");
+  assert.equal(quota.weekStart(new Date("2026-10-17T23:59:59.999Z")).toISOString(), "2026-10-11T00:00:00.000Z");
+  // Taiwan's Sunday 07:59 is still Saturday in UTC
+  assert.equal(quota.weekStart(new Date("2026-10-25T07:59:00+08:00")).toISOString(), "2026-10-18T00:00:00.000Z");
+  assert.equal(quota.weekEnd(new Date("2026-10-22T19:30:00Z")).toISOString(), "2026-10-25T00:00:00.000Z");
+  assert.equal(quota.weekStart(new Date("2026-10-25T00:30:00Z")).toISOString(), "2026-10-25T00:00:00.000Z");
+});
+
+test("admin reset: the chosen window comes back in full, audited; later use counts again; the week keeps its schedule", async () => {
+  const plan = await subscribe(840);
+  await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
+  const admin = await db.user.findUniqueOrThrow({ where: { account: "0x" + "a".repeat(40) } });
+  const base = { userId, modelId: LUNA, endpoint: "chat", priceTwd: { input: 7.02, cacheRead: 0.702, cacheWrite: 7.02, output: 42.12 } };
+  // the whole week's allowance used a minute ago: both windows full
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: plan.l168Twd, heldTwd: plan.l168Twd, settledAt: new Date(Date.now() - 60_000) } });
+  const ctx = await quota.quotaContext(userId);
+  const model = (await (await import("../src/lib/models")).offeredModel(LUNA))!;
+  const weekEnd = quota.weekEnd();
+  const tryHold = () => quota.hold(ctx, model, { prompt: 100, output: 100 }, { endpoint: "chat", stream: false });
+  // both full: the 6 h window says so, and points at the weekly reset (the 6 h release alone would not help)
+  await assert.rejects(tryHold, (e: InstanceType<typeof quota.QuotaError>) => e.window === "6h" && e.retryAt?.getTime() === weekEnd.getTime());
+
+  const r6 = await quota.resetWindows(admin.id, userId, "6h", "support ticket #12");
+  assert.equal(r6.w6Twd, plan.l168Twd, "the audit records what was cleared");
+  assert.equal(r6.w168Twd, 0);
+  let u = await quota.windowUse(userId);
+  assert.equal(u.w6, 0);
+  assert.ok(Math.abs(u.w168 - plan.l168Twd) < 1e-6, "the week is untouched");
+  await assert.rejects(tryHold, (e: InstanceType<typeof quota.QuotaError>) => e.window === "168h" && e.retryAt?.getTime() === weekEnd.getTime());
+
+  await quota.resetWindows(admin.id, userId, "week");
+  u = await quota.windowUse(userId);
+  assert.equal(u.w168, 0);
+  assert.equal(u.weekEndsAt.getTime(), weekEnd.getTime(), "the weekly schedule does not move");
+  const { ledger } = await tryHold();
+  await quota.settle(ledger.id, { kind: "usage", prompt: 100, output: 100 });
+  u = await quota.windowUse(userId);
+  assert.ok(u.w6 > 0 && Math.abs(u.w6 - u.w168) < 1e-9, "use after the reset counts in both windows");
+
+  const audits = await db.adminAudit.findMany({ where: { action: "llm.quota.reset", targetId: userId }, orderBy: { createdAt: "asc" } });
+  assert.equal(audits.length, 2);
+  assert.deepEqual((audits[0].detail as { window: string; reason: string }).window, "6h");
+  assert.equal((audits[0].detail as { reason: string }).reason, "support ticket #12");
+  await assert.rejects(() => quota.resetWindows(admin.id, "nobody", "both"), /user not found/);
+  await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
 });
