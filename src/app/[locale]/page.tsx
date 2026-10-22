@@ -8,6 +8,7 @@ import { CopyCode } from "@/components/copy-code";
 import { Icon } from "@/components/icon";
 import { HeroHive } from "@/components/hero-hive";
 import { HighlightArt, type HighlightKey } from "@/components/highlight-art";
+import { BlackBox, type BlackBoxText } from "@/components/black-box";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,9 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           ))}
         </div>
       </section>
+
+      {/* open the black box: how SinoBee shows its reasoning */}
+      <BlackBox t={t.raw("bb") as BlackBoxText} />
 
       {/* three pillars of the site */}
       <section className="container-x grid gap-6 py-12 lg:grid-cols-3">

@@ -138,6 +138,60 @@
         "task": "task"
       }
     },
+    "bb": {
+      "eyebrow": "AI reasoning you can see",
+      "title1": "Open the black box of ",
+      "title2": "AI thinking",
+      "lead": "What it thought, what it did and what failed, laid out under the answer — and the same record makes the next task better.",
+      "art": "A black box opens and pops out files, a question or an idea in turn, then takes it back and closes",
+      "other": {
+        "label": "Most AI agents",
+        "more": "… 20 more tool calls",
+        "answer": "Done, the game is playable.",
+        "verdict": "A conclusion, with no why"
+      },
+      "ours": {
+        "label": "SinoBee",
+        "done": "Done",
+        "meta": "27 steps · 10 min 57 s · checklist 5/5",
+        "answer": "Built a playable Roadster Rocket 3D game. Tested: upside-down grip at 7 sample points, 0 crashes.",
+        "key": "Key files",
+        "process": "Process",
+        "counts": "Thinking 3 · Work 6 · Checks 2",
+        "think": "Thinking",
+        "work": "Work",
+        "check": "Check",
+        "items": [
+          {
+            "q": "Which block does the SyntaxError come from?",
+            "a": "A: an extra else-if branch in the ground section · execution model"
+          },
+          {
+            "q": "Played the full level with a real mouse and keyboard",
+            "a": "Result: all 5 acceptance checks passed"
+          },
+          {
+            "q": "Visual check",
+            "a": "The condensation haze was not drawn; sent back to fix · vision model"
+          }
+        ],
+        "verdict": "Every part has a question, an answer and a source"
+      },
+      "points": [
+        {
+          "title": "Asks when stuck",
+          "body": "The thinking model diagnoses and sets the next step"
+        },
+        {
+          "title": "Every step traced",
+          "body": "Cost, failures and causes are all recorded"
+        },
+        {
+          "title": "Mistakes become rules",
+          "body": "A thumbs-down becomes a pre-delivery check"
+        }
+      ]
+    },
     "pillars": {
       "hub": {
         "title": "Skill Hub",
