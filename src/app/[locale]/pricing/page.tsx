@@ -6,7 +6,6 @@ import { publicPrices } from "@/lib/public-config";
 import { currentModels, formatPrice, pricingSettings } from "@/lib/models";
 import { freePlan, listPlans } from "@/lib/plans";
 import { inSentence, ladder, times } from "@/lib/plan-copy";
-import { LEVEL_BONUS, LEVEL_MONTHS } from "@/lib/level";
 import { Link } from "@/i18n/navigation";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -29,83 +28,81 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         <p className="mt-3 max-w-3xl text-lg text-muted">{t("lead")}</p>
       </header>
 
-      <section id="plans" className="space-y-4">
-        <h2 className="h2">{t("plans")}</h2>
-        <div className={`grid gap-4 ${free ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          {ladder(free, plans).map(({ plan: pl, prev }) => {
+      <section id="plans" className="space-y-5">
+        <div>
+          <h2 className="h2">{t("plans")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("plansLead")}</p>
+        </div>
+        {(() => {
+          const rows = ladder(free, plans).map(({ plan: pl, prev }) => {
             const isFree = pl.feeTwd <= 0;
-            const name = (p: { name: string; nameEn: string }) => (zh ? p.name : p.nameEn);
-            const usage = prev ? times(pl.maxCostTwd, prev.maxCostTwd) : null;
-            const conc = prev && pl.concurrency !== prev.concurrency ? times(pl.concurrency, prev.concurrency) : null;
             // the first paid plan brings what a subscription adds; the ones after it are for heavier work
             const firstPaid = !isFree && (!prev || prev.feeTwd <= 0);
-            return (
-              <div key={pl.id} className="card flex flex-col gap-3 p-6" data-plan={pl.code}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="h3">{name(pl)}</h3>
-                  <div>
-                    <span className="text-2xl font-bold" data-fee>NT${pl.feeTwd.toLocaleString("en-US")}</span>
-                    {!isFree && <span className="text-sm text-muted"> / {pl.days} {t("days")}</span>}
+            return {
+              pl, prev, isFree, firstPaid,
+              name: zh ? pl.name : pl.nameEn,
+              tag: t.has(`tag.${pl.code}`) ? t(`tag.${pl.code}` as "tag.free") : t(isFree ? "tag.free" : firstPaid ? "tag.low" : "tag.high"),
+              usage: prev ? times(pl.maxCostTwd, prev.maxCostTwd) : null,
+              conc: prev && pl.concurrency !== prev.concurrency ? times(pl.concurrency, prev.concurrency) : null,
+            };
+          });
+          const yes = <span className="font-black text-accent" aria-label="✓">✓</span>;
+          const no = <span className="text-muted/50" aria-label="—">—</span>;
+          const cells: [string, (r: (typeof rows)[number]) => React.ReactNode][] = [
+            [t("cmp.usage"), (r) => (r.usage ? <b>{t("cmp.times", { plan: inSentence(r.prev!, zh), x: r.usage })}</b> : t("cmp.basic"))],
+            [t("cmp.tasks"), (r) => (r.conc ? t("cmp.times", { plan: inSentence(r.prev!, zh), x: r.conc }) : t("cmp.n", { n: r.pl.concurrency }))],
+            [t("cmp.cloud"), () => yes],
+            [t("cmp.carry"), (r) => (r.isFree ? no : yes)],
+            [t("cmp.noFee"), (r) => (r.isFree ? no : yes)],
+            [t("cmp.keep"), (r) => (r.isFree ? t("cmp.days", { days: config.retention.freeDays }) : t("cmp.whileSub"))],
+            [t("cmp.heavy"), (r) => (r.isFree || r.firstPaid ? no : yes)],
+          ];
+          return (
+            <>
+              <div className={`grid gap-4 pt-3 ${rows.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                {rows.map((r) => (
+                  <div key={r.pl.id} className={`card relative flex flex-col gap-2.5 p-6 ${r.firstPaid ? "border-2 border-accent bg-gradient-to-b from-accent-soft/40 to-panel" : ""}`} data-plan={r.pl.code}>
+                    {r.firstPaid && <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-accent px-3.5 py-1 text-xs font-bold text-accent-ink">{t("cmp.recommended")}</span>}
+                    <h3 className="h3">{r.name}</h3>
+                    <p className={`text-sm font-semibold ${r.firstPaid ? "text-accent" : "text-muted"}`} data-tagline>{r.tag}</p>
+                    <div className="mt-1">
+                      <span className="text-4xl font-extrabold tracking-tight" data-fee>NT${r.pl.feeTwd.toLocaleString("en-US")}</span>
+                      {!r.isFree && <span className="text-sm text-muted"> / {r.pl.days} {t("days")}</span>}
+                    </div>
+                    {r.isFree ? (
+                      <Link href="/agent" className="btn-ghost mt-auto">{t("freeStart")}</Link>
+                    ) : (
+                      <Link href={`/subscribe?plan=${r.pl.code}`} className="btn-primary mt-auto">{t("cmp.buy", { plan: r.name })}</Link>
+                    )}
                   </div>
-                </div>
-                <p className="text-sm font-semibold text-ink" data-tagline>{t.has(`tag.${pl.code}`) ? t(`tag.${pl.code}` as "tag.free") : t(isFree ? "tag.free" : firstPaid ? "tag.low" : "tag.high")}</p>
-                <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
-                  {isFree ? (
-                    <>
-                      <li>{t("b.login")}</li>
-                      <li>{t("b.oneTask", { n: pl.concurrency })}</li>
-                      <li>{t("b.keepFree", { days: config.retention.freeDays })}</li>
-                    </>
-                  ) : (
-                    <>
-                      {prev && <li className="list-none -ml-5 font-medium text-ink">{t("b.everything", { plan: inSentence(prev, zh) })}</li>}
-                      {usage && <li data-usage>{t("b.usage", { plan: inSentence(prev!, zh), x: usage })}</li>}
-                      {firstPaid && <li>{t("b.carry")}</li>}
-                      {conc && <li>{t("b.tasks", { plan: inSentence(prev!, zh), x: conc })}</li>}
-                      {!prev && <li>{t("b.oneTask", { n: pl.concurrency })}</li>}
-                      {firstPaid && <li>{t("b.noFee")}</li>}
-                      {firstPaid && <li>{t("b.keep")}</li>}
-                      {!firstPaid && <li>{t("b.heavy")}</li>}
-                    </>
-                  )}
-                </ul>
-                {isFree ? <Link href="/agent" className="btn-ghost mt-auto">{t("freeStart")}</Link> : <Link href={`/subscribe?plan=${pl.code}`} className="btn-primary mt-auto">{t("planBuy")}</Link>}
+                ))}
               </div>
-            );
-          })}
-        </div>
+              <div className="card overflow-x-auto p-0">
+                <table className="w-full min-w-[600px] text-sm" id="plan-compare">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 z-10 bg-panel p-4 text-left font-medium text-muted"><span className="sr-only">{t("cmp.feature")}</span></th>
+                      {rows.map((r) => (
+                        <th key={r.pl.id} className={`p-4 text-center font-bold ${r.firstPaid ? "bg-accent-soft/40" : ""}`}>{r.name}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cells.map(([label, cell]) => (
+                      <tr key={label} className="border-t border-line">
+                        <th scope="row" className="sticky left-0 z-10 bg-panel p-4 text-left font-normal text-ink/80">{label}</th>
+                        {rows.map((r) => (
+                          <td key={r.pl.id} className={`p-4 text-center ${r.firstPaid ? "bg-accent-soft/40" : ""}`}>{cell(r)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
         <p className="text-xs text-muted">{t("planNote")}</p>
-      </section>
-
-      <section id="levels" className="space-y-4">
-        <h2 className="h2">{t("levels")}</h2>
-        <p className="max-w-3xl text-sm text-muted">{t("levelsLead")}</p>
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[480px] text-sm" id="level-table">
-            <thead className="text-left text-muted">
-              <tr>
-                <th className="p-3">{t("level")}</th>
-                {LEVEL_MONTHS.map((m, i) => (
-                  <th key={m} className="p-3 text-right">Lv{i + 1}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-t border-line">
-                <td className="p-3">{t("levelMonths")}</td>
-                {LEVEL_MONTHS.map((m) => (
-                  <td key={m} className="p-3 text-right font-mono">{m}</td>
-                ))}
-              </tr>
-              <tr className="border-t border-line">
-                <td className="p-3">{t("levelBonus")}</td>
-                {LEVEL_BONUS.map((b, i) => (
-                  <td key={i} className="p-3 text-right font-mono">{b ? `+${Math.round(b * 100)}%` : "—"}</td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
 
       <section className="space-y-4">

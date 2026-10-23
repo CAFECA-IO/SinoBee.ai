@@ -1515,28 +1515,33 @@
       "selfNote": "不眾籌、免服務費，審核通過即扣款執行"
     },
     "freeStart": "免費開始",
-    "levels": "用戶等級",
-    "levelsLead": "等級依累計訂閱月數（不必連續）提升，門檻為費氏數列；每升一級提高 6 小時額度與每週上限，最多 +20%。",
-    "level": "等級",
-    "levelMonths": "累計訂閱月數",
-    "levelBonus": "額度加成",
     "tag": {
       "free": "體驗 SinoBee 能幫你做什麼",
       "low": "把 SinoBee 當成每天上班的助理",
       "high": "同時交付多項大型任務"
     },
     "b": {
-      "login": "登入即可使用雲端模型，不需要自己的 API 金鑰",
-      "oneTask": "一次處理 {n} 個任務",
-      "keepFree": "成果保留 {days} 天",
-      "everything": "包含{plan}全部功能，以及：",
       "usage": "用量是{plan}的 {x} 倍",
-      "carry": "每週沒用完的額度留到下週，忙的那週一次用掉",
-      "tasks": "同時處理的任務是{plan}的 {x} 倍",
-      "noFee": "訂閱期間發起眾籌免提案費",
-      "keep": "成果與容器在訂閱期間持續保存",
-      "heavy": "長時間研究、資料分析、影片製作也能一次跑完"
-    }
+      "tasks": "同時處理的任務是{plan}的 {x} 倍"
+    },
+    "cmp": {
+      "feature": "項目",
+      "usage": "用量",
+      "tasks": "同時處理的任務",
+      "cloud": "雲端模型（免 API 金鑰）",
+      "carry": "沒用完的額度留到下週",
+      "noFee": "發起眾籌免提案費",
+      "keep": "成果與容器保存",
+      "heavy": "長時間大型任務",
+      "basic": "基本",
+      "n": "{n} 個",
+      "days": "{days} 天",
+      "whileSub": "訂閱期間",
+      "times": "{plan}的 {x} 倍",
+      "recommended": "推薦",
+      "buy": "訂閱 {plan}"
+    },
+    "plansLead": "挑一個適合你工作量的方案；詳細差異看下方比較表。"
   },
   "account": {
     "title": "帳戶設定",

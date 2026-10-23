@@ -1515,28 +1515,33 @@
       "selfNote": "no crowdfunding, no fee; charged when the screening passes"
     },
     "freeStart": "Start free",
-    "levels": "User levels",
-    "levelsLead": "Your level rises with the total months you have subscribed (not necessarily in a row), on the Fibonacci steps; each level raises the 6-hour limit and the weekly cap, up to +20%.",
-    "level": "Level",
-    "levelMonths": "Months subscribed",
-    "levelBonus": "Allowance bonus",
     "tag": {
       "free": "See what SinoBee can do for you",
       "low": "SinoBee as your everyday assistant at work",
       "high": "Deliver several large tasks at once"
     },
     "b": {
-      "login": "Use cloud models as soon as you sign in, no API key of your own",
-      "oneTask": "{n} task at a time",
-      "keepFree": "Results kept for {days} days",
-      "everything": "Everything in {plan}, and:",
       "usage": "{x}× the usage of {plan}",
-      "carry": "What a week leaves unused carries to the next, ready for your busiest week",
-      "tasks": "{x}× the tasks at once of {plan}",
-      "noFee": "No proposal fee for crowdfunding while subscribed",
-      "keep": "Results and containers kept while you subscribe",
-      "heavy": "Long research, data analysis and video production run through in one go"
-    }
+      "tasks": "{x}× the tasks at once of {plan}"
+    },
+    "cmp": {
+      "feature": "Feature",
+      "usage": "Usage",
+      "tasks": "Tasks at once",
+      "cloud": "Cloud models (no API key)",
+      "carry": "Unused allowance carries to next week",
+      "noFee": "No proposal fee for crowdfunding",
+      "keep": "Results and containers kept",
+      "heavy": "Long, large tasks",
+      "basic": "Basic",
+      "n": "{n}",
+      "days": "{days} days",
+      "whileSub": "While subscribed",
+      "times": "{x}× {plan}",
+      "recommended": "Recommended",
+      "buy": "Subscribe to {plan}"
+    },
+    "plansLead": "Pick the plan that fits your workload; the table below compares them."
   },
   "account": {
     "title": "Account",
