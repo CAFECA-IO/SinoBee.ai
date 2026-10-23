@@ -6,7 +6,7 @@ import { config } from "./config";
  *                + (VM rental USD + S3 storage USD) × FX × markup
  * Token cost = uncached input × input + cache reads × cacheRead + cache writes × cacheWrite + output × output, using the
  * vendor USD prices snapshotted on the task when it was created (ModelPrice row in force then).
- * FX (base rate, e.g. 32.5) and buffer (1.08) are the site pricing settings, also snapshotted on the task.
+ * FX (base rate, e.g. 32.5) and buffer (default 1.2) are the site pricing settings, also snapshotted on the task.
  * VM cost = runtime seconds × hourly on-demand price of one task slot; S3 = size × retention × GB-month + requests.
  */
 

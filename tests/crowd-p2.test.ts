@@ -180,7 +180,7 @@ test("funding snapshots the model price at that moment, not at drafting", async 
   const row = await db.task.findUniqueOrThrow({ where: { id: t.id } });
   assert.equal(row.status, "QUEUED");
   assert.equal(Number(row.usdTwdRate), 32.5);
-  assert.equal(Number(row.priceBuffer), 1.08);
+  assert.equal(Number(row.priceBuffer), 1.2);
 });
 
 test("KYC limits for pledging and voting (off by default)", async () => {

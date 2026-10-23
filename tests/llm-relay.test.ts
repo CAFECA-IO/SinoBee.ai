@@ -19,8 +19,8 @@ let token = "";
 let userId = "";
 let subId = "";
 
-const LUNA = "openai/gpt-5.6-luna"; // 7.02 in / 42.12 out TWD per 1M
-const SONNET = "anthropic/claude-sonnet-5-5"; // 70.2 in / 3.51 cache read / 87.75 cache write / 351 out
+const LUNA = "openai/gpt-5.6-luna"; // 7.8 in / 46.8 out TWD per 1M (buffer 1.2)
+const SONNET = "anthropic/claude-sonnet-5-5"; // 78 in / 3.9 cache read / 97.5 cache write / 390 out
 
 before(async () => {
   await llm.start();
@@ -119,7 +119,7 @@ test("non-streaming: platform key added, params whitelisted, settled from usage 
   const [row] = await rows();
   assert.equal(row.status, "SETTLED");
   const out = Math.ceil((12 * 10) / 4);
-  const expect = ((2000 - 1000) * 7.02 + 1000 * 0.702 + out * 42.12) / 1e6;
+  const expect = ((2000 - 1000) * 7.8 + 1000 * 0.78 + out * 46.8) / 1e6;
   assert.ok(Math.abs(Number(row.settledTwd) - expect) < 1e-6, `${row.settledTwd} vs ${expect}`);
   assert.equal(row.cacheReadTokens, 1000);
   // SinoBee shows this call's share of the 6-hour limit from these headers
@@ -260,7 +260,7 @@ test("Anthropic stream: cache reads and writes are priced separately; prompt = i
   assert.equal(row.status, "SETTLED");
   assert.equal(row.promptTokens, 10000);
   const out = Math.ceil((15 * 8) / 4);
-  const expect = (2000 * 70.2 + 6000 * 3.51 + 2000 * 87.75 + out * 351) / 1e6;
+  const expect = (2000 * 78 + 6000 * 3.9 + 2000 * 97.5 + out * 390) / 1e6;
   assert.ok(Math.abs(Number(row.settledTwd) - expect) < 1e-6, `${row.settledTwd} vs ${expect}`);
   // the answer's share of the quota, sent last as an SSE comment (headers left before it was known)
   const q = JSON.parse(/^: x-sinobee-quota (.+)$/m.exec(text)![1]);
@@ -335,7 +335,7 @@ test("embeddings are billed as input tokens", async () => {
   assert.equal(r.status, 200);
   const [row] = await rows();
   assert.equal(row.status, "SETTLED");
-  assert.ok(Math.abs(Number(row.settledTwd) - (5000 * 0.702) / 1e6) < 1e-9);
+  assert.ok(Math.abs(Number(row.settledTwd) - (5000 * 0.78) / 1e6) < 1e-9);
 });
 
 test("a model that no longer accepts temperature: retried without it, remembered, client told; other 400s pass through", async () => {

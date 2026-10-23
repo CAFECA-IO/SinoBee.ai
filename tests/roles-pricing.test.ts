@@ -132,25 +132,25 @@ test("published price = vendor USD × FX × buffer; history and scheduled change
   assert.ok(now.length >= 10, "defaults copied on first use");
   const haiku = now.find((m) => m.modelId === "anthropic/claude-haiku-5-5")!;
   assert.equal(haiku.fx, 32.5);
-  assert.equal(haiku.buffer, 1.08);
-  assert.deepEqual(haiku.twd, { input: 3.51, cacheRead: 0.351, cacheWrite: 4.3875, output: 17.55 });
+  assert.equal(haiku.buffer, 1.2);
+  assert.deepEqual(haiku.twd, { input: 3.9, cacheRead: 0.39, cacheWrite: 4.875, output: 19.5 });
   const sonnet = now.find((m) => m.modelId === "anthropic/claude-sonnet-5-5")!;
-  assert.equal(sonnet.twd.input, 70.2);
-  assert.equal(sonnet.twd.output, 351);
+  assert.equal(sonnet.twd.input, 78);
+  assert.equal(sonnet.twd.output, 390);
 
-  // cheapest model for quota display: Haiku, blended (3·3.51 + 17.55) / 4 = 7.02
+  // cheapest model for quota display: Haiku, blended (3·3.9 + 19.5) / 4 = 7.8
   const cheap = await models.cheapestBlended();
   assert.equal(cheap?.model.modelId, "anthropic/claude-haiku-5-5");
-  assert.ok(Math.abs(cheap!.blendedTwd - 7.02) < 1e-9);
+  assert.ok(Math.abs(cheap!.blendedTwd - 7.8) < 1e-9);
 
   await models.savePrice(admin.id, { modelId: haiku.modelId, label: haiku.label, vendor: haiku.vendor, usd: { ...haiku.usd, output: 0.6 }, enabled: true });
-  assert.equal((await models.currentModels()).find((m) => m.modelId === haiku.modelId)!.twd.output, 21.06);
+  assert.equal((await models.currentModels()).find((m) => m.modelId === haiku.modelId)!.twd.output, 23.4);
   assert.equal((await models.priceHistory(haiku.modelId)).length, 2, "old row kept");
 
   const later = new Date(Date.now() + 86400_000);
   await models.savePrice(admin.id, { modelId: "x-ai/grok-9", label: "Grok 9", vendor: "xAI", usd: { input: 1, cacheRead: 0.1, cacheWrite: 1, output: 4 }, enabled: true, effectiveAt: later });
   assert.ok(!(await models.currentModels()).some((m) => m.modelId === "x-ai/grok-9"), "not yet in force");
-  assert.equal((await models.pricesAt(new Date(+later + 1000))).find((m) => m.modelId === "x-ai/grok-9")?.twd.output, 140.4);
+  assert.equal((await models.pricesAt(new Date(+later + 1000))).find((m) => m.modelId === "x-ai/grok-9")?.twd.output, 156);
   await assert.rejects(models.savePrice(admin.id, { modelId: "bad id", label: "x", vendor: "y", usd: { input: 1, cacheRead: 1, cacheWrite: 1, output: 1 }, enabled: true }), /provider\/model/);
   await assert.rejects(
     models.savePrice(admin.id, { modelId: "a/b", label: "x", vendor: "y", usd: { input: -1, cacheRead: 1, cacheWrite: 1, output: 1 }, enabled: true }),
@@ -168,7 +168,7 @@ test("published price = vendor USD × FX × buffer; history and scheduled change
   await models.savePrice(admin.id, { modelId: h2.modelId, label: h2.label, vendor: h2.vendor, usd: h2.usd, enabled: false });
   assert.ok(!(await models.currentModels()).some((m) => m.modelId === h2.modelId));
   assert.equal((await models.modelLabels())[h2.modelId], "Claude Haiku 5.5");
-  await models.savePricingSettings(admin.id, { fx: 32.5, buffer: 1.08 });
+  await models.savePricingSettings(admin.id, { fx: 32.5, buffer: 1.2 });
 });
 
 test("plans: allowance = fee × usage multiplier (Pro 1.5×, Ultra 5×); margin = buffer ÷ multiplier", async () => {

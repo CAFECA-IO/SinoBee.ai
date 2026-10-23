@@ -9,7 +9,7 @@ import { publishedTwd } from "./price-math";
  *
  *   published price (TWD per 1M tokens) = vendor USD × FX rate × buffer
  *
- * The FX rate (default 32.5) and the buffer (default 1.08) are site settings; every price row snapshots the
+ * The FX rate (default 32.5) and the buffer (default 1.2) are site settings; every price row snapshots the
  * values in force when it was saved, so old rows keep the price they were published with. The row in force for
  * a model is the latest one with effectiveAt <= now. The pricing page, the admin backend, the task form and
  * (later) subscription quota accounting all read from here, so they can never disagree.
@@ -35,7 +35,7 @@ export type ModelPriceView = {
 };
 
 export const DEFAULT_FX = 32.5;
-export const DEFAULT_BUFFER = 1.08;
+export const DEFAULT_BUFFER = 1.2;
 const FX_KEY = "pricing.fx";
 const BUFFER_KEY = "pricing.buffer";
 
