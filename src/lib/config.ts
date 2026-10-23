@@ -185,6 +185,10 @@ export const config = {
     get graceDays() {
       return svNum("subscription.graceDays");
     },
+    /** master switch for automatic renewal charges (src/lib/auto-renew.ts) */
+    get autoRenewEnabled() {
+      return svBool("subscription.autoRenewEnabled");
+    },
   },
 
   storage: {

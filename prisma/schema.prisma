@@ -37,6 +37,9 @@ model User {
   quotaReset6hAt    DateTime?
   /// set by an admin (resetWindows): model use up to this moment no longer counts in the current quota week
   quotaResetWeekAt  DateTime?
+  /// automatic renewal (off by default): 3 days before the last period ends the same plan is charged to autoRenewCardId
+  autoRenew         Boolean  @default(false)
+  autoRenewCardId   String?
   /// last buyer details used at checkout {name, email, invoice}, to prefill the next one
   billing           Json?
   createdAt         DateTime @default(now())
@@ -664,6 +667,11 @@ model Subscription {
   graceEndsAt DateTime?
   /// refunded periods are cancelled; later periods move up
   cancelledAt DateTime?
+  /// automatic renewal of this (last) period: when the user was told a charge is coming, and how many charges were tried
+  renewNoticeAt DateTime?
+  renewAttempts Int       @default(0)
+  /// reminders sent to renew by hand (auto-renew off): 1 = 7 days before the end, 2 = 1 day before
+  endReminders  Int       @default(0)
   createdAt   DateTime  @default(now())
 
   @@index([userId, endsAt])

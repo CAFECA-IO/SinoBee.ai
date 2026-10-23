@@ -4,7 +4,7 @@ import { HttpError } from "./errors";
 import { addDays } from "./retention";
 
 /**
- * Subscription periods: 30 days each, no auto-renewal. Buying the same or a cheaper plan again stacks a new period
+ * Subscription periods: 30 days each; automatic renewal is off unless the user turns it on (src/lib/auto-renew.ts). Buying the same or a cheaper plan again stacks a new period
  * after the last one. Buying a more expensive plan while a period is running is an upgrade: it starts right away,
  * the running period ends now and its unused time is converted to extra days on the new plan at equal value
  * (unused days × old fee per day ÷ new fee per day); periods bought in advance move up behind it. Results and the container are kept while subscribed and for `graceDays` (30) after the last period ends.
@@ -41,12 +41,14 @@ export async function subscriptionState(userId: string, now = new Date()): Promi
 }
 
 /** Add a period for a confirmed payment (idempotent per payment); a more expensive plan than the running one upgrades now */
-export async function addPeriod(userId: string, paymentId: string, plan: { id: string; code: string; days: number }) {
+export async function addPeriod(userId: string, paymentId: string, plan: { id: string; code: string; days: number }, opts: { after?: Date } = {}) {
   const existing = await db.subscription.findUnique({ where: { paymentId } });
   if (existing) return existing;
   const now = new Date();
   const last = await db.subscription.findFirst({ where: { userId, cancelledAt: null }, orderBy: { endsAt: "desc" } });
-  const startsAt = last && last.endsAt > now ? last.endsAt : now;
+  // after: the end of the period an automatic renewal was charged for; a late confirmation still joins it without a gap
+  const joins = !!last && !!opts.after && last.endsAt.getTime() === opts.after.getTime();
+  const startsAt = last && (last.endsAt > now || joins) ? last.endsAt : now;
   const endsAt = new Date(startsAt.getTime() + plan.days * DAY);
   const sub = await db.subscription.create({
     data: { userId, plan: plan.code, planId: plan.id, startsAt, endsAt, graceEndsAt: addDays(endsAt, config.subscription.graceDays), paymentId },

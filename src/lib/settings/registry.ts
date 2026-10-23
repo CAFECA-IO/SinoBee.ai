@@ -100,6 +100,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "retention.freeDays", env: "RETENTION_FREE_DAYS", type: "number", group: "retention", default: "7", label: L("未訂閱成果保留天數", "Free results kept (days)") },
   { key: "retention.subscriberDays", env: "RETENTION_SUBSCRIBER_DAYS", type: "number", group: "retention", default: "90", label: L("訂閱者成果最少保留天數", "Subscriber minimum (days)") },
   { key: "retention.delete", env: "RETENTION_DELETE", type: "bool", group: "retention", default: "0", label: L("刪除到期成果與容器", "Delete expired results and containers"), help: L("關閉時只標記到期（暫緩刪除）", "Off: only mark expired") },
+  { key: "subscription.autoRenewEnabled", env: "SUBSCRIPTION_AUTO_RENEW", type: "bool", group: "payments", default: "1", label: L("自動續訂", "Automatic renewal"), help: L("總開關：關閉後不再自動扣款（用戶的設定保留）", "Master switch: off stops every automatic renewal charge (users keep their setting)") },
   { key: "subscription.graceDays", env: "SUBSCRIPTION_GRACE_DAYS", type: "number", group: "retention", default: "30", label: L("到期寬限天數", "Grace period (days)") },
 
   // ───── storage ─────

@@ -67,7 +67,7 @@ export function cleanBuyer(b: Buyer): Buyer {
  * Create a payment and charge the chosen saved card. Resolves with the payment once the charge is confirmed (or
  * still unknown: status PENDING); rejects with 402 when the card is declined.
  */
-export async function createPayment(p: { userId: string; purpose: PaymentPurpose; amountTwd: number; taskId?: string; planId?: string; buyer: Buyer; cardId: string }) {
+export async function createPayment(p: { userId: string; purpose: PaymentPurpose; amountTwd: number; taskId?: string; planId?: string; buyer: Buyer; cardId: string; meta?: Record<string, string | number | boolean> }) {
   if (!Number.isInteger(p.amountTwd) || p.amountTwd < 1) throw new HttpError(400, "amount must be a whole TWD amount");
   const buyer = cleanBuyer(p.buyer);
   const plan = p.planId ? await db.plan.findUnique({ where: { id: p.planId } }) : null;
@@ -90,7 +90,7 @@ export async function createPayment(p: { userId: string; purpose: PaymentPurpose
       token: "TWD",
       recipient: mock ? "mock" : config.oen.for(card.sandbox).merchantId,
       buyer: buyer as Prisma.InputJsonValue,
-      meta: { card: card.id, last4: card.last4 },
+      meta: { ...(p.meta ?? {}), card: card.id, last4: card.last4 },
     },
   });
   await db.user.update({ where: { id: p.userId }, data: { billing: buyer as Prisma.InputJsonValue } });
@@ -182,7 +182,9 @@ async function grant(paymentId: string) {
   const pay = await db.payment.findUniqueOrThrow({ where: { id: paymentId } });
   if (pay.purpose === "SUBSCRIPTION") {
     const plan = pay.planId ? await db.plan.findUnique({ where: { id: pay.planId } }) : null;
-    const sub = await addPeriod(pay.userId, pay.id, { id: plan?.id ?? "", code: plan?.code ?? "legacy", days: plan?.days ?? 30 });
+    // an automatic renewal continues the period it renews even when the charge is confirmed after that period ended
+    const meta = (pay.meta ?? {}) as { autoRenew?: boolean; after?: string };
+    const sub = await addPeriod(pay.userId, pay.id, { id: plan?.id ?? "", code: plan?.code ?? "legacy", days: plan?.days ?? 30 }, meta.autoRenew && meta.after ? { after: new Date(meta.after) } : {});
     await notify(pay.userId, {
       type: "subscription.active",
       title: `訂閱已生效 Subscription active: ${plan?.name ?? ""}`,

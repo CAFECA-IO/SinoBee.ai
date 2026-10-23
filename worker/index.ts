@@ -18,6 +18,7 @@ import { config } from "../src/lib/config";
 import { chargeTwd, s3CostUsd, tokenCostUsd, vmCostUsd, type UsdPrices } from "../src/lib/pricing";
 import { deleteObject, putObject } from "../src/lib/storage";
 import { notify } from "../src/lib/notify";
+import { renewTick } from "../src/lib/auto-renew";
 import { addDays, resultsRetentionDays } from "../src/lib/retention";
 import { fmtTwd } from "../src/lib/money";
 import { reconcilePayments } from "../src/lib/payments";
@@ -289,6 +290,7 @@ async function loop() {
   let lastReconcile = 0;
   let lastCrowd = 0;
   let lastScreen = 0;
+  let lastRenew = 0;
   while (!stopping) {
     try {
       const ids = await claim(config.runner.concurrency - running.size);
@@ -322,6 +324,12 @@ async function loop() {
         lastScreen = Date.now();
         const n = await screeningTick().catch((e) => (log("screening error", e), 0));
         if (n) log("proposals screened", n);
+      }
+      // automatic renewals and end-of-period reminders
+      if (Date.now() - lastRenew > 10 * 60_000) {
+        lastRenew = Date.now();
+        const r = await renewTick().catch((e) => (log("auto-renew error", e), null));
+        if (r && (r.charged || r.failed || r.notices || r.reminders)) log("subscriptions", r);
       }
       if (Date.now() - lastCleanup > 10 * 60_000) {
         lastCleanup = Date.now();
