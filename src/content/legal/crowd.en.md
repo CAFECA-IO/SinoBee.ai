@@ -2,19 +2,19 @@ These Crowdfunding Terms set out how crowdfunded tasks on {{site}} are proposed 
 
 ## 1. What a crowdfunded task is
 
-- The proposer pays a proposal fee of NT${{proposalFee}} (non-refundable; it becomes credit for the spec dialogue tokens and reference file storage) and drafts the spec, method and acceptance criteria with AI.
-- Once the proposal passes the screening in section 3 it opens for pledges. Pledges are made in shares of NT${{sharePrice}}, 1, 5 or 20 at a time, with a card, platform points or subscription quota.
+- The proposer pays a proposal fee of NT${{proposalFee}} (non-refundable; it becomes credit for the spec dialogue tokens and reference file storage; no fee while subscribed, and then the spec dialogue and reference files are unlimited) and drafts the spec, method and acceptance criteria with AI.
+- Once the proposal passes the screening in section 3 it opens for pledges. Pledges are made in shares of NT${{sharePrice}}, 1, 5 or 20 at a time, with a card or platform points.
 - A platform service fee depending on the period ({{feeRates}}) is deducted from the amount collected when the goal is reached.
 - The proposer may instead pay in full: no pledges and no service fee, at the AI's conservative estimate. The proposer's chosen card is charged as soon as the proposal passes the screening and the task then starts; nothing is charged if it does not pass. The proposer chooses whether the task and its results are public.
-- During the campaign cards are only saved, never charged; they are charged once when the goal is reached. If the goal is missed nothing is charged and points or quota are returned in full.
+- During the campaign cards are only saved, never charged; they are charged once when the goal is reached. If the goal is missed nothing is charged and points are returned in full.
 - Once funded, the SinoBee agent runs the task and reports progress in its comments; comments marked as reference information are background only and never change the spec.
 - After the run, backers whose pledges were collected vote on the result within {{reviewDays}} days, weighted by shares; a rejected result is reworked within the budget, and remaining disputes are decided by us.
-- Budget left at the end goes back to the backers as platform points in proportion to their pledges (quota pledges get quota back); there are no cash refunds. See the [Refund Policy](/refunds).
+- Budget left at the end goes back to the backers as platform points in proportion to their pledges (earlier quota pledges get quota back); there are no cash refunds. See the [Refund Policy](/refunds).
 
 ## 2. Spec revisions, reports and takedowns
 
 - The proposer may revise the spec during the campaign; the goal stays the same. Nothing is charged for {{exitHours}} hours after a revision and backers who disagree may withdraw.
-- Anyone may report a crowdfund that breaks these terms. A campaign taken down before funding charges nothing, refunds any charges and returns points and quota; a task already running is only removed from public listings.
+- Anyone may report a crowdfund that breaks these terms. A campaign taken down before funding charges nothing, refunds any charges and returns points; a task already running is only removed from public listings.
 
 ## 3. Screening items
 

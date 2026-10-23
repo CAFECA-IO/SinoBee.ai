@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { confirmDialog } from "@/components/confirm";
 import { marginText } from "@/lib/admin/margin";
-import { HEALTHY_MARGIN, MAX_MULTIPLIER, limitsFromMax, planLimits, planMargin } from "@/lib/price-math";
+import { HEALTHY_MARGIN, MAX_MULTIPLIER, limitsFromMax, planLimits, planMargin, weekGrantTwd } from "@/lib/price-math";
 
 async function send(url: string, method: string, body: unknown) {
   const r = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -55,7 +55,7 @@ export function PlanForm({ plan, buffer, tokensPerTwd, closeHref }: { plan?: Pla
   const router = useRouter();
   const [v, setV] = useState({
     code: plan?.code ?? "", name: plan?.name ?? "", nameEn: plan?.nameEn ?? "", feeTwd: String(plan?.feeTwd ?? ""),
-    multiplier: String(plan?.multiplier ?? "1"), concurrency: String(plan?.concurrency ?? 2), sortOrder: String(plan?.sortOrder ?? 100),
+    multiplier: String(plan?.multiplier ?? "0.8"), concurrency: String(plan?.concurrency ?? 2), sortOrder: String(plan?.sortOrder ?? 100),
   });
   const [active, setActive] = useState(plan?.active ?? false);
   const [err, setErr] = useState("");
@@ -98,6 +98,7 @@ export function PlanForm({ plan, buffer, tokensPerTwd, closeHref }: { plan?: Pla
         <div><dt className="text-muted">{t("allowance")}</dt><dd className="font-mono text-sm" data-calc="max">NT${n2(lim.maxCostTwd)}</dd><dd className="text-muted">{t("tokens", { n: n2(tok(lim.maxCostTwd)) })}</dd></div>
         <div><dt className="text-muted">{t("marginFull")}</dt><dd className={`font-mono text-sm font-semibold ${badMult ? "" : margin < 1 ? "text-err" : margin < HEALTHY_MARGIN ? "text-warn" : "text-ok"}`} data-calc="margin">{badMult ? "—" : marginText(margin, t)}</dd></div>
         <div><dt className="text-muted">{t("cap6")}</dt><dd className="font-mono" data-calc="l6">NT${n2(lim.l6Twd)}</dd></div>
+        <div><dt className="text-muted">{t("grant")}</dt><dd className="font-mono" data-calc="grant">NT${n2(weekGrantTwd(lim.maxCostTwd))}</dd></div>
         <div><dt className="text-muted">{t("cap7")}</dt><dd className="font-mono" data-calc="l168">NT${n2(lim.l168Twd)}</dd></div>
       </dl>
       {badMult && <p className="text-sm text-err" role="alert">{tp("badMult", { max: MAX_MULTIPLIER })}</p>}
@@ -158,6 +159,7 @@ export function FreePlanForm({ plan, proMax, proName, tokensPerTwd, closeHref }:
       <dl className="grid grid-cols-3 gap-2 rounded-xl bg-panel-2 p-3 text-xs" aria-live="polite">
         <div><dt className="text-muted">{t("tokensShort")}</dt><dd className="font-mono">{n2(Math.round(lim.maxCostTwd * tokensPerTwd))}</dd></div>
         <div><dt className="text-muted">{t("cap6")}</dt><dd className="font-mono" data-calc="l6">NT${n2(lim.l6Twd)}</dd></div>
+        <div><dt className="text-muted">{t("grant")}</dt><dd className="font-mono" data-calc="grant">NT${n2(weekGrantTwd(lim.maxCostTwd))}</dd></div>
         <div><dt className="text-muted">{t("cap7")}</dt><dd className="font-mono" data-calc="l168">NT${n2(lim.l168Twd)}</dd></div>
       </dl>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} /> {tp("freeOn")}</label>

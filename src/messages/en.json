@@ -664,7 +664,7 @@
       "sort": "Order",
       "active": "Active",
       "maxCost": "30-day max usage (published prices)",
-      "formula": "Allowance = fee × usage multiplier, L168 = allowance ÷ 4.8, L6 = L168 ÷ 10; tokens use {model} at its current published price (input : output = 3 : 1).",
+      "formula": "Allowance V = fee × usage multiplier (22 working days × 6 hours = 132 work hours a month); L6 = V ÷ 22, weekly grant = V × 7 ÷ 30, weekly cap L168 = 16 × L6; user levels add up to 20%. Tokens use {model} at its current published price (input : output = 3 : 1).",
       "save": "Save",
       "add": "Add plan",
       "addPlan": "New plan",
@@ -777,7 +777,7 @@
         "boltchain": "Distributed storage and notarization.",
         "hub": "Key that signs approved skills.",
         "runner": "Resources and image of task containers.",
-        "crowd": "Share price, proposal fee, durations and fees, reference files, quota pledges."
+        "crowd": "Share price, proposal fee, durations and fees, reference files."
       },
       "custom": "customised"
     },
@@ -1103,8 +1103,8 @@
       "transfer": "Transfer super admin",
       "transferHelp": "You become an admin after the transfer. Type their full account address to confirm.",
       "window6h": "6-hour window",
-      "windowWeek": "This week",
-      "weekResets": "resets",
+      "windowWeek": "This week (available)",
+      "weekResets": "next grant",
       "lastReset": "Admin reset",
       "reset": "Reset quota",
       "resetHelp": "Give this user the quota back now: use before this moment stops counting in the chosen window. The weekly reset (Sunday 00:00 UTC) does not move; the reset is audited.",
@@ -1114,10 +1114,16 @@
       "resetBoth": "Reset both",
       "resetConfirm": {
         "6h": "Reset this user's 6-hour window?",
-        "week": "Reset this user's quota for this week? (The next weekly reset is still Sunday 00:00 UTC.)",
+        "week": "Reset this user's use for this week? (The next allowance still arrives Sunday 00:00 UTC.)",
         "both": "Reset both this user's 6-hour window and this week?"
       },
-      "resetDone": "Reset."
+      "resetDone": "Reset.",
+      "weekDetail": "grant {grant} + carry-over {carry}, cap {cap}",
+      "level": "Level",
+      "levelLine": "Lv{n} · {months} months · +{bonus}%",
+      "autoRenew": "Automatic renewal",
+      "on": "On",
+      "off": "Off"
     },
     "pay": {
       "summary": "Last 30 days: {amount} ({n}) · refunds {refunded}",
@@ -1224,7 +1230,7 @@
       "tokens": "{n} tokens",
       "tokensShort": "≈ tokens",
       "cap6": "Per 6 hours, at most",
-      "cap7": "Per week, at most",
+      "cap7": "Weekly cap (with carry-over)",
       "subscribers": "Subscribers",
       "people": "{n}",
       "avgUse": "Average use",
@@ -1241,7 +1247,7 @@
       "applyTo": "Apply to {plan}",
       "applyConfirm": "Change {plan}? Its {n} subscribers get it from their next period.",
       "applyFeeConfirm": "Change {plan}'s fee? Periods already bought are not affected.",
-      "how": "Allowances are at published prices; the 6-hour and weekly caps follow from the 30-day allowance (÷ 4.8, then ÷ 10); tokens are counted at {model}'s published price (input:output = 3:1). Profit is relative to cost: 50% means revenue is 1.5× the vendor cost.",
+      "how": "Allowances are at published prices; the 6-hour limit is the 30-day allowance ÷ 22, the weekly cap 16 × the 6-hour limit and the weekly grant the 30-day allowance × 7 ÷ 30, with what is left carried to the next week while the subscription runs without a gap; tokens are counted at {model}'s published price (input:output = 3:1). Profit is relative to cost: 50% means revenue is 1.5× the vendor cost.",
       "headSub": "Buffer {buffer}",
       "bufferWhere": "(set in Models & pricing)",
       "losing": "{n} {n, plural, one {plan on sale loses} other {plans on sale lose}} money",
@@ -1251,7 +1257,8 @@
       "codeHelp": "lowercase slug; avoid changing it later",
       "marginFull": "If all of it is used",
       "ofPro": "about 1/{r} of {plan}",
-      "setOfPro": "Set to 1/{r} of {plan}"
+      "setOfPro": "Set to 1/{r} of {plan}",
+      "grant": "Weekly grant"
     },
     "set": {
       "security": "Encryption & backup",
@@ -1470,7 +1477,7 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Plans run 30 days and never renew automatically; usage is charged at SinoBee.ai's published model prices. Crowdfunded tasks are estimated by AI from their expected usage.",
+    "lead": "Plans run 30 days at a time and use the published model prices; automatic renewal is optional. Crowdfunded tasks are priced by AI from the actual usage.",
     "formula": "How we charge",
     "charge": "Charge",
     "tokens": "Model tokens",
@@ -1485,11 +1492,9 @@
     "modelNote": "Published price = vendor USD price × base FX rate {fx} × {buffer}. Subscription quota is drawn down at these prices; changes are announced here with their effective date.",
     "days": "days",
     "plans": "Subscription plans",
-    "planL6": "Every 6 hours: about {tokens} tokens",
-    "planL168": "Every week: about {tokens} tokens (resets Sunday 00:00 UTC)",
+    "planL6": "Every 6 hours (one working day): about {tokens} tokens",
     "planConcurrency": "{n} requests at a time",
-    "planNoRenew": "No auto-renewal; extensions add up",
-    "planNote": "The 6-hour limit is rolling (each use comes back 6 hours later); the weekly limit resets in full every Sunday at 00:00 UTC. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
+    "planNote": "The 6-hour limit is rolling (each use comes back 6 hours later). The weekly allowance arrives every Sunday 00:00 UTC; while the subscription runs without a gap, what is left carries over, and a gap clears it. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
     "pIn": "Input",
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",
@@ -1497,11 +1502,11 @@
     "tasksTitle": "How crowdfunded runs are metered",
     "seePlans": "See plans",
     "planBuy": "Subscribe",
-    "planUsage": "Use up to {mult}× the fee (up to NT${value} in 30 days at published prices)",
+    "planUsage": "22 working days of 6 hours a month (NT${value} per 30 days at published prices)",
     "crowdTitle": "How crowdfunding is charged",
     "crowd": {
       "share": "NT${price} a share; back 1, 5 or 20 shares. Cards are only saved while funding and charged when the goal is reached.",
-      "fee": "Proposal fee NT${fee}: credit for AI drafting and editing the spec; not refundable.",
+      "fee": "Proposal fee NT${fee}: credit for AI drafting and editing the spec; not refundable; no proposal fee while you subscribe, without limit.",
       "goal": "The goal is set from AI's estimate of the run (the conservative estimate plus the service fee, rounded up to whole shares).",
       "leftover": "After the task, unused budget goes back to the backers as platform points for other crowdfunds.",
       "cta": "Start a crowdfund",
@@ -1514,7 +1519,15 @@
     },
     "freeUsage": "Up to NT${value} of model usage per 30 days (at published prices)",
     "freeNote": "Just sign in, no payment",
-    "freeStart": "Start free"
+    "freeStart": "Start free",
+    "planWeek": "About {tokens} tokens a week; what is left carries to the next week, up to about {cap} tokens a week",
+    "planRenew": "Automatic renewal available (off by default); the carry-over lasts while the subscription runs without a gap",
+    "freeWeek": "About {tokens} tokens a week (no carry-over)",
+    "levels": "User levels",
+    "levelsLead": "Your level rises with the total months you have subscribed (not necessarily in a row), on the Fibonacci steps; each level raises the 6-hour limit and the weekly cap, up to +20%.",
+    "level": "Level",
+    "levelMonths": "Months subscribed",
+    "levelBonus": "Allowance bonus"
   },
   "account": {
     "title": "Account",
@@ -1584,7 +1597,16 @@
     "subKeep": "Results and container kept until",
     "extendPlan": "Extend 30 days or change plan",
     "choosePlan": "Choose a plan",
-    "subFree": "You are on the {plan} allowance: up to NT${value} of model usage per 30 days."
+    "subFree": "You are on the {plan} allowance: up to NT${value} of model usage per 30 days.",
+    "level": "Level {n} ({months} months subscribed; 6-hour limit and weekly cap +{bonus}%)",
+    "levelNone": "No subscription yet; your first one makes you level 1.",
+    "levelNext": "{months} more months to level {n}",
+    "week": "This week: {available} available, {used} used (this week {grant} + carried over {carry}, weekly cap {cap}).",
+    "weekNext": "Next allowance:",
+    "autoRenew": "Automatic renewal",
+    "autoRenewNote": "NT${fee} is charged to the chosen card 3 days before the end, after a notice; a failed charge is tried again 2 days and 1 day before.",
+    "autoRenewCard": "Card",
+    "autoRenewNoCard": "Save a card above to turn on automatic renewal."
   },
   "notifications": {
     "title": "Notifications",
@@ -1781,16 +1803,18 @@
   },
   "subscribe": {
     "title": "Subscribe to SinoBee.ai",
-    "lead": "30-day periods, no auto-renewal. Buying again adds a period after the current one.",
+    "lead": "30 days at a time; buying again adds the next period after the current one. Automatic renewal is optional (off by default).",
     "plan": "Plan",
-    "limits": "About {l6} tokens per 6 h, {l168} per week · {n} requests at a time",
+    "limits": "About {l6} per 6 h, {week} a week (up to {l168} with carry-over) tokens · {n} requests at a time",
     "pay": "Pay NT${fee} by card",
     "current": "Current plan: {plan}, until",
     "grace": "Your subscription has ended; the grace period lasts until",
     "stacks": "The new period starts on {date}, after your current one.",
     "startsNow": "Starts as soon as the charge goes through; 30 days from payment.",
-    "usage": "Use up to {mult}× the fee",
-    "upgradeNow": "Upgrades right away: the rest of your {from} period is worth {credit} days on this plan, so this period runs about {days} days from payment."
+    "usage": "22 working days of 6 hours a month",
+    "upgradeNow": "Upgrades right away: the rest of your {from} period is worth {credit} days on this plan, so this period runs about {days} days from payment.",
+    "autoRenew": "Renew automatically (turn it off any time)",
+    "autoRenewNote": "NT${fee} is charged to this card 3 days before the end, after a notice; an unbroken subscription keeps the weekly carry-over."
   },
   "payReturn": {
     "title": {

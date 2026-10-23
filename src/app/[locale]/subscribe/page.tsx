@@ -1,3 +1,4 @@
+import { weekGrantTwd } from "@/lib/price-math";
 import { checkoutCards } from "@/lib/crowd/cards";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { currentUser } from "@/lib/auth";
@@ -58,7 +59,7 @@ export default async function SubscribePage({ params, searchParams }: { params: 
       )}
       <section className="card p-6">
         <SubscribeForm
-          plans={plans.map((p) => ({ id: p.id, code: p.code, name: zh ? p.name : p.nameEn, fee: p.feeTwd, mult: p.multiplier, l6: tok(p.l6Twd), l168: tok(p.l168Twd), concurrency: p.concurrency }))}
+          plans={plans.map((p) => ({ id: p.id, code: p.code, name: zh ? p.name : p.nameEn, fee: p.feeTwd, mult: p.multiplier, l6: tok(p.l6Twd), week: tok(weekGrantTwd(p.maxCostTwd)), l168: tok(p.l168Twd), concurrency: p.concurrency }))}
           initial={plan}
           buyer={(me!.billing ?? null) as Buyer | null}
           {...await checkoutCards(me!.id)}

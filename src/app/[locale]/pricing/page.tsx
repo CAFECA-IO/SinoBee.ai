@@ -5,6 +5,8 @@ import { durations, sharePrice } from "@/lib/crowd/rules";
 import { publicPrices } from "@/lib/public-config";
 import { referenceBlended, currentModels, formatPrice, pricingSettings } from "@/lib/models";
 import { freePlan, listPlans } from "@/lib/plans";
+import { weekGrantTwd } from "@/lib/price-math";
+import { LEVEL_BONUS, LEVEL_MONTHS } from "@/lib/level";
 import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { Link } from "@/i18n/navigation";
 
@@ -40,7 +42,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
               <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
                 <li className="font-semibold text-ink">{t("freeUsage", { value: free.maxCostTwd.toLocaleString("en-US") })}</li>
                 <li>{t("planL6", { tokens: tok(free.l6Twd) })}</li>
-                <li>{t("planL168", { tokens: tok(free.l168Twd) })}</li>
+                <li>{t("freeWeek", { tokens: tok(weekGrantTwd(free.maxCostTwd)) })}</li>
                 <li>{t("planConcurrency", { n: free.concurrency })}</li>
                 <li>{t("freeNote")}</li>
               </ul>
@@ -57,17 +59,48 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                 </div>
               </div>
               <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted">
-                <li className="font-semibold text-ink" data-usage>{t("planUsage", { mult: pl.multiplier, value: pl.maxCostTwd.toLocaleString("en-US") })}</li>
+                <li className="font-semibold text-ink" data-usage>{t("planUsage", { value: pl.maxCostTwd.toLocaleString("en-US") })}</li>
                 <li>{t("planL6", { tokens: tok(pl.l6Twd) })}</li>
-                <li>{t("planL168", { tokens: tok(pl.l168Twd) })}</li>
+                <li data-week>{t("planWeek", { tokens: tok(weekGrantTwd(pl.maxCostTwd)), cap: tok(pl.l168Twd) })}</li>
                 <li>{t("planConcurrency", { n: pl.concurrency })}</li>
-                <li>{t("planNoRenew")}</li>
+                <li>{t("planRenew")}</li>
               </ul>
               <Link href={`/subscribe?plan=${pl.code}`} className="btn-primary mt-auto">{t("planBuy")}</Link>
             </div>
           ))}
         </div>
         <p className="text-xs text-muted">{ref ? t("planNote", { model: ref.model.label }) : null}</p>
+      </section>
+
+      <section id="levels" className="space-y-4">
+        <h2 className="h2">{t("levels")}</h2>
+        <p className="max-w-3xl text-sm text-muted">{t("levelsLead")}</p>
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[480px] text-sm" id="level-table">
+            <thead className="text-left text-muted">
+              <tr>
+                <th className="p-3">{t("level")}</th>
+                {LEVEL_MONTHS.map((m, i) => (
+                  <th key={m} className="p-3 text-right">Lv{i + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t border-line">
+                <td className="p-3">{t("levelMonths")}</td>
+                {LEVEL_MONTHS.map((m) => (
+                  <td key={m} className="p-3 text-right font-mono">{m}</td>
+                ))}
+              </tr>
+              <tr className="border-t border-line">
+                <td className="p-3">{t("levelBonus")}</td>
+                {LEVEL_BONUS.map((b, i) => (
+                  <td key={i} className="p-3 text-right font-mono">{b ? `+${Math.round(b * 100)}%` : "—"}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="space-y-4">

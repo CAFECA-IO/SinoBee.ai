@@ -14,16 +14,16 @@ The Service is a digital service delivered online and starts as soon as you pay 
 | An outage attributable to us made the period unusable | Proportional to the affected time or quota |
 
 - A refunded period is cancelled at once; later prepaid periods move up.
-- Subscriptions never renew automatically, so there are no renewals you did not approve.
+- Automatic renewal is off by default; it charges only after you turn it on, always tells you before each charge, and can be turned off on your account page at any time. A period bought by automatic renewal follows the same refund rules as any purchase.
 
 ## 3. Crowdfunded tasks and evaluations
 
 | Situation | What happens |
 | --- | --- |
-| Proposal fee | Non-refundable; it becomes credit for the spec dialogue tokens and reference file storage. Credit left when the campaign is funded joins the task budget |
-| You withdraw a pledge during the campaign, or the campaign misses its goal | Cards are not charged; points or subscription quota used are returned in full |
-| The goal is reached but the charges collected fall short during the charging grace period | Charged cards are refunded in full; points and quota are returned |
-| Budget left after the task is completed, closed or failed | Returned to the backers as platform points in proportion to their pledges (quota pledges get quota back); no cash refund |
+| Proposal fee | Non-refundable; it becomes credit for the spec dialogue tokens and reference file storage. Credit left when the campaign is funded joins the task budget. No fee while subscribed |
+| You withdraw a pledge during the campaign, or the campaign misses its goal | Cards are not charged; points are returned in full (earlier quota pledges get their quota back) |
+| The goal is reached but the charges collected fall short during the charging grace period | Charged cards are refunded in full; points are returned |
+| Budget left after the task is completed, closed or failed | Returned to the backers as platform points in proportion to their pledges (earlier quota pledges get quota back); no cash refund |
 | A disputed review where the platform decides the result does not meet the spec | The whole budget, spent part included, goes back to the backers as points |
 | The task failed because of a platform error | Platform points by default; a backer may ask for a refund to the original payment method instead |
 

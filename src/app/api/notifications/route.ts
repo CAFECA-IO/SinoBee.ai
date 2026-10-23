@@ -3,12 +3,13 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
 import { pointBalance } from "@/lib/crowd/points";
+import { userLevel } from "@/lib/level";
 
 export const GET = handle(async () => {
   const user = await requireUser();
-  // the user menu polls this: unread notifications and the platform points balance
-  const [unread, points] = await Promise.all([db.notification.count({ where: { userId: user.id, readAt: null } }), pointBalance(user.id)]);
-  return json({ unread, points });
+  // the user menu polls this: unread notifications, the platform points balance and the user level
+  const [unread, points, level] = await Promise.all([db.notification.count({ where: { userId: user.id, readAt: null } }), pointBalance(user.id), userLevel(user.id)]);
+  return json({ unread, points, level });
 });
 
 /** mark read: { ids } or { all: true } */

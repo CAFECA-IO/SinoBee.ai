@@ -35,3 +35,10 @@ export function monthsAt(periods: { startsAt: Date; endsAt: Date }[], at: Date):
 }
 
 export const levelAt = (periods: { startsAt: Date; endsAt: Date }[], at: Date) => levelFor(monthsAt(periods, at));
+
+/** A user's level now, from their non-cancelled subscription periods */
+export async function userLevel(userId: string, now = new Date()): Promise<Level> {
+  const { db } = await import("./db");
+  const periods = await db.subscription.findMany({ where: { userId, cancelledAt: null }, select: { startsAt: true, endsAt: true } });
+  return levelAt(periods, now);
+}

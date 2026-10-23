@@ -13,6 +13,9 @@ import { StatusBadge } from "@/components/status-badge";
 import { CardManager } from "@/components/crowd";
 import { activeCards, cardOpt } from "@/lib/crowd/cards";
 import { pointBalance, pointHistory } from "@/lib/crowd/points";
+import { quotaContext, weekBudget, windowUse } from "@/lib/llm/quota";
+import { autoRenewState } from "@/lib/auto-renew";
+import { AutoRenewToggle } from "@/components/auto-renew-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +39,13 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
   const [plans, free] = await Promise.all([listPlans(), freePlan({ activeOnly: true })]);
   const tc = await getTranslations("crowd.account");
   const [points, pointRows, cards] = await Promise.all([pointBalance(me!.id), pointHistory(me!.id, 30), activeCards(me!.id)]);
+  // level, this week's quota and automatic renewal
+  const qc = await quotaContext(me!.id).catch(() => null);
+  const wk = qc ? await weekBudget(qc) : null;
+  const used = wk ? (await windowUse(me!.id, new Date(), wk.from)).w168 : 0;
+  const renew = await autoRenewState(me!.id);
+  const curPlan = st.current ? plans.find((x) => x.id === st.current!.planId || x.code === st.current!.plan) : undefined;
+  const money = (n: number) => `NT$${(Math.round(n * 100) / 100).toLocaleString("en-US")}`;
   const planName = (id: string | null, code: string) => {
     const p = plans.find((x) => x.id === id || x.code === code);
     return p ? (locale.startsWith("zh") ? p.name : p.nameEn) : code;
@@ -110,6 +120,19 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
         )}
         {!st.current && free && <p className="text-sm" data-sub="free">{t("subFree", { plan: locale.startsWith("zh") ? free.name : free.nameEn, value: free.maxCostTwd.toLocaleString("en-US") })}</p>}
         {st.graceEndsAt && <p className="text-xs text-muted">{t("subKeep")} <LocalDate value={st.graceEndsAt} withTime={false} /></p>}
+        {qc && (
+          <p className="text-sm" id="level" data-level={qc.level.n}>
+            {qc.level.n > 0 ? t("level", { n: qc.level.n, months: qc.level.months, bonus: Math.round(qc.level.bonus * 100) }) : t("levelNone")}
+            {qc.level.next !== null && <span className="text-muted"> · {t("levelNext", { n: qc.level.n + 1, months: qc.level.next - qc.level.months })}</span>}
+          </p>
+        )}
+        {wk && (
+          <p className="text-sm" data-week>
+            {t("week", { available: money(wk.availableTwd), used: money(used), grant: money(wk.grantTwd), carry: money(wk.carryInTwd), cap: money(wk.capTwd) })}{" "}
+            <span className="text-muted">{t("weekNext")} <LocalDate value={wk.weekEnd} /></span>
+          </p>
+        )}
+        {(st.current || renew.on) && <AutoRenewToggle on={renew.on} cardId={renew.cardId} cards={cards.map(cardOpt)} fee={curPlan?.feeTwd ?? null} />}
         <Link href="/subscribe" className="btn-primary">{st.current || st.upcoming.length ? t("extendPlan") : t("choosePlan")}</Link>
       </section>
 

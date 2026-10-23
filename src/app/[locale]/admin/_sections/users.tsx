@@ -91,7 +91,9 @@ export async function Users({ me, superAdmin, sp }: { me: CurrentUser; superAdmi
               [t("plan"), detail.current ? `${detail.current.plan} · ${t("until", { d: detail.current.endsAt.toISOString().slice(0, 10) })}${detail.upcoming ? ` · ${t("upcoming", { n: detail.upcoming })}` : ""}` : t("freePlan")],
               [t("usage30"), `${twd(detail.usage30Twd, 1)}${detail.allowanceTwd ? ` / ${twd(detail.allowanceTwd)} (${Math.round(pct)}%)` : ""} · ${t("calls", { n: detail.calls30 })}`],
               [t("window6h"), detail.quota.l6Twd > 0 ? `${twd(detail.quota.w6Twd, 2)} / ${twd(detail.quota.l6Twd, 2)}` : "—"],
-              [t("windowWeek"), detail.quota.l168Twd > 0 ? <>{twd(detail.quota.w168Twd, 2)} / {twd(detail.quota.l168Twd, 2)} · {t("weekResets")} <LocalDate value={detail.quota.weekEndsAt} /></> : "—"],
+              [t("windowWeek"), detail.quota.l168Twd > 0 ? <>{twd(detail.quota.w168Twd, 2)} / {twd(detail.quota.l168Twd, 2)} <span className="text-muted">({t("weekDetail", { grant: twd(detail.quota.grantTwd, 2), carry: twd(detail.quota.carryInTwd, 2), cap: twd(detail.quota.capTwd, 2) })})</span> · {t("weekResets")} <LocalDate value={detail.quota.weekEndsAt} /></> : "—"],
+              [t("level"), detail.level ? t("levelLine", { n: detail.level.n, months: detail.level.months, bonus: Math.round(detail.level.bonus * 100) }) : "—"],
+              [t("autoRenew"), u.autoRenew ? t("on") : t("off")],
               ...(detail.quota.reset6hAt || detail.quota.resetWeekAt
                 ? [[t("lastReset"), <>{detail.quota.reset6hAt && <>{t("reset6h")} <LocalDate value={detail.quota.reset6hAt} /> </>}{detail.quota.resetWeekAt && <>{t("resetWeek")} <LocalDate value={detail.quota.resetWeekAt} /></>}</>] as [string, React.ReactNode]]
                 : []),

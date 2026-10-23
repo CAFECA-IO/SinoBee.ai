@@ -3,7 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { listPlans } from "@/lib/plans";
 import { pricingSettings, referenceBlended } from "@/lib/models";
-import { HEALTHY_MARGIN } from "@/lib/price-math";
+import { HEALTHY_MARGIN, weekGrantTwd } from "@/lib/price-math";
 import { marginLevel, planEconomics, suggestions } from "@/lib/admin/plan-economics";
 import { marginText } from "@/lib/admin/margin";
 import { ApplyPlanChange, FreePlanForm, PlanForm, type PlanData } from "@/components/admin/plan-actions";
@@ -89,6 +89,7 @@ export async function Plans({ sp }: { sp: AdminParams }) {
                   [t("allowance"), twd(p.maxCostTwd, p.maxCostTwd < 100 ? 2 : 0)],
                   [t("about"), tokensPerTwd ? t("tokens", { n: big(p.maxCostTwd * tokensPerTwd, zh) }) : "—"],
                   [t("cap6"), twd(p.l6Twd, 2)],
+                  [t("grant"), twd(weekGrantTwd(p.maxCostTwd), 2)],
                   [t("cap7"), twd(p.l168Twd, 2)],
                   [ta("plans.concurrency"), String(p.concurrency)],
                   ...(isFree ? [] : [[t("subscribers"), t("people", { n: subCount(p.id) })]]),
