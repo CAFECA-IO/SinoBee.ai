@@ -1,12 +1,10 @@
-import { weekGrantTwd } from "@/lib/price-math";
+import { inSentence, ladder, times } from "@/lib/plan-copy";
 import { checkoutCards } from "@/lib/crowd/cards";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { currentUser } from "@/lib/auth";
 import { redirect } from "@/i18n/navigation";
-import { listPlans } from "@/lib/plans";
-import { referenceBlended } from "@/lib/models";
+import { freePlan, listPlans } from "@/lib/plans";
 import { subscriptionState, upgradeCreditMs } from "@/lib/subscriptions";
-import { formatTokens, quotaTokens } from "@/lib/format-tokens";
 import { SubscribeForm } from "@/components/subscribe-form";
 import { LocalDate } from "@/components/date";
 import type { Buyer } from "@/components/checkout";
@@ -25,9 +23,20 @@ export default async function SubscribePage({ params, searchParams }: { params: 
   const me = await currentUser();
   if (!me) redirect({ href: `/login?next=${encodeURIComponent(`/subscribe${plan ? `?plan=${plan}` : ""}`)}`, locale });
   const t = await getTranslations("subscribe");
-  const [plans, ref, st] = await Promise.all([listPlans({ activeOnly: true }), referenceBlended(), subscriptionState(me!.id)]);
-  const tok = (twd: number) => (ref ? formatTokens(quotaTokens(twd, ref.blendedTwd), locale) : "—");
+  const [plans, free, st] = await Promise.all([listPlans({ activeOnly: true }), freePlan({ activeOnly: true }), subscriptionState(me!.id)]);
   const zh = locale.startsWith("zh");
+  const tp = await getTranslations("pricing");
+  // each plan as the pricing page describes it: its line, and how it compares with the plan before it
+  const copy = Object.fromEntries(
+    ladder(free, plans).map(({ plan: p, prev }) => {
+      const firstPaid = !prev || prev.feeTwd <= 0;
+      const usage = prev ? times(p.maxCostTwd, prev.maxCostTwd) : null;
+      const conc = prev && p.concurrency !== prev.concurrency ? times(p.concurrency, prev.concurrency) : null;
+      const tag = tp.has(`tag.${p.code}`) ? tp(`tag.${p.code}` as "tag.free") : tp(firstPaid ? "tag.low" : "tag.high");
+      const lines = [usage && tp("b.usage", { plan: inSentence(prev!, zh), x: usage }), conc && tp("b.tasks", { plan: inSentence(prev!, zh), x: conc })].filter(Boolean).join(" · ");
+      return [p.id, { tag, lines }];
+    }),
+  );
   const now = new Date();
   const stacks = st.endsAt && st.endsAt > now;
   const curPlan = st.current ? plans.find((p) => p.id === st.current!.planId) ?? plans.find((p) => p.code === st.current!.plan) : undefined;
@@ -59,7 +68,7 @@ export default async function SubscribePage({ params, searchParams }: { params: 
       )}
       <section className="card p-6">
         <SubscribeForm
-          plans={plans.map((p) => ({ id: p.id, code: p.code, name: zh ? p.name : p.nameEn, fee: p.feeTwd, mult: p.multiplier, l6: tok(p.l6Twd), week: tok(weekGrantTwd(p.maxCostTwd)), l168: tok(p.l168Twd), concurrency: p.concurrency }))}
+          plans={plans.map((p) => ({ id: p.id, code: p.code, name: zh ? p.name : p.nameEn, fee: p.feeTwd, tag: copy[p.id]?.tag ?? "", lines: copy[p.id]?.lines ?? "" }))}
           initial={plan}
           buyer={(me!.billing ?? null) as Buyer | null}
           {...await checkoutCards(me!.id)}

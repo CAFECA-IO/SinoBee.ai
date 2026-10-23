@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { PayForm, postJson, type Buyer, type CardOpt } from "./checkout";
 import { useRouter } from "@/i18n/navigation";
 
-type PlanOpt = { id: string; code: string; name: string; fee: number; mult: number; l6: string; week: string; l168: string; concurrency: number };
+/** tag: the plan's line; lines: how it compares with the plan before it (no token counts or amounts) */
+type PlanOpt = { id: string; code: string; name: string; fee: number; tag: string; lines: string };
 
 /** Pick a plan and a saved card; the card is charged right away */
 /** startsLabels: plan id → when that plan would start (now as an upgrade, or after the current period) */
@@ -55,8 +56,8 @@ export function SubscribeForm({ plans, initial, buyer, startsLabels, cards, pend
                     <b>{p.name}</b>
                     <span className="ml-auto font-bold">NT${p.fee.toLocaleString("en-US")}</span>
                   </span>
-                  <span className="text-sm font-semibold" data-usage>{t("usage")}</span>
-                  <span className={`text-xs ${on ? "text-accent-ink/80" : "text-muted"}`}>{t("limits", { l6: p.l6, week: p.week, l168: p.l168, n: p.concurrency })}</span>
+                  <span className="text-sm font-semibold" data-tagline>{p.tag}</span>
+                  {p.lines && <span className={`text-xs ${on ? "text-accent-ink/80" : "text-muted"}`} data-usage>{p.lines}</span>}
                 </button>
               );
             })}

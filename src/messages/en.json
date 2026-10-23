@@ -1492,9 +1492,7 @@
     "modelNote": "Published price = vendor USD price × base FX rate {fx} × {buffer}. Subscription quota is drawn down at these prices; changes are announced here with their effective date.",
     "days": "days",
     "plans": "Subscription plans",
-    "planL6": "Every 6 hours (one working day): about {tokens} tokens",
-    "planConcurrency": "{n} requests at a time",
-    "planNote": "The 6-hour limit is rolling (each use comes back 6 hours later). The weekly allowance arrives every Sunday 00:00 UTC (the week you subscribe gets a whole week at once); while the subscription runs without a gap, what is left carries over, and a gap clears it. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
+    "planNote": "Usage is counted at the model prices SinoBee.ai publishes, so cheaper models do more. There are limits per 6 hours and per week: a new weekly allowance arrives every Sunday 00:00 UTC (the week you subscribe gets a whole week), and while the subscription runs without a gap what is left carries over. Automatic renewal is optional (off by default).",
     "pIn": "Input",
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",
@@ -1502,7 +1500,6 @@
     "tasksTitle": "How crowdfunded runs are metered",
     "seePlans": "See plans",
     "planBuy": "Subscribe",
-    "planUsage": "22 working days of 6 hours a month (NT${value} per 30 days at published prices)",
     "crowdTitle": "How crowdfunding is charged",
     "crowd": {
       "share": "NT${price} a share; back 1, 5 or 20 shares. Cards are only saved while funding and charged when the goal is reached.",
@@ -1517,17 +1514,29 @@
       "self": "Pay in full yourself",
       "selfNote": "no crowdfunding, no fee; charged when the screening passes"
     },
-    "freeUsage": "Up to NT${value} of model usage per 30 days (at published prices)",
-    "freeNote": "Just sign in, no payment",
     "freeStart": "Start free",
-    "planWeek": "About {tokens} tokens a week; what is left carries to the next week, up to about {cap} tokens a week",
-    "planRenew": "Automatic renewal available (off by default); the carry-over lasts while the subscription runs without a gap",
-    "freeWeek": "About {tokens} tokens a week (no carry-over)",
     "levels": "User levels",
     "levelsLead": "Your level rises with the total months you have subscribed (not necessarily in a row), on the Fibonacci steps; each level raises the 6-hour limit and the weekly cap, up to +20%.",
     "level": "Level",
     "levelMonths": "Months subscribed",
-    "levelBonus": "Allowance bonus"
+    "levelBonus": "Allowance bonus",
+    "tag": {
+      "free": "See what SinoBee can do for you",
+      "low": "SinoBee as your everyday assistant at work",
+      "high": "Deliver several large tasks at once"
+    },
+    "b": {
+      "login": "Use cloud models as soon as you sign in, no API key of your own",
+      "oneTask": "{n} task at a time",
+      "keepFree": "Results kept for {days} days",
+      "everything": "Everything in {plan}, and:",
+      "usage": "{x}× the usage of {plan}",
+      "carry": "What a week leaves unused carries to the next, ready for your busiest week",
+      "tasks": "{x}× the tasks at once of {plan}",
+      "noFee": "No proposal fee for crowdfunding while subscribed",
+      "keep": "Results and containers kept while you subscribe",
+      "heavy": "Long research, data analysis and video production run through in one go"
+    }
   },
   "account": {
     "title": "Account",
@@ -1805,13 +1814,11 @@
     "title": "Subscribe to SinoBee.ai",
     "lead": "30 days at a time; buying again adds the next period after the current one. Automatic renewal is optional (off by default).",
     "plan": "Plan",
-    "limits": "About {l6} per 6 h, {week} a week (up to {l168} with carry-over) tokens · {n} requests at a time",
     "pay": "Pay NT${fee} by card",
     "current": "Current plan: {plan}, until",
     "grace": "Your subscription has ended; the grace period lasts until",
     "stacks": "The new period starts on {date}, after your current one.",
     "startsNow": "Starts as soon as the charge goes through; 30 days from payment.",
-    "usage": "22 working days of 6 hours a month",
     "upgradeNow": "Upgrades right away: the rest of your {from} period is worth {credit} days on this plan, so this period runs about {days} days from payment.",
     "autoRenew": "Renew automatically (turn it off any time)",
     "autoRenewNote": "NT${fee} is charged to this card 3 days before the end, after a notice; an unbroken subscription keeps the weekly carry-over."
