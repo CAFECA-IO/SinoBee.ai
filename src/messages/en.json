@@ -1494,7 +1494,7 @@
     "plans": "Subscription plans",
     "planL6": "Every 6 hours (one working day): about {tokens} tokens",
     "planConcurrency": "{n} requests at a time",
-    "planNote": "The 6-hour limit is rolling (each use comes back 6 hours later). The weekly allowance arrives every Sunday 00:00 UTC; while the subscription runs without a gap, what is left carries over, and a gap clears it. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
+    "planNote": "The 6-hour limit is rolling (each use comes back 6 hours later). The weekly allowance arrives every Sunday 00:00 UTC (the week you subscribe gets a whole week at once); while the subscription runs without a gap, what is left carries over, and a gap clears it. Token counts use {model} at its current published price (input : output = 3 : 1) and follow price changes; cheaper models give more tokens, pricier ones fewer.",
     "pIn": "Input",
     "pCacheRead": "Cache read",
     "pCacheWrite": "Cache write",

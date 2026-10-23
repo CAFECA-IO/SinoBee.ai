@@ -628,6 +628,31 @@ test("weekly carry-over: unused quota moves on within an unbroken run, capped at
   ctx = await quota.quotaContext(userId);
   wk = await quota.weekBudget(ctx);
   assert.equal(wk.runStart?.getTime(), gapEnd.getTime());
-  assert.ok(Math.abs(wk.carryInTwd - (grant * 3) / 7) < 1e-6, "three paid days of last week carry in, nothing from before the gap");
+  assert.ok(Math.abs(wk.carryInTwd - grant) < 1e-6, "the run's first week (last week) gave a whole grant; nothing from before the gap");
   assert.ok(Math.abs(wk.grantTwd - grant) < 1e-6);
+});
+
+test("the first week of a run gets a whole week's grant, even when it starts on Saturday night", async () => {
+  const W = 7 * 86400_000;
+  const ws = quota.weekStart();
+  // subscribed last Saturday 23:00 UTC: that week had one hour left, yet its whole grant carries into this week
+  const plan = await subscribe(840, 3, 2, new Date(ws.getTime() - 3600_000));
+  const grant = (plan.maxCostTwd * 7) / 30;
+  let ctx = await quota.quotaContext(userId);
+  let wk = await quota.weekBudget(ctx);
+  assert.ok(Math.abs(wk.carryInTwd - grant) < 1e-6, JSON.stringify(wk));
+  assert.ok(Math.abs(wk.grantTwd - grant) < 1e-6);
+  // starting this Saturday (seen from Saturday 23:00): the whole grant at once, not one day's share
+  const sat = new Date(ws.getTime() + 6 * 86400_000);
+  await subscribe(840, 3, 2, sat);
+  const now = new Date(sat.getTime() + 23 * 3600_000);
+  ctx = await quota.quotaContext(userId, now);
+  wk = await quota.weekBudget(ctx, now);
+  assert.equal(wk.runStart?.getTime(), sat.getTime());
+  assert.ok(Math.abs(wk.grantTwd - grant) < 1e-6 && Math.abs(wk.availableTwd - grant) < 1e-6, JSON.stringify(wk));
+  assert.equal(wk.carryInTwd, 0);
+  // the next week: that first grant (unused) carries in, plus the next grant
+  const next = new Date(ws.getTime() + W + 3600_000);
+  wk = await quota.weekBudget(await quota.quotaContext(userId, next), next);
+  assert.ok(Math.abs(wk.carryInTwd - grant) < 1e-6 && Math.abs(wk.grantTwd - grant) < 1e-6);
 });

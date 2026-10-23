@@ -26,7 +26,8 @@ import type { UsageLedger } from "@/generated/prisma/client";
  * Window membership: HELD rows count at heldTwd from createdAt; settled rows count at settledTwd from settledAt.
  *  6h    rolling: a cost frees up 6 h after the moment it was incurred
  *  168h  the calendar week, Sunday 00:00:00 UTC to the next Sunday (the key stays "168h" for SinoBee and the
- *        response headers). Since 2026-10-23 a week may use its grant (V × 7 ÷ 30, prorated to the days paid for)
+ *        response headers). Since 2026-10-23 a week may use its grant (V × 7 ÷ 30, prorated to the days paid for;
+ *        the first week of an unbroken run always gets the whole week's grant)
  *        plus what the week before left unused, capped at L168 = 16 × L6 (weekBudget). The carry-over only lives
  *        while the subscription runs without a gap; a gap starts again from nothing. Users without a subscription
  *        (free plan) get their weekly grant only.
@@ -209,6 +210,12 @@ export async function weekBudget(ctx: QuotaCtx, now = new Date()): Promise<WeekB
   const user = await db.user.findUnique({ where: { id: ctx.userId }, select: { quotaResetWeekAt: true } });
   // carry-in: from the latest memo of this run, else from the run's first week with nothing
   const first = weekStart(start);
+  // the run's first week gets a whole week's grant, however late in the week it starts (2026-10-24)
+  const opening = inRun.find((p) => p.startsAt <= start && p.endsAt > start);
+  const weekGrant = (w: Date, from: Date) => {
+    const paid = grantFor(inRun, planOf, w, from);
+    return w.getTime() === first.getTime() && opening ? Math.max(paid, weekGrantTwd(planOf(opening)?.maxCostTwd ?? 0)) : paid;
+  };
   const memo = await db.quotaWeek.findFirst({ where: { userId: ctx.userId, blockStart: start, weekStart: { gte: first, lte: ws } }, orderBy: { weekStart: "desc" } });
   let w = memo?.weekStart ?? first;
   let carry = memo ? Number(memo.carryInTwd) : 0;
@@ -219,7 +226,7 @@ export async function weekBudget(ctx: QuotaCtx, now = new Date()): Promise<WeekB
     const covering = [...inRun].reverse().find((p) => p.startsAt <= last && p.endsAt > from);
     const plan = covering ? planOf(covering) : undefined;
     const cap = plan ? withBonus(plan, levelAt(periods, last).bonus).cap : 0;
-    const avail = Math.min(cap, carry + grantFor(inRun, planOf, w, from));
+    const avail = Math.min(cap, carry + weekGrant(w, from));
     carry = Math.max(0, avail - (await usedBetween(ctx.userId, from, next, user?.quotaResetWeekAt ?? null)));
     w = next;
     await db.quotaWeek.upsert({
@@ -229,7 +236,7 @@ export async function weekBudget(ctx: QuotaCtx, now = new Date()): Promise<WeekB
     });
   }
   const from = maxDate(ws, start);
-  const grant = grantFor(inRun, planOf, ws, from);
+  const grant = weekGrant(ws, from);
   return { weekStart: ws, weekEnd: we, from, grantTwd: grant, carryInTwd: carry, capTwd: ctx.limits.cap, availableTwd: Math.min(ctx.limits.cap, carry + grant), runStart: start };
 }
 
