@@ -87,8 +87,9 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
                 <tr key={r.id}>
                   <td className="py-2 text-xs text-muted"><LocalDate value={r.createdAt} /></td>
                   <td className="py-2">
-                    {tc(`reason.${r.reason}` as "reason.leftover")}
+                    {tc.has(`reason.${r.reason}`) ? tc(`reason.${r.reason}` as "reason.leftover") : r.reason}
                     {r.taskId && <> · <Link href={`/tasks/${r.taskId}`} className="text-accent">{r.note ?? "task"}</Link></>}
+                    {!r.taskId && r.reason === "llm_usage" && r.note && <span className="text-muted"> · {r.note.split("/").slice(1).join("/") || r.note}</span>}
                   </td>
                   <td className={`py-2 text-right font-mono ${r.delta > 0 ? "text-ok" : ""}`}>{r.delta > 0 ? `+${r.delta}` : r.delta}</td>
                 </tr>

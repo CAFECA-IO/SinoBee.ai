@@ -27,7 +27,7 @@ The Service is a digital service delivered online and starts as soon as you pay 
 | A disputed review where the platform decides the result does not meet the spec | The whole budget, spent part included, goes back to the backers as points |
 | The task failed because of a platform error | Platform points by default; a backer may ask for a refund to the original payment method instead |
 
-- Platform points: 1 point equals NT$1, usable only for crowdfunding pledges, not transferable, never paid out in cash, and they do not expire. Unused points are handled according to law if your account or the Service ends.
+- Platform points: 1 point equals NT$1, usable for crowdfunding pledges or, when you choose it in SinoBee, for model usage (1:1 at published prices), not transferable, never paid out in cash, and they do not expire. Unused points are handled according to law if your account or the Service ends.
 - If the spec is revised during a campaign, nothing is charged for 72 hours after the revision and backers who disagree can withdraw.
 
 ## 4. How to ask

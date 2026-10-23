@@ -39,7 +39,8 @@ before(async () => {
 after(() => llm.stop());
 
 /** a plan whose max usage is fee ÷ `div` (usage multiplier 1/div); L168 = fee / div / 4.8, L6 = L168 / 10 */
-async function subscribe(fee: number, div = 3, concurrency = 2, startsAt = new Date(Date.now() - 1000)) {
+/** subscribed since 8 days ago by default, so this week's grant is whole whatever today's weekday is */
+async function subscribe(fee: number, div = 3, concurrency = 2, startsAt = new Date(Date.now() - 8 * 86400_000)) {
   const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
   const code = `t${fee}-${concurrency}`;
   const existing = (await plans.listPlans()).find((p) => p.code === code);

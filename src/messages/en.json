@@ -2060,7 +2060,7 @@
     "account": {
       "points": "Platform points",
       "balance": "{n} points",
-      "pointsNote": "1 point = NT$1, only for crowdfunding pledges; not transferable and never paid out in cash.",
+      "pointsNote": "1 point = NT$1, for crowdfunding pledges or, when you choose it in SinoBee, model usage (1:1 at published prices); not transferable and never paid out in cash.",
       "history": "History",
       "noHistory": "No points yet.",
       "reason": {
@@ -2068,10 +2068,11 @@
         "pledge": "Pledge",
         "release": "Returned (not funded)",
         "platform": "Platform credit",
-        "admin": "Admin adjustment"
+        "admin": "Admin adjustment",
+        "llm_usage": "Model usage"
       },
       "cards": "Cards",
-      "cardsNote": "Oen keeps the card (3-D Secure); this site stores only an encrypted charge token, used when a crowdfund reaches its goal.",
+      "cardsNote": "Oen keeps the card (3-D Secure); this site stores only an encrypted charge token, used for subscriptions, automatic renewal and charges when a crowdfund reaches its goal.",
       "noCards": "No card saved.",
       "addCard": "Save a card",
       "remove": "Remove",
