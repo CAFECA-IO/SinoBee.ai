@@ -43,6 +43,7 @@ export function CrowdNewForm({
   kind: initialKind,
   evalMethods,
   fee,
+  waived = false,
   buyer: initialBuyer,
   cards,
   pendingCard = false,
@@ -53,6 +54,8 @@ export function CrowdNewForm({
   kind: "TASK" | "EVALUATION";
   evalMethods: readonly string[];
   fee: number;
+  /** subscribed: no proposal fee, no card needed */
+  waived?: boolean;
   buyer?: Partial<Buyer> | null;
   cards: CardOpt[];
   pendingCard?: boolean;
@@ -85,8 +88,7 @@ export function CrowdNewForm({
             skillVersionId: useSkill && skill ? skill.id : null,
             evalMethod: kind === "EVALUATION" && method ? method : null,
             agreeTerms: true,
-            buyer,
-            cardId,
+            ...(waived ? {} : { buyer, cardId }),
           });
           // paid: the proposal page drafts the spec; declined: the fee can be paid there with another card
           router.push(`/crowd/${r.task.id}/edit${r.payment?.error ? `?fee=${encodeURIComponent(r.payment.error)}` : ""}`);
@@ -149,14 +151,20 @@ export function CrowdNewForm({
         </div>
       </details>
       <div className="space-y-3 rounded-xl bg-panel-2 p-4">
-        <p className="text-sm">{t("feeLine", { fee })}</p>
-        <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo="/crowd/new" email={buyer.email} test={test} />
-        <BuyerFields value={buyer} onChange={setBuyer} />
+        {waived ? (
+          <p className="text-sm" data-waived>{t("feeWaived", { fee })}</p>
+        ) : (
+          <>
+            <p className="text-sm">{t("feeLine", { fee })}</p>
+            <CardPicker cards={cards} value={cardId} onChange={setCardId} pending={pendingCard} returnTo="/crowd/new" email={buyer.email} test={test} />
+            <BuyerFields value={buyer} onChange={setBuyer} />
+          </>
+        )}
         <AgreeTerms />
         <AgreeCrowdTerms />
       </div>
       {err && <p className="text-sm text-err" role="alert">{err}</p>}
-      <button className="btn-primary w-full !py-3 text-base" disabled={busy || !cardId}>{busy ? tk("charging") : t("create", { fee })}</button>
+      <button className="btn-primary w-full !py-3 text-base" disabled={busy || (!waived && !cardId)}>{busy ? (waived ? t("creating") : tk("charging")) : waived ? t("createFree") : t("create", { fee })}</button>
       <p className="text-center text-xs text-muted">{t("after")}</p>
     </form>
   );
@@ -846,7 +854,6 @@ export function PledgePanel({
   price,
   cards,
   points,
-  hasQuota,
   buyer: savedBuyer,
   mine,
   pendingCard = false,
@@ -859,28 +866,23 @@ export function PledgePanel({
   test?: boolean;
   cards: CardOpt[];
   points: number;
-  hasQuota: boolean;
   buyer?: Partial<Buyer> | null;
   mine: MyPledge[];
 }) {
   const t = useTranslations("crowd.panel");
   const router = useRouter();
   const [shares, setShares] = useState(1);
-  // points always pay first; the card (or, instead of both, subscription quota) pays the rest
-  const [method, setMethod] = useState<"CARD" | "QUOTA">("CARD");
+  // points always pay first; the card pays the rest (subscription quota no longer pays pledges, 2026-10-23)
   const [buyer, setBuyer] = useState(() => emptyBuyer(savedBuyer));
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const amount = shares * price;
-  const used = method === "CARD" ? Math.min(points, amount) : 0;
+  const used = Math.min(points, amount);
   const rest = amount - used;
-  const covered = method === "CARD" && rest === 0;
+  const covered = rest === 0;
   const open = ["FUNDING", "CHARGING", "QUEUED", "RUNNING", "NEEDS_FUNDING"].includes(status);
-  const pickCard = useCallback((id: string) => {
-    setCardId(id);
-    setMethod("CARD");
-  }, []);
+  const pickCard = useCallback((id: string) => setCardId(id), []);
   return (
     <div className="space-y-4">
       {open && (
@@ -891,12 +893,7 @@ export function PledgePanel({
             setBusy(true);
             setErr("");
             try {
-              const body =
-                method === "QUOTA"
-                  ? { source: "QUOTA" }
-                  : covered
-                    ? { source: "POINTS" }
-                    : { source: "CARD", usePoints: true, buyer, cardId };
+              const body = covered ? { source: "POINTS" } : { source: "CARD", usePoints: true, buyer, cardId };
               await send(`/api/crowd/${taskId}/pledges`, "POST", { shares, agreeTerms: true, ...body });
               router.refresh();
             } catch (e) {
@@ -922,30 +919,14 @@ export function PledgePanel({
             email={buyer.email}
             test={test}
             points={{ balance: points, used }}
-            inactive={method !== "CARD" || covered}
-            extra={
-              hasQuota && (
-                <button
-                  type="button"
-                  aria-pressed={method === "QUOTA"}
-                  onClick={() => setMethod(method === "QUOTA" ? "CARD" : "QUOTA")}
-                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm transition ${method === "QUOTA" ? "border-accent bg-accent-soft font-semibold" : "border-line hover:border-accent/60"}`}
-                >
-                  <span className="grid h-6 w-[38px] flex-none place-items-center rounded-md border border-line bg-white text-accent" aria-hidden="true">
-                    <Icon name="sparkles" className="h-4 w-4" />
-                  </span>
-                  {t("quota")}
-                  <span className="ml-auto text-xs font-normal text-muted">{t("quotaAll")}</span>
-                </button>
-              )
-            }
+            inactive={covered}
           />
-          {method === "CARD" && !covered && cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
+          {!covered && cards.length > 0 && <BuyerFields value={buyer} onChange={setBuyer} />}
           <p className="text-xs text-muted">
-            {method === "QUOTA" ? t("quotaNote") : covered ? t("pointsCover") : used > 0 ? `${t("split", { p: used, c: rest })} ${t("cardNote")}` : t("cardNote")}
+            {covered ? t("pointsCover") : used > 0 ? `${t("split", { p: used, c: rest })} ${t("cardNote")}` : t("cardNote")}
           </p>
           <AgreeCrowdTerms />
-          <button className="btn-primary w-full" disabled={busy || (method === "CARD" && !covered && !cardId)}>
+          <button className="btn-primary w-full" disabled={busy || (!covered && !cardId)}>
             {busy ? t("pledging") : t("pledge", { amount })}
           </button>
           {err && <p className="text-sm text-err" role="alert">{err}</p>}

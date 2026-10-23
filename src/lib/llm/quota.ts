@@ -4,6 +4,8 @@ import { HttpError } from "../errors";
 import { audit } from "../roles";
 import { referenceBlended, type ModelPriceView } from "../models";
 import { freePlan, listPlans, type PlanView } from "../plans";
+import { weekGrantTwd } from "../price-math";
+import { levelAt, type Level } from "../level";
 import { subscriptionState } from "../subscriptions";
 import { bookPoints, pointBalance } from "../crowd/points";
 import type { UsageLedger } from "@/generated/prisma/client";
@@ -23,8 +25,12 @@ import type { UsageLedger } from "@/generated/prisma/client";
  *
  * Window membership: HELD rows count at heldTwd from createdAt; settled rows count at settledTwd from settledAt.
  *  6h    rolling: a cost frees up 6 h after the moment it was incurred
- *  168h  the calendar week, Sunday 00:00:00 UTC to the next Sunday: the whole week's use is released at once at the
- *        weekly reset (2026-10-22; the key stays "168h" for SinoBee and the response headers)
+ *  168h  the calendar week, Sunday 00:00:00 UTC to the next Sunday (the key stays "168h" for SinoBee and the
+ *        response headers). Since 2026-10-23 a week may use its grant (V × 7 ÷ 30, prorated to the days paid for)
+ *        plus what the week before left unused, capped at L168 = 16 × L6 (weekBudget). The carry-over only lives
+ *        while the subscription runs without a gap; a gap starts again from nothing. Users without a subscription
+ *        (free plan) get their weekly grant only.
+ * Levels (src/lib/level.ts) raise L6 and the weekly cap by up to 20 % (ctx.limits); the grant stays the plan's.
  * An admin may reset either window for one user (resetWindows): costs incurred up to that moment no longer count in
  * it (User.quotaReset6hAt / quotaResetWeekAt). Calls still running then count when they settle.
  *
@@ -91,28 +97,140 @@ async function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T>
 // ───────────── context ─────────────
 
 /** subscriptionId null: no subscription, the free plan's allowance. billing points: paid with platform points */
-export type QuotaCtx = { userId: string; subscriptionId: string | null; plan: PlanView; billing?: "subscription" | "points" };
+/**
+ * subscriptionId null: no subscription, the free plan's allowance. billing points: paid with platform points.
+ * limits = the plan's L6 and weekly cap raised by the user's level (paid plans only). week caches this week's budget
+ * between a hold and the stream's top-ups.
+ */
+export type QuotaCtx = {
+  userId: string;
+  subscriptionId: string | null;
+  plan: PlanView;
+  billing?: "subscription" | "points";
+  level: Level;
+  limits: { l6: number; cap: number };
+  week?: WeekBudget;
+};
+
+type Period = { startsAt: Date; endsAt: Date; planId: string | null; plan: string };
+const periodsOf = (userId: string): Promise<Period[]> =>
+  db.subscription.findMany({ where: { userId, cancelledAt: null }, orderBy: { startsAt: "asc" }, select: { startsAt: true, endsAt: true, planId: true, plan: true } });
+const withBonus = (plan: PlanView, bonus: number) => ({ l6: plan.l6Twd * (1 + bonus), cap: plan.l168Twd * (1 + bonus) });
 
 /** The caller's current subscription period and plan, or a 402 */
-export async function quotaContext(userId: string): Promise<QuotaCtx> {
-  const st = await subscriptionState(userId);
+export async function quotaContext(userId: string, now = new Date()): Promise<QuotaCtx> {
+  const st = await subscriptionState(userId, now);
+  const level = levelAt(await periodsOf(userId), now);
   if (!st.current) {
-    // without a subscription: the free plan, when the admin keeps it on
+    // without a subscription: the free plan, when the admin keeps it on (no level bonus)
     const free = await freePlan({ activeOnly: true });
-    if (free) return { userId, subscriptionId: null, plan: free };
+    if (free) return { userId, subscriptionId: null, plan: free, level, limits: withBonus(free, 0) };
     throw new QuotaError("subscription", "an active SinoBee.ai subscription is required (https://sinobee.ai/subscribe)");
   }
   const plans = await listPlans();
   const plan = plans.find((p) => p.id === st.current!.planId) ?? plans.find((p) => p.code === st.current!.plan);
   if (!plan) throw new QuotaError("subscription", "subscription plan not found");
-  return { userId, subscriptionId: st.current.id, plan };
+  return { userId, subscriptionId: st.current.id, plan, level, limits: withBonus(plan, level.bonus) };
 }
 
 /** A call paid with platform points: no subscription needed; the plan (when there is one) only sets concurrency */
 export async function pointsContext(userId: string): Promise<QuotaCtx> {
   const base = await quotaContext(userId).catch(() => null);
-  const plan = base?.plan ?? ({ id: null, code: "points", name: "points", nameEn: "points", concurrency: 2, l6Twd: 0, l168Twd: 0 } as unknown as PlanView);
-  return { userId, subscriptionId: base?.subscriptionId ?? null, plan, billing: "points" };
+  const plan = base?.plan ?? ({ id: null, code: "points", name: "points", nameEn: "points", concurrency: 2, l6Twd: 0, l168Twd: 0, maxCostTwd: 0 } as unknown as PlanView);
+  return { userId, subscriptionId: base?.subscriptionId ?? null, plan, billing: "points", level: base?.level ?? levelAt([], new Date()), limits: base?.limits ?? { l6: 0, cap: 0 } };
+}
+
+// ───────────── weekly budget: grant + carry-over, capped ─────────────
+
+export type WeekBudget = {
+  weekStart: Date;
+  weekEnd: Date;
+  /** use counts from here: the week's start, or later when the unbroken subscription run began this week */
+  from: Date;
+  grantTwd: number;
+  carryInTwd: number;
+  capTwd: number;
+  /** min(cap, carry-in + grant) */
+  availableTwd: number;
+  /** start of the unbroken run of subscription periods covering now (null: no subscription) */
+  runStart: Date | null;
+};
+
+/** Start of the unbroken run of periods (no gap at all) that covers `now`, or null */
+export function runStart(periods: { startsAt: Date; endsAt: Date }[], now: Date): Date | null {
+  const cur = periods.find((p) => p.startsAt <= now && p.endsAt > now);
+  if (!cur) return null;
+  let start = cur.startsAt;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const p of periods) if (p.startsAt < start && p.endsAt >= start) (start = p.startsAt), (changed = true);
+  }
+  return start;
+}
+
+const maxDate = (a: Date, b: Date) => (a > b ? a : b);
+const DAY = 86400_000;
+
+/** Paid grant for the week starting `w`: every paid day in it (from `from`) at its plan's V ÷ 30 */
+function grantFor(periods: Period[], planOf: (p: Period) => PlanView | undefined, w: Date, from: Date): number {
+  const end = w.getTime() + W168;
+  let twd = 0;
+  for (const p of periods) {
+    const ms = Math.min(end, p.endsAt.getTime()) - Math.max(from.getTime(), p.startsAt.getTime());
+    if (ms > 0) twd += (weekGrantTwd(planOf(p)?.maxCostTwd ?? 0) / 7) * (ms / DAY);
+  }
+  return twd;
+}
+
+/** Settled subscription use with its time in [from, to), after an admin reset of that week */
+async function usedBetween(userId: string, from: Date, to: Date, resetAt: Date | null): Promise<number> {
+  const start = resetAt && resetAt >= from && resetAt < to ? new Date(resetAt.getTime() + 1) : from;
+  const r = await db.usageLedger.aggregate({ where: { userId, billing: "subscription", status: { not: "HELD" }, settledAt: { gte: start, lt: to } }, _sum: { settledTwd: true } });
+  return Math.max(0, Number(r._sum.settledTwd ?? 0));
+}
+
+/**
+ * This week's budget. Free plan: the plan's weekly grant, no carry. Subscribed: the grant for the days paid within
+ * the unbroken run, plus the carry-in, capped at ctx.limits.cap. Carry-ins are computed week by week from the run's
+ * first week (each completed week: carry-out = max(0, available − used)) and memoised in QuotaWeek.
+ */
+export async function weekBudget(ctx: QuotaCtx, now = new Date()): Promise<WeekBudget> {
+  const ws = weekStart(now);
+  const we = new Date(ws.getTime() + W168);
+  if (!ctx.subscriptionId) {
+    const grant = weekGrantTwd(ctx.plan.maxCostTwd);
+    return { weekStart: ws, weekEnd: we, from: ws, grantTwd: grant, carryInTwd: 0, capTwd: ctx.limits.cap, availableTwd: Math.min(ctx.limits.cap, grant), runStart: null };
+  }
+  const periods = await periodsOf(ctx.userId);
+  const start = runStart(periods, now) ?? now;
+  const inRun = periods.filter((p) => p.endsAt > start);
+  const plans = await listPlans({ includeFree: true });
+  const planOf = (p: Period) => plans.find((x) => x.id === p.planId) ?? plans.find((x) => x.code === p.plan);
+  const user = await db.user.findUnique({ where: { id: ctx.userId }, select: { quotaResetWeekAt: true } });
+  // carry-in: from the latest memo of this run, else from the run's first week with nothing
+  const first = weekStart(start);
+  const memo = await db.quotaWeek.findFirst({ where: { userId: ctx.userId, blockStart: start, weekStart: { gte: first, lte: ws } }, orderBy: { weekStart: "desc" } });
+  let w = memo?.weekStart ?? first;
+  let carry = memo ? Number(memo.carryInTwd) : 0;
+  while (w < ws) {
+    const next = new Date(w.getTime() + W168);
+    const from = maxDate(w, start);
+    const last = new Date(next.getTime() - 1);
+    const covering = [...inRun].reverse().find((p) => p.startsAt <= last && p.endsAt > from);
+    const plan = covering ? planOf(covering) : undefined;
+    const cap = plan ? withBonus(plan, levelAt(periods, last).bonus).cap : 0;
+    const avail = Math.min(cap, carry + grantFor(inRun, planOf, w, from));
+    carry = Math.max(0, avail - (await usedBetween(ctx.userId, from, next, user?.quotaResetWeekAt ?? null)));
+    w = next;
+    await db.quotaWeek.upsert({
+      where: { userId_weekStart: { userId: ctx.userId, weekStart: w } },
+      create: { userId: ctx.userId, weekStart: w, blockStart: start, carryInTwd: carry },
+      update: { blockStart: start, carryInTwd: carry },
+    });
+  }
+  const from = maxDate(ws, start);
+  const grant = grantFor(inRun, planOf, ws, from);
+  return { weekStart: ws, weekEnd: we, from, grantTwd: grant, carryInTwd: carry, capTwd: ctx.limits.cap, availableTwd: Math.min(ctx.limits.cap, carry + grant), runStart: start };
 }
 
 type Row = Pick<UsageLedger, "status" | "heldTwd" | "settledTwd" | "createdAt" | "settledAt">;
@@ -124,10 +242,10 @@ const at = (r: Row) => (r.status === "HELD" ? r.createdAt : (r.settledAt ?? r.cr
  * later by an admin reset. Settled rows count when their time is after the start (6 h: strictly; the week: from the
  * Sunday 00:00:00 itself, also strictly after a reset).
  */
-async function windowStarts(userId: string, now: Date) {
+async function windowStarts(userId: string, now: Date, weekFrom?: Date) {
   const u = await db.user.findUnique({ where: { id: userId }, select: { quotaReset6hAt: true, quotaResetWeekAt: true } });
   const roll = now.getTime() - W6;
-  const week = weekStart(now).getTime();
+  const week = Math.max(weekStart(now).getTime(), weekFrom?.getTime() ?? -Infinity);
   const r6 = u?.quotaReset6hAt?.getTime() ?? -Infinity;
   const rw = u?.quotaResetWeekAt?.getTime() ?? -Infinity;
   return {
@@ -144,9 +262,12 @@ async function windowRows(userId: string, earliest: Date) {
   });
 }
 
-/** Use of both windows (TWD; never below 0, e.g. after quota pledges came back), running holds counted in full */
-export async function windowUse(userId: string, now = new Date()) {
-  const s = await windowStarts(userId, now);
+/**
+ * Use of both windows (TWD; never below 0, e.g. after quota pledges came back), running holds counted in full.
+ * weekFrom: count the week from here (the budget's `from`) instead of Sunday 00:00.
+ */
+export async function windowUse(userId: string, now = new Date(), weekFrom?: Date) {
+  const s = await windowStarts(userId, now, weekFrom);
   const all = await windowRows(userId, s.earliest);
   let w6 = 0;
   let w168 = 0;
@@ -181,8 +302,9 @@ function retryAt6(rows: Row[], limit: number, used: number, need: number): Date 
 
 /** How much more (TWD) fits in both windows right now */
 export async function headroom(ctx: QuotaCtx, now = new Date()) {
-  const u = await windowUse(ctx.userId, now);
-  return { ...u, free: Math.max(0, Math.min(ctx.plan.l6Twd - u.w6, ctx.plan.l168Twd - u.w168)) };
+  const wk = await weekBudget(ctx, now);
+  const u = await windowUse(ctx.userId, now, wk.from);
+  return { ...u, week: wk, free: Math.max(0, Math.min(ctx.limits.l6 - u.w6, wk.availableTwd - u.w168)) };
 }
 
 // ───────────── RPM and provider circuit breaker ─────────────
@@ -256,23 +378,24 @@ export async function hold(
       });
       return { ledger, output };
     }
-    const u = await windowUse(ctx.userId, now);
+    const wk = (ctx.week = await weekBudget(ctx, now));
+    const u = await windowUse(ctx.userId, now, wk.from);
     const promptCost = costTwd(p, { prompt: t.prompt, output: 0 });
     let output = t.output;
     if (meta.fit) {
-      const free = Math.min(ctx.plan.l6Twd - u.w6, ctx.plan.l168Twd - u.w168) - promptCost;
+      const free = Math.min(ctx.limits.l6 - u.w6, wk.availableTwd - u.w168) - promptCost;
       const affordable = p.output > 0 ? Math.floor((free * 1e6) / p.output) : output;
       output = Math.min(output, affordable);
       if (output < (t.minOutput ?? 1)) output = t.minOutput ?? 1; // fall through to the window check for a precise error
     }
     const need = promptCost + costTwd(p, { prompt: 0, output });
-    const weekFull = u.w168 + need > ctx.plan.l168Twd + 1e-9;
-    if (u.w6 + need > ctx.plan.l6Twd + 1e-9) {
-      // when the week is full as well, room comes back only at the weekly reset
-      const retry = weekFull ? u.weekEndsAt : retryAt6(u.rows, ctx.plan.l6Twd, u.w6, need);
+    const weekFull = u.w168 + need > wk.availableTwd + 1e-9;
+    if (u.w6 + need > ctx.limits.l6 + 1e-9) {
+      // when the week is full as well, room comes back only with next week's grant
+      const retry = weekFull ? u.weekEndsAt : retryAt6(u.rows, ctx.limits.l6, u.w6, need);
       throw new QuotaError("6h", "6-hour quota used up", retry);
     }
-    if (weekFull) throw new QuotaError("168h", "weekly quota used up (resets Sunday 00:00 UTC)", u.weekEndsAt);
+    if (weekFull) throw new QuotaError("168h", "weekly quota used up (next grant Sunday 00:00 UTC)", u.weekEndsAt);
     const ledger = await db.usageLedger.create({
       data: {
         userId: ctx.userId, subscriptionId: ctx.subscriptionId, planId: ctx.plan.id, deviceId: meta.deviceId ?? null,
@@ -293,7 +416,11 @@ export async function topUp(ctx: QuotaCtx, ledgerId: string, tokens: number, cou
     const full =
       row.billing === "points"
         ? add > (await pointsAvailable(ctx.userId)) + 1e-9
-        : await windowUse(ctx.userId).then((u) => u.w6 + add > ctx.plan.l6Twd + 1e-9 || u.w168 + add > ctx.plan.l168Twd + 1e-9);
+        : await (async () => {
+            const wk = ctx.week && ctx.week.weekEnd > new Date() ? ctx.week : (ctx.week = await weekBudget(ctx));
+            const u = await windowUse(ctx.userId, new Date(), wk.from);
+            return u.w6 + add > ctx.limits.l6 + 1e-9 || u.w168 + add > wk.availableTwd + 1e-9;
+          })();
     if (full) {
       await db.usageLedger.update({ where: { id: ledgerId }, data: { countedOutput: counted } });
       return false;
@@ -365,15 +492,16 @@ export async function sweepHolds(now = new Date()) {
  * Response headers for a finished (non-streamed) call: this call's share of the 6-hour limit and how full both
  * windows are now. SinoBee shows "占 6 小時額度 x%" under each answer from these.
  */
-export async function quotaHeaders(plan: { l6Twd: number; l168Twd: number }, row: Pick<UsageLedger, "userId" | "settledTwd" | "billing"> | null): Promise<Record<string, string>> {
+export async function quotaHeaders(ctx: QuotaCtx, row: Pick<UsageLedger, "userId" | "settledTwd" | "billing"> | null): Promise<Record<string, string>> {
   if (!row) return {};
   if (row.billing === "points") return { "x-sinobee-points": String(await pointBalance(row.userId)) };
-  const u = await windowUse(row.userId);
+  const wk = ctx.week ?? (await weekBudget(ctx));
+  const u = await windowUse(row.userId, new Date(), wk.from);
   const pct = (v: number, limit: number) => (limit > 0 ? Math.min(100, (v / limit) * 100) : 100).toFixed(2);
   return {
-    "x-sinobee-cost-6h-pct": pct(Number(row.settledTwd ?? 0), plan.l6Twd),
-    "x-sinobee-quota-6h": pct(u.w6, plan.l6Twd),
-    "x-sinobee-quota-168h": pct(u.w168, plan.l168Twd),
+    "x-sinobee-cost-6h-pct": pct(Number(row.settledTwd ?? 0), ctx.limits.l6),
+    "x-sinobee-quota-6h": pct(u.w6, ctx.limits.l6),
+    "x-sinobee-quota-168h": pct(u.w168, wk.availableTwd),
   };
 }
 
@@ -412,11 +540,16 @@ export async function chargePoints(userId: string, ledgerId: string, modelId: st
 // ───────────── status for the GUI (rings) ─────────────
 
 export async function quotaStatus(userId: string, now = new Date()) {
-  const ctx = await quotaContext(userId);
-  const u = await windowUse(userId, now);
+  const ctx = await quotaContext(userId, now);
+  const wk = await weekBudget(ctx, now);
+  const u = await windowUse(userId, now, wk.from);
   const ref = await referenceBlended();
   const tokens = (twd: number) => (ref ? Math.floor((Math.max(0, twd) / ref.blendedTwd) * 1e6) : 0);
-  const win = (key: "6h" | "168h", ms: number, limit: number, used: number) => {
+  type WindowView = {
+    window: "6h" | "168h"; usedPct: number; remainingTokens: number; releases: { at: string; pct: number }[]; buckets?: number[];
+    usedTwd: number; limitTwd?: number; resetsAt?: string; grantTwd?: number; carryInTwd?: number; capTwd?: number; availableTwd?: number;
+  };
+  const win = (key: "6h" | "168h", ms: number, limit: number, used: number): WindowView => {
     const usedPct = limit > 0 ? Math.min(100, (used / limit) * 100) : 100;
     // 6 h: each cost frees up 6 h after it was incurred; the week: everything at the next Sunday 00:00 UTC
     const releases =
@@ -426,9 +559,7 @@ export async function quotaStatus(userId: string, now = new Date()) {
             .sort((a, b) => at(a).getTime() - at(b).getTime())
             .slice(0, 20)
             .map((r) => ({ at: new Date(at(r).getTime() + ms).toISOString(), pct: limit > 0 ? (amount(r) / limit) * 100 : 0 }))
-        : used > 0
-          ? [{ at: u.weekEndsAt.toISOString(), pct: usedPct }]
-          : [];
+        : [];
     // the 6 h window as 12 half-hour buckets (oldest first, % of the limit): SinoBee draws them as a timeline, and
     // the oldest bucket is the next to be released
     const buckets = key === "6h" ? Array.from({ length: 12 }, () => 0) : undefined;
@@ -444,8 +575,10 @@ export async function quotaStatus(userId: string, now = new Date()) {
       window: key,
       usedPct,
       remainingTokens: tokens(limit - used),
-      // the weekly window resets as a whole at this moment (Sunday 00:00:00 UTC)
-      ...(key === "168h" ? { resetsAt: u.weekEndsAt.toISOString() } : {}),
+      // the week: next grant at resetsAt (Sunday 00:00:00 UTC); what is left now carries over while subscribed
+      ...(key === "168h"
+        ? { resetsAt: u.weekEndsAt.toISOString(), grantTwd: r2(wk.grantTwd), carryInTwd: r2(wk.carryInTwd), capTwd: r2(wk.capTwd), availableTwd: r2(wk.availableTwd), usedTwd: r2(used) }
+        : { limitTwd: r2(limit), usedTwd: r2(used) }),
       releases,
       ...(buckets ? { buckets: buckets.map((b) => Math.round(b * 100) / 100) } : {}),
     };
@@ -458,7 +591,8 @@ export async function quotaStatus(userId: string, now = new Date()) {
     plan: { code: ctx.plan.code, name: ctx.plan.name, nameEn: ctx.plan.nameEn, concurrency: ctx.plan.concurrency },
     endsAt: st.endsAt?.toISOString() ?? null,
     graceEndsAt: st.graceEndsAt?.toISOString() ?? null,
-    windows: [win("6h", W6, ctx.plan.l6Twd, u.w6), win("168h", W168, ctx.plan.l168Twd, u.w168)],
+    level: ctx.level,
+    windows: [win("6h", W6, ctx.limits.l6, u.w6), win("168h", W168, wk.availableTwd, u.w168)],
     inFlight: u.held,
     tokensBasis: ref ? { model: ref.model.modelId, label: ref.model.label, blendedTwdPer1M: ref.blendedTwd, mix: "input:output = 3:1" } : null,
   };
@@ -489,3 +623,4 @@ export async function resetWindows(actorId: string, userId: string, which: Reset
   });
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const r2 = round2;

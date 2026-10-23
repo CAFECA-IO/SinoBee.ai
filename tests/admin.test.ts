@@ -108,23 +108,24 @@ test("plan economics: the worst case until there is usage, then the average 30-d
   assert.equal(none.basis, "full");
   assert.ok(Math.abs(none.margin! - buffer / pro.multiplier) < 1e-9);
   const sug = econ.suggestions(pro, none, buffer);
-  assert.deepEqual(sug.map((s) => s.kind), ["multiplier", "multiplier", "buffer"]);
+  // 0.8× breaks even at 1.08 (margin 1.35), so only the healthy multiplier and the buffer are offered
+  assert.deepEqual(sug.map((s) => s.kind), ["multiplier", "buffer"]);
   assert.equal((sug[0] as { value: number }).value, 0.72, "1.08 / 1.5 → 50% over cost");
 
-  // a period of 10 days that spent 300 → 900 per 30 days; one of 2 days is too short to count
+  // a period of 10 days that spent 200 → 600 per 30 days (under the 672 allowance); one of 2 days is too short to count
   const mk = async (u: U, days: number, spent: number, n: string) => {
     const pay = await db.payment.create({ data: { userId: u.id, purpose: "SUBSCRIPTION", amount: 840, amountBase: "840", token: "TWD", recipient: "oen", provider: "OEN", amountTwd: 840, status: "CONFIRMED", planId: pro.id, oenId: n } });
     const sub = await db.subscription.create({ data: { userId: u.id, plan: pro.code, planId: pro.id, startsAt: new Date(Date.now() - days * DAY), endsAt: new Date(Date.now() + (30 - days) * DAY), paymentId: pay.id } });
     await db.usageLedger.create({ data: { userId: u.id, subscriptionId: sub.id, planId: pro.id, modelId: "a/b", endpoint: "messages", status: "SETTLED", settledTwd: spent, priceTwd: {}, settledAt: new Date() } });
   };
-  await mk(alice, 10, 300, "p1");
+  await mk(alice, 10, 200, "p1");
   await mk(bob, 2, 500, "p2");
   const e = await econ.planEconomics(pro, buffer);
   assert.equal(e.basis, "actual");
   assert.equal(e.sample, 1);
-  assert.equal(e.avgUseTwd, 900);
-  assert.ok(Math.abs(e.margin! - (840 * buffer) / 900) < 1e-4, "fee ÷ (use ÷ buffer)");
-  assert.equal(margin.marginText(e.margin!, (k, v) => `${k} ${v.p}`), "profit 1");
+  assert.equal(e.avgUseTwd, 600);
+  assert.ok(Math.abs(e.margin! - (840 * buffer) / 600) < 1e-4, "fee ÷ (use ÷ buffer)");
+  assert.equal(margin.marginText(e.margin!, (k, v) => `${k} ${v.p}`), "profit 51");
   const fee = econ.suggestions(pro, { ...e, margin: 0.8, costTwd: 1000 }, buffer);
   assert.deepEqual(fee, [{ kind: "fee", value: 1500, margin: 1.5 }], "on real use only the fee moves the margin");
   assert.equal(margin.marginText(0.72, (k, v) => `${k} ${v.p}`), "loss 28");
@@ -137,7 +138,7 @@ test("users: filters, a page of rows with plan and spend, and disabling an accou
   const list = await users.userList({ filter: "all", q: "ali" });
   assert.equal(list.total, 1);
   assert.equal(list.rows[0].plan, "Pro");
-  assert.equal(list.rows[0].usage30Twd, 300);
+  assert.equal(list.rows[0].usage30Twd, 200);
   const d = (await users.userDetail(alice.id))!;
   assert.equal(d.current?.plan, "Pro");
   assert.equal(d.topModels[0].share, 1);

@@ -147,8 +147,6 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.blockMb", env: "CROWD_FILE_BLOCK_MB", type: "number", group: "crowd", default: "50", label: L("超額計費單位（MB）", "Extra space block (MB)"), help: L("每個單位扣 1 份提案額度", "Each block uses one share of proposal credit") },
   { key: "crowd.maxFileMb", env: "CROWD_MAX_FILE_MB", type: "number", group: "crowd", default: "500", label: L("參考檔案上限（MB）", "Reference files limit (MB)") },
   { key: "crowd.chargeGraceDays", env: "CROWD_CHARGE_GRACE_DAYS", type: "number", group: "crowd", default: "3", label: L("扣款失敗寬限天數", "Failed charge grace (days)") },
-  { key: "crowd.quotaPeriodShare", env: "CROWD_QUOTA_PERIOD_SHARE", type: "number", group: "crowd", default: "0.2", label: L("每期額度出資上限（占方案用量比例）", "Quota pledges per period (share of plan usage)") },
-  { key: "crowd.quotaTaskShare", env: "CROWD_QUOTA_TASK_SHARE", type: "number", group: "crowd", default: "0.5", label: L("每任務額度出資上限（占目標比例）", "Quota pledges per task (share of goal)") },
   { key: "crowd.reviewDays", env: "CROWD_REVIEW_DAYS", type: "number", group: "crowd", default: "7", label: L("驗收投票天數", "Acceptance vote (days)") },
   { key: "crowd.approveShare", env: "CROWD_APPROVE_SHARE", type: "number", group: "crowd", default: "0.5", label: L("驗收通過門檻（贊成份數比例）", "Acceptance threshold (share of voted shares)"), help: L("沒有人投票視為通過", "No votes counts as accepted") },
   { key: "crowd.maxReworks", env: "CROWD_MAX_REWORKS", type: "number", group: "crowd", default: "1", label: L("驗收未通過時最多重做次數", "Reworks after a rejected review") },

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
+import { subscriptionState } from "../subscriptions";
 import { db } from "../db";
 import { config } from "../config";
 import { HttpError } from "../errors";
@@ -82,9 +83,21 @@ export async function ownDraft(userId: string, taskId: string): Promise<Task> {
 
 export const creditLeft = (t: Pick<Task, "proposalCreditTwd" | "proposalUsedTwd">) => Number(t.proposalCreditTwd) - Number(t.proposalUsedTwd);
 
+/**
+ * Subscribers pay no proposal fee (2026-10-23): while a paid subscription period runs, proposals start and the spec
+ * dialogue and reference files are used without limit; the platform absorbs the cost (Task.proposalWaivedTwd).
+ */
+export async function feeWaived(userId: string, now = new Date()) {
+  return !!(await subscriptionState(userId, now)).current;
+}
+
+/** The proposal may use the spec dialogue: a fee was paid, or the proposer is subscribed */
+export const proposalPaid = (t: Pick<Task, "proposalCreditTwd">, waived: boolean) => waived || Number(t.proposalCreditTwd) > 0;
+
 /** Charge one proposal fee to a saved card (the first one, or another when the credit ran out) */
 export async function buyProposalFee(userId: string, taskId: string, buyer: Buyer, cardId: string) {
   await ownDraft(userId, taskId);
+  if (await feeWaived(userId)) throw new HttpError(400, "subscribers start proposals without the proposal fee");
   return createPayment({ userId, purpose: "CROWD_PROPOSAL", amountTwd: Math.round(config.crowd.proposalFee), taskId, buyer, cardId });
 }
 
@@ -102,8 +115,13 @@ export async function useCredit(taskId: string, twd: number, opts: { allowOverdr
   if (!(twd > 0)) return;
   const amount = Math.ceil(twd * 1e6) / 1e6;
   const where: Prisma.TaskWhereInput = { id: taskId };
+  const t = await db.task.findUniqueOrThrow({ where: { id: taskId } });
+  // subscribed proposer: nothing to run out of, the platform records what it absorbed
+  if (await feeWaived(t.userId)) {
+    await db.task.update({ where: { id: taskId }, data: { proposalWaivedTwd: { increment: amount } } });
+    return;
+  }
   if (!opts.allowOverdraw) {
-    const t = await db.task.findUniqueOrThrow({ where: { id: taskId } });
     if (creditLeft(t) + 1e-9 < amount) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
     // conditional update: the credit cannot be spent twice by concurrent requests
     where.proposalUsedTwd = t.proposalUsedTwd;
@@ -190,7 +208,7 @@ export async function openFunding(userId: string, taskId: string, raw: z.input<t
   const input = OpenInput.parse(raw);
   const self = input.mode === "self";
   const t = await ownDraft(userId, taskId);
-  if (Number(t.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee first");
+  if (!proposalPaid(t, await feeWaived(userId))) throw new HttpError(402, "pay the proposal fee first");
   const spec = t.spec ? normalizeSpec(t.spec) : null;
   const gaps = specGaps(spec);
   if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);

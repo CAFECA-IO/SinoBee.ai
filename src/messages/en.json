@@ -1855,7 +1855,8 @@
     "steps": {
       "0": "Describe it and pay the NT${fee} proposal fee",
       "1": "AI writes the spec and the estimate; edit lines or ask AI",
-      "2": "Pick a period and submit; it opens once screening passes"
+      "2": "Pick a period and submit; it opens once screening passes",
+      "0waived": "Describe it (no proposal fee while you subscribe)"
     },
     "form": {
       "kind": "Type",
@@ -1882,7 +1883,9 @@
       "create": "Pay NT${fee} and draft the spec",
       "after": "After paying you come back to the proposal; AI drafts the spec in about a minute.",
       "category": "Category",
-      "creating": "Creating…"
+      "creating": "Creating…",
+      "feeWaived": "You are subscribed: no NT${fee} proposal fee, and the spec dialogue and reference files are unlimited.",
+      "createFree": "Draft the spec"
     },
     "edit": {
       "title": "Crowdfunding proposal",
@@ -1894,7 +1897,8 @@
       "buyMore": "Buy another NT${fee} proposal fee",
       "feeNote": "The proposal fee is non-refundable and becomes credit for the spec dialogue tokens and reference file storage. When it runs out the dialogue stops until you buy more; unused credit joins the task budget when funded (not a share, never points).",
       "discard": "Discard proposal",
-      "confirmDiscard": "Discard this proposal? The proposal fee is not refunded."
+      "confirmDiscard": "Discard this proposal? The proposal fee is not refunded.",
+      "waived": "No proposal fee while subscribed, unlimited"
     },
     "chat": {
       "title": "Ask AI to edit",
@@ -1988,12 +1992,11 @@
       "card": "Card",
       "cardLast4": "Card •••• {last4}",
       "points": "Points ({n} available)",
-      "quota": "Subscription quota",
+      "quota": "Subscription quota (legacy)",
       "noCard": "No card saved",
       "addCard": "Save a card",
       "cardNote": "During the campaign the card is only saved; it is charged once when the goal is reached and the e-invoice goes to your email.",
       "pointsNote": "Points are deducted now and returned if the goal is missed.",
-      "quotaNote": "Quota is deducted now; it comes back as quota (never cash or points) if the goal is missed or budget is left.",
       "pledge": "Pledge {amount} TWD",
       "pledging": "Working…",
       "mine": "My pledges",
@@ -2028,8 +2031,7 @@
       "selfPaid": "Paid by the proposer; not open for pledges.",
       "selfFailed": "The card charge did not go through; the task did not run.",
       "pointsCover": "Your points cover this pledge: no card is charged. Points are deducted now and returned if the goal is missed.",
-      "split": "Points pay NT${p}, the card NT${c}.",
-      "quotaAll": "Pays the full amount; points are not used"
+      "split": "Points pay NT${p}, the card NT${c}."
     },
     "account": {
       "points": "Platform points",

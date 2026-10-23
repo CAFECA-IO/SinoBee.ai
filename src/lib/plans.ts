@@ -6,14 +6,10 @@ import { MAX_MULTIPLIER, limitsFromMax, planLimits as limits } from "./price-mat
 /**
  * Subscription plans (30-day periods, no auto-renewal).
  *
- *   max usage V = fee × multiplier          (TWD at published model prices, the most a user can use in 30 days)
- *   L168        = V ÷ 4.8                   (weekly limit, the week resets Sunday 00:00:00 UTC)
- *   L6          = L168 ÷ 10                 (rolling 6-hour limit)
- *
- * 30 days hold four full weeks plus 48 h; 48 h hold 8 six-hour windows, so a user who maxes every window
- * uses 4·L168 + min(L168, 8·L6) = 4·L168 + 0.8·L168 = 4.8·L168 = V. With calendar weeks (2026-10-22) a period that
- * starts mid-week touches six weeks and can reach 5·L168 ≈ 1.04·V at worst; kept at ÷ 4.8 by decision, the price
- * buffer absorbs it.
+ *   V    = fee × multiplier   (TWD at published model prices granted per 30 days = 132 工時)
+ *   L6   = V ÷ 22             (rolling 6-hour limit: one working day)
+ *   L168 = 16 × L6            (weekly cap; the week's grant V × 7 ÷ 30 plus carry-over, Sunday 00:00 UTC)
+ * See price-math.ts. Defaults use multiplier 0.8 = buffer 1.2 ÷ healthy margin 1.5.
  *
  * Published prices = vendor cost × buffer, so the worst-case vendor cost is V ÷ buffer and the margin is
  * buffer ÷ multiplier (see planMargin). The admin keeps the buffer high enough; plans themselves are not capped.
@@ -55,8 +51,8 @@ export const FREE_PLAN = "free";
 export const FREE_SHARE = 20;
 
 export const DEFAULT_PLANS = [
-  { code: "low", name: "Pro", nameEn: "Pro", feeTwd: 840, multiplier: 1.5, concurrency: 2, sortOrder: 10 },
-  { code: "high", name: "Ultra", nameEn: "Ultra", feeTwd: 3675, multiplier: 5, concurrency: 6, sortOrder: 20 },
+  { code: "low", name: "Pro", nameEn: "Pro", feeTwd: 840, multiplier: 0.8, concurrency: 2, sortOrder: 10 },
+  { code: "high", name: "Ultra", nameEn: "Ultra", feeTwd: 3675, multiplier: 0.8, concurrency: 6, sortOrder: 20 },
 ];
 
 const pg = globalThis as unknown as { __sbPlansReady?: boolean };

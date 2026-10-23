@@ -183,7 +183,7 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
     try {
       const ctx = await quotaContext(userId);
       const h = await headroom(ctx);
-      if (ctx.plan.l6Twd > 0 && h.free < ctx.plan.l6Twd * 0.2) (w.c += 0.2), (w.q -= 0.15), (w.s -= 0.05);
+      if (ctx.limits.l6 > 0 && h.free < ctx.limits.l6 * 0.2) (w.c += 0.2), (w.q -= 0.15), (w.s -= 0.05);
     } catch {
       /* no subscription: points or the free plan decide elsewhere */
     }

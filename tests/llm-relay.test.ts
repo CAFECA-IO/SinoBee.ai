@@ -39,7 +39,7 @@ before(async () => {
 after(() => llm.stop());
 
 /** a plan whose max usage is fee ÷ `div` (usage multiplier 1/div); L168 = fee / div / 4.8, L6 = L168 / 10 */
-async function subscribe(fee: number, div = 3, concurrency = 2) {
+async function subscribe(fee: number, div = 3, concurrency = 2, startsAt = new Date(Date.now() - 1000)) {
   const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
   const code = `t${fee}-${concurrency}`;
   const existing = (await plans.listPlans()).find((p) => p.code === code);
@@ -47,7 +47,8 @@ async function subscribe(fee: number, div = 3, concurrency = 2) {
   await db.subscription.deleteMany({ where: { userId } });
   await db.payment.deleteMany({ where: { userId } });
   const pay = await db.payment.create({ data: { userId, purpose: "SUBSCRIPTION", provider: "MOCK", amount: fee, amountTwd: fee, amountBase: String(fee), token: "TWD", recipient: "mock", status: "CONFIRMED", planId: plan.id } });
-  const sub = await db.subscription.create({ data: { userId, plan: plan.code, planId: plan.id, startsAt: new Date(Date.now() - 1000), endsAt: new Date(Date.now() + 30 * 86400_000), paymentId: pay.id } });
+  const sub = await db.subscription.create({ data: { userId, plan: plan.code, planId: plan.id, startsAt, endsAt: new Date(startsAt.getTime() + 30 * 86400_000), paymentId: pay.id } });
+  await db.quotaWeek.deleteMany({ where: { userId } });
   subId = sub.id;
   return plan;
 }
@@ -76,7 +77,10 @@ test("without a subscription the free plan applies (1/20 of Pro, managed by admi
   assert.equal(free.maxCostTwd, Math.round((pro.maxCostTwd / 20) * 100) / 100, "1/20 of Pro");
   assert.ok(!(await plans.listPlans({ activeOnly: true })).some((p) => p.code === "free"), "not a plan to buy");
   const ctx = await quota.quotaContext(userId);
-  assert.deepEqual([ctx.subscriptionId, ctx.plan.code, ctx.plan.l168Twd], [null, "free", Math.round((free.maxCostTwd / 4.8) * 100) / 100]);
+  const l6 = Math.round((free.maxCostTwd / 22) * 100) / 100;
+  assert.deepEqual([ctx.subscriptionId, ctx.plan.code, ctx.plan.l6Twd, ctx.plan.l168Twd], [null, "free", l6, Math.round(l6 * 16 * 100) / 100]);
+  const fw = await quota.weekBudget(ctx);
+  assert.deepEqual([fw.carryInTwd, fw.availableTwd], [0, Math.min(ctx.limits.cap, (free.maxCostTwd * 7) / 30)], "the free plan: its weekly grant, no carry-over");
   llm.next.chunks = 1;
   const freeCall = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "hi" }] }), "openai", "chat");
   assert.equal(freeCall.status, 200);
@@ -84,7 +88,7 @@ test("without a subscription the free plan applies (1/20 of Pro, managed by admi
 
   const admin = await db.user.upsert({ where: { account: "0x" + "a".repeat(40) }, create: { account: "0x" + "a".repeat(40), role: "ADMIN", isAdmin: true }, update: {} });
   const edited = await plans.saveFreePlan(admin.id, { name: "免費", nameEn: "Free", maxCostTwd: 48, concurrency: 1, active: true });
-  assert.deepEqual([edited.maxCostTwd, edited.l168Twd, edited.l6Twd], [48, 10, 1]);
+  assert.deepEqual([edited.maxCostTwd, edited.l168Twd, edited.l6Twd], [48, 34.88, 2.18]);
   await assert.rejects(plans.savePlan(admin.id, { code: "free", name: "x", nameEn: "x", feeTwd: 1, multiplier: 1, concurrency: 1, active: true }), /own form/);
   await plans.saveFreePlan(admin.id, { name: "免費", nameEn: "Free", maxCostTwd: 48, concurrency: 1, active: false });
   const noSub = await relay.relay(post("/api/v1/llm/chat/completions", { model: LUNA, messages: [{ role: "user", content: "hi" }] }), "openai", "chat");
@@ -268,11 +272,12 @@ test("Anthropic stream: cache reads and writes are priced separately; prompt = i
   assert.ok(text.trimEnd().endsWith("}"), "the comment comes after message_stop");
 });
 
-test("the 6 h window releases each cost after 6 h, the week holds it until Sunday 00:00 UTC; stale holds are swept", async () => {
-  const plan = await subscribe(840);
-  await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
-  // a fixed moment mid-week (Wednesday 12:00 UTC of this week), so the result does not depend on today's weekday
+test("the 6 h window releases each cost after 6 h, the week counts from Sunday 00:00 UTC; stale holds are swept", async () => {
+  // a fixed moment mid-week (Wednesday 12:00 UTC of this week), so the result does not depend on today's weekday;
+  // subscribed since the Sunday before
   const now = new Date(quota.weekStart().getTime() + 3.5 * 86400_000);
+  const plan = await subscribe(840, 3, 2, new Date(quota.weekStart(now).getTime() - 7 * 86400_000));
+  await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
   const base = { userId, modelId: LUNA, endpoint: "chat", priceTwd: { input: 7.02, cacheRead: 0.702, cacheWrite: 7.02, output: 42.12 } };
   await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 3, heldTwd: 3, settledAt: new Date(now.getTime() - 7 * 3600_000) } });
   await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 1, heldTwd: 1, settledAt: new Date(now.getTime() - 3600_000) } });
@@ -285,7 +290,14 @@ test("the 6 h window releases each cost after 6 h, the week holds it until Sunda
   const st = await quota.quotaStatus(userId, now);
   assert.equal(st.windows[1].window, "168h");
   assert.equal(st.windows[1].resetsAt, u.weekEndsAt.toISOString());
-  assert.deepEqual(st.windows[1].releases.map((r) => r.at), [u.weekEndsAt.toISOString()], "the week is released at once");
+  assert.deepEqual(st.windows[1].releases, [], "nothing is released during the week: the next grant comes at resetsAt");
+  const grant = (plan.maxCostTwd * 7) / 30;
+  // last week's 7 TWD left grant − 7 to carry in; this week: grant + carry, under the cap
+  assert.ok(Math.abs(st.windows[1].grantTwd! - Math.round(grant * 100) / 100) < 1e-9, JSON.stringify(st.windows[1]));
+  assert.ok(Math.abs(st.windows[1].carryInTwd! - Math.round((grant - 7) * 100) / 100) < 0.011);
+  assert.ok(Math.abs(st.windows[1].availableTwd! - Math.round((2 * grant - 7) * 100) / 100) < 0.011);
+  assert.equal(st.windows[1].capTwd, plan.l168Twd);
+  assert.deepEqual(st.level, { n: 1, months: 1, bonus: 0, next: 2 });
   assert.equal(st.windows[0].window, "6h");
   assert.ok(Math.abs(st.windows[0].usedPct - (1.5 / plan.l6Twd) * 100) < 1e-6);
   assert.ok(st.windows[0].remainingTokens > 0);
@@ -520,13 +532,15 @@ test("the quota week runs from Sunday 00:00:00 UTC to the next Sunday", () => {
 });
 
 test("admin reset: the chosen window comes back in full, audited; later use counts again; the week keeps its schedule", async () => {
-  const plan = await subscribe(840);
+  await subscribe(840, 3, 2, new Date(quota.weekStart().getTime() - 86400_000));
   await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
   const admin = await db.user.findUniqueOrThrow({ where: { account: "0x" + "a".repeat(40) } });
   const base = { userId, modelId: LUNA, endpoint: "chat", priceTwd: { input: 7.02, cacheRead: 0.702, cacheWrite: 7.02, output: 42.12 } };
-  // the whole week's allowance used a minute ago: both windows full
-  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: plan.l168Twd, heldTwd: plan.l168Twd, settledAt: new Date(Date.now() - 60_000) } });
+  // everything this week may use, used a minute ago: both windows full
   const ctx = await quota.quotaContext(userId);
+  const full = (await quota.weekBudget(ctx)).availableTwd;
+  assert.ok(full > ctx.limits.l6);
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: full, heldTwd: full, settledAt: new Date(Date.now() - 60_000) } });
   const model = (await (await import("../src/lib/models")).offeredModel(LUNA))!;
   const weekEnd = quota.weekEnd();
   const tryHold = () => quota.hold(ctx, model, { prompt: 100, output: 100 }, { endpoint: "chat", stream: false });
@@ -534,11 +548,11 @@ test("admin reset: the chosen window comes back in full, audited; later use coun
   await assert.rejects(tryHold, (e: InstanceType<typeof quota.QuotaError>) => e.window === "6h" && e.retryAt?.getTime() === weekEnd.getTime());
 
   const r6 = await quota.resetWindows(admin.id, userId, "6h", "support ticket #12");
-  assert.equal(r6.w6Twd, plan.l168Twd, "the audit records what was cleared");
+  assert.equal(r6.w6Twd, Math.round(full * 100) / 100, "the audit records what was cleared");
   assert.equal(r6.w168Twd, 0);
   let u = await quota.windowUse(userId);
   assert.equal(u.w6, 0);
-  assert.ok(Math.abs(u.w168 - plan.l168Twd) < 1e-6, "the week is untouched");
+  assert.ok(Math.abs(u.w168 - full) < 1e-6, "the week is untouched");
   await assert.rejects(tryHold, (e: InstanceType<typeof quota.QuotaError>) => e.window === "168h" && e.retryAt?.getTime() === weekEnd.getTime());
 
   await quota.resetWindows(admin.id, userId, "week");
@@ -556,4 +570,63 @@ test("admin reset: the chosen window comes back in full, audited; later use coun
   assert.equal((audits[0].detail as { reason: string }).reason, "support ticket #12");
   await assert.rejects(() => quota.resetWindows(admin.id, "nobody", "both"), /user not found/);
   await db.user.update({ where: { id: userId }, data: { quotaReset6hAt: null, quotaResetWeekAt: null } });
+});
+
+test("levels: total subscribed months on the Fibonacci steps, up to +20 %", async () => {
+  const lv = await import("../src/lib/level");
+  assert.deepEqual(lv.levelFor(0), { n: 0, months: 0, bonus: 0, next: 1 });
+  assert.deepEqual([1, 2, 3, 4, 5, 8, 12, 13, 21, 34, 99].map((m) => lv.levelFor(m).n), [1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 8]);
+  assert.deepEqual(lv.levelFor(34), { n: 8, months: 34, bonus: 0.2, next: null });
+  const d = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 86400_000);
+  // two periods with a gap: only the paid days count, the gap does not lower anything
+  const ps = [{ startsAt: d(0), endsAt: d(30) }, { startsAt: d(60), endsAt: d(90) }];
+  assert.equal(lv.monthsAt(ps, d(0)), 0);
+  assert.equal(lv.monthsAt(ps, d(1)), 1);
+  assert.equal(lv.monthsAt(ps, d(30)), 1, "exactly 30 days = 1 month");
+  assert.equal(lv.monthsAt(ps, d(45)), 1, "the gap adds nothing");
+  assert.equal(lv.monthsAt(ps, d(61)), 2);
+  // the bonus raises L6 and the weekly cap of a paid plan
+  const sixty = new Date(Date.now() - 61 * 86400_000);
+  const plan = await subscribe(840, 3, 2, sixty);
+  await db.subscription.create({ data: { userId, plan: plan.code, planId: plan.id, startsAt: new Date(sixty.getTime() + 30 * 86400_000), endsAt: new Date(sixty.getTime() + 60 * 86400_000), paymentId: (await db.payment.create({ data: { userId, purpose: "SUBSCRIPTION", provider: "MOCK", amount: 840, amountTwd: 840, amountBase: "840", token: "TWD", recipient: "mock", status: "CONFIRMED", planId: plan.id } })).id } });
+  await db.subscription.create({ data: { userId, plan: plan.code, planId: plan.id, startsAt: new Date(sixty.getTime() + 60 * 86400_000), endsAt: new Date(sixty.getTime() + 90 * 86400_000), paymentId: (await db.payment.create({ data: { userId, purpose: "SUBSCRIPTION", provider: "MOCK", amount: 840, amountTwd: 840, amountBase: "840", token: "TWD", recipient: "mock", status: "CONFIRMED", planId: plan.id } })).id } });
+  const ctx = await quota.quotaContext(userId);
+  assert.deepEqual([ctx.level.n, ctx.level.months], [3, 3]);
+  assert.ok(Math.abs(ctx.limits.l6 - plan.l6Twd * 1.04) < 1e-9 && Math.abs(ctx.limits.cap - plan.l168Twd * 1.04) < 1e-9);
+});
+
+test("weekly carry-over: unused quota moves on within an unbroken run, capped at 16 × L6; a gap starts from nothing", async () => {
+  const W = 7 * 86400_000;
+  const ws = quota.weekStart();
+  const base = { userId, modelId: LUNA, endpoint: "chat", priceTwd: { input: 7.02, cacheRead: 0.702, cacheWrite: 7.02, output: 42.12 } };
+  // subscribed since the Sunday two weeks ago: 20 used in the first week, nothing in the second
+  const plan = await subscribe(840, 3, 2, new Date(ws.getTime() - 2 * W));
+  const grant = (plan.maxCostTwd * 7) / 30;
+  await db.usageLedger.create({ data: { ...base, status: "SETTLED", settledTwd: 20, heldTwd: 20, settledAt: new Date(ws.getTime() - 2 * W + 3600_000) } });
+  let ctx = await quota.quotaContext(userId);
+  let wk = await quota.weekBudget(ctx);
+  assert.ok(Math.abs(wk.carryInTwd - (2 * grant - 20)) < 1e-6, JSON.stringify(wk));
+  assert.ok(Math.abs(wk.availableTwd - (3 * grant - 20)) < 1e-6);
+  assert.equal(await db.quotaWeek.count({ where: { userId } }), 2, "each finished week is remembered");
+  assert.ok(Math.abs((await quota.weekBudget(ctx)).carryInTwd - wk.carryInTwd) < 1e-9, "the memo gives the same answer");
+
+  // idle for four weeks: the carry stops at the cap
+  await subscribe(840, 3, 2, new Date(ws.getTime() - 4 * W));
+  await db.subscription.updateMany({ where: { userId }, data: { endsAt: new Date(ws.getTime() + 4 * W) } });
+  ctx = await quota.quotaContext(userId);
+  wk = await quota.weekBudget(ctx);
+  assert.ok(Math.abs(wk.availableTwd - ctx.limits.cap) < 1e-9, "never more than 16 × L6");
+
+  // a gap of one hour three days ago: what was saved before it is gone, only the days since count
+  await subscribe(840, 3, 2, new Date(ws.getTime() - 4 * W));
+  const first = await db.subscription.findFirstOrThrow({ where: { userId } });
+  const gapEnd = new Date(ws.getTime() - 3 * 86400_000);
+  await db.subscription.update({ where: { id: first.id }, data: { endsAt: new Date(gapEnd.getTime() - 3600_000) } });
+  const pay = await db.payment.create({ data: { userId, purpose: "SUBSCRIPTION", provider: "MOCK", amount: 840, amountTwd: 840, amountBase: "840", token: "TWD", recipient: "mock", status: "CONFIRMED", planId: plan.id } });
+  await db.subscription.create({ data: { userId, plan: plan.code, planId: plan.id, startsAt: gapEnd, endsAt: new Date(gapEnd.getTime() + 30 * 86400_000), paymentId: pay.id } });
+  ctx = await quota.quotaContext(userId);
+  wk = await quota.weekBudget(ctx);
+  assert.equal(wk.runStart?.getTime(), gapEnd.getTime());
+  assert.ok(Math.abs(wk.carryInTwd - (grant * 3) / 7) < 1e-6, "three paid days of last week carry in, nothing from before the gap");
+  assert.ok(Math.abs(wk.grantTwd - grant) < 1e-6);
 });

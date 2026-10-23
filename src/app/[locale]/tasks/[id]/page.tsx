@@ -19,7 +19,6 @@ import { activeCards, cardOpt, pendingBinding } from "@/lib/crowd/cards";
 import { pointBalance } from "@/lib/crowd/points";
 import { canReadFile } from "@/lib/crowd/proposal";
 import { sharePrice } from "@/lib/crowd/rules";
-import { activeSubscription } from "@/lib/retention";
 import { StatusBadge } from "@/components/status-badge";
 import { Markdown } from "@/components/markdown";
 import { LocalDate } from "@/components/date";
@@ -75,7 +74,6 @@ export default async function TaskPage({ params }: P) {
           cards: me ? (await activeCards(me.id)).map(cardOpt) : [],
           pendingCard: me ? !!(await pendingBinding(me.id)) : false,
           points: me ? await pointBalance(me.id) : 0,
-          hasQuota: me ? !!(await activeSubscription(me.id)) : false,
           spec: task.spec ? normalizeSpec(task.spec) : null,
           revisions: await db.specRevision.findMany({ where: { taskId: task.id }, orderBy: { version: "desc" }, select: { version: true, note: true, createdAt: true } }),
           tally: await tally(task.id, task.reworks),
@@ -332,7 +330,7 @@ export default async function TaskPage({ params }: P) {
             <div className="card space-y-3 p-5">
               <div className="font-semibold">{tc("panel.back")}</div>
               {me ? (
-                <PledgePanel taskId={task.id} status={task.status} price={sharePrice()} cards={crowd.cards} pendingCard={crowd.pendingCard} test={config.testMode} points={crowd.points} hasQuota={crowd.hasQuota} buyer={(me.billing ?? null) as Buyer | null} mine={crowd.mine} />
+                <PledgePanel taskId={task.id} status={task.status} price={sharePrice()} cards={crowd.cards} pendingCard={crowd.pendingCard} test={config.testMode} points={crowd.points} buyer={(me.billing ?? null) as Buyer | null} mine={crowd.mine} />
               ) : (
                 <p className="text-sm text-muted">{tc("panel.login")}</p>
               )}

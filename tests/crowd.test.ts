@@ -297,22 +297,42 @@ test("charging falls short when the grace period ends: charged cards are refunde
   assert.equal(tx.refundAmount, 150, "one full refund");
 });
 
-test("quota pledges: need a subscription, capped per task, returned as quota", async () => {
+test("quota pledges are no longer taken; a legacy quota pledge is still given back as quota", async () => {
   const t = await openCampaign(300);
-  await assert.rejects(pledges.pledge(dan.id, t.id, { shares: 1, source: "QUOTA" }), /subscription/);
-  const danPoints = await points.pointBalance(dan.id);
   const plan = (await plans.listPlans()).find((p) => p.code === "high")!;
   await subs.addPeriod(dan.id, "sub-test-dan", { id: plan.id, code: plan.code, days: 30 });
-  await pledges.pledge(dan.id, t.id, { shares: 5, source: "QUOTA" });
-  await assert.rejects(pledges.pledge(dan.id, t.id, { shares: 1, source: "QUOTA" }), /at most 150 TWD/, "50 % of the goal");
-  const used = await db.usageLedger.aggregate({ where: { userId: dan.id }, _sum: { settledTwd: true } });
-  assert.equal(Number(used._sum.settledTwd), 150);
+  await assert.rejects(pledges.pledge(dan.id, t.id, { shares: 1, source: "QUOTA" as "CARD" }), /card or platform points/);
+  // a pledge made with quota before 2026-10-23
+  const sub = await db.subscription.findFirstOrThrow({ where: { userId: dan.id } });
+  const row = await db.usageLedger.create({ data: { userId: dan.id, subscriptionId: sub.id, planId: plan.id, modelId: "crowd", endpoint: "crowd-pledge", status: "SETTLED", heldTwd: 150, settledTwd: 150, priceTwd: {}, settledAt: new Date() } });
+  await db.pledge.create({ data: { taskId: t.id, userId: dan.id, source: "QUOTA", shares: 5, amountTwd: 150, usageLedgerId: row.id } });
+  const danPoints = await points.pointBalance(dan.id);
   await db.task.update({ where: { id: t.id }, data: { deadlineAt: new Date(Date.now() - 1000) } });
   await life.crowdTick();
   assert.equal((await db.task.findUniqueOrThrow({ where: { id: t.id } })).status, "UNFUNDED");
   const back = await db.usageLedger.aggregate({ where: { userId: dan.id }, _sum: { settledTwd: true } });
   assert.equal(Number(back._sum.settledTwd), 0, "quota given back");
   assert.equal(await points.pointBalance(dan.id), danPoints, "never as points");
+});
+
+test("subscribers start proposals without the proposal fee; the dialogue never runs out; the platform keeps the cost", async () => {
+  // dan is subscribed (the test above)
+  assert.equal(await proposal.feeWaived(dan.id), true);
+  assert.equal(await proposal.feeWaived(cat.id), false);
+  const t = await proposal.createDraft(dan.id, { title: "Free proposal", description: "Compare bus punctuality in three cities", model: MODEL });
+  await assert.rejects(proposal.buyProposalFee(dan.id, t.id, buyer, "card"), /without the proposal fee/);
+  await proposal.useCredit(t.id, 12.5);
+  await proposal.useCredit(t.id, 40);
+  const row = await db.task.findUniqueOrThrow({ where: { id: t.id } });
+  assert.deepEqual([Number(row.proposalCreditTwd), Number(row.proposalUsedTwd), Number(row.proposalWaivedTwd)], [0, 0, 52.5], "no credit used, cost recorded");
+  await proposal.saveSpec(dan.id, t.id, { summary: "s", deliverables: ["report.md"], method: ["collect"], acceptance: ["three cities"], estimate: { p50Twd: 150, p90Twd: 270 } });
+  const opened = await proposal.openFunding(dan.id, t.id, { durationDays: 7, goalTwd: 300, startEarly: false });
+  assert.equal(opened.id, t.id, "no fee needed to submit");
+  assert.equal(await db.payment.count({ where: { taskId: t.id, purpose: "CROWD_PROPOSAL" } }), 0);
+  // without a subscription the fee is required as before
+  const c = await proposal.createDraft(cat.id, { title: "Paid proposal", description: "Compare bus punctuality in three cities", model: MODEL });
+  await assert.rejects(proposal.openFunding(cat.id, c.id, { durationDays: 7, startEarly: false }), /proposal fee/);
+  await assert.rejects(proposal.useCredit(c.id, 1), /credit used up/);
 });
 
 test("worker events become agent comments and notify the audience", async () => {

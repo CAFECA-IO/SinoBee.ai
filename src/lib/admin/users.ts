@@ -2,7 +2,7 @@ import { db, icontains } from "../db";
 import { HttpError } from "../errors";
 import { audit } from "../roles";
 import { listPlans } from "../plans";
-import { windowUse } from "../llm/quota";
+import { quotaContext, weekBudget, windowUse } from "../llm/quota";
 import type { User } from "@/generated/prisma/client";
 
 /** Users in /admin: a table with what support needs at a glance, and one user's whole picture */
@@ -74,7 +74,10 @@ export async function userDetail(id: string, locale = "zh-TW", now = new Date())
     db.tool.findMany({ where: { ownerId: id }, select: { name: true, latestVersion: true }, take: 10 }),
     listPlans({ includeFree: true }),
   ]);
-  const win = await windowUse(id, now);
+  // the model-quota windows now; null when the user has neither a subscription nor the free plan
+  const qc = await quotaContext(id, now).catch(() => null);
+  const wk = qc ? await weekBudget(qc, now) : null;
+  const win = await windowUse(id, now, wk?.from);
   const current = subs.find((s) => s.startsAt <= now && s.endsAt > now) ?? null;
   const plan = plans.find((p) => p.code === (current?.plan ?? "free")) ?? null;
   const used = Number(usage._sum.settledTwd ?? 0);
@@ -88,9 +91,11 @@ export async function userDetail(id: string, locale = "zh-TW", now = new Date())
     topModels: byModel.map((m) => ({ modelId: m.modelId, twd: Number(m._sum.settledTwd ?? 0), share: used > 0 ? Number(m._sum.settledTwd ?? 0) / used : 0 })),
     // the model-quota windows now (rolling 6 h; the week from Sunday 00:00 UTC), for the admin's reset buttons
     quota: {
-      w6Twd: win.w6, l6Twd: plan?.l6Twd ?? 0, w168Twd: win.w168, l168Twd: plan?.l168Twd ?? 0, weekEndsAt: win.weekEndsAt,
+      w6Twd: win.w6, l6Twd: qc?.limits.l6 ?? 0, w168Twd: win.w168, l168Twd: wk?.availableTwd ?? 0, weekEndsAt: win.weekEndsAt,
+      grantTwd: wk?.grantTwd ?? 0, carryInTwd: wk?.carryInTwd ?? 0, capTwd: wk?.capTwd ?? 0,
       reset6hAt: u.quotaReset6hAt, resetWeekAt: u.quotaResetWeekAt,
     },
+    level: qc?.level ?? null,
     payments,
     skills,
     tools,

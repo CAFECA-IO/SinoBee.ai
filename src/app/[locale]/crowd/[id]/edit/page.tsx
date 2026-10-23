@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/auth";
 import { Link, redirect } from "@/i18n/navigation";
 import type { Buyer } from "@/components/checkout";
 import { AutoDraft, CategorySelect, DiscardProposal, InputFiles, OpenFunding, ProposalFee, SpecChat, SpecDoc, TitleEdit, type SpecView } from "@/components/crowd";
-import { creditLeft } from "@/lib/crowd/proposal";
+import { creditLeft, feeWaived, proposalPaid } from "@/lib/crowd/proposal";
 import { checkoutCards } from "@/lib/crowd/cards";
 import type { Screening } from "@/lib/crowd/screening";
 import { CATEGORIES, durations, normalizeSpec, sharePrice, specGaps } from "@/lib/crowd/rules";
@@ -25,8 +25,10 @@ export default async function CrowdEditPage({ params, searchParams }: { params: 
   const t = await getTranslations("crowd");
   const screening = task.screening as Screening | null;
   const spec = task.spec ? normalizeSpec(task.spec) : null;
-  const paid = Number(task.proposalCreditTwd) > 0;
-  const left = creditLeft(task);
+  // subscribers pay no proposal fee and have no credit to run out of
+  const waived = await feeWaived(me!.id);
+  const paid = proposalPaid(task, waived);
+  const left = waived ? Infinity : creditLeft(task);
   const fee = Math.round(config.crowd.proposalFee);
   const mb = (b: number) => Math.round(b / 1048576);
   const chat = ((task.specChat ?? []) as { role: "user" | "assistant"; content: string }[]).map(({ role, content }) => ({ role, content }));
@@ -114,7 +116,7 @@ export default async function CrowdEditPage({ params, searchParams }: { params: 
             <section className="card space-y-3 p-5">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">{t("chat.title")}</h2>
-                <span className="font-mono text-xs text-muted">{t("edit.creditLeft", { amount: left.toFixed(2) })}</span>
+                <span className="font-mono text-xs text-muted">{waived ? t("edit.waived") : t("edit.creditLeft", { amount: left.toFixed(2) })}</span>
               </div>
               <SpecChat taskId={task.id} chat={chat} canChat={left > 0.01} outOfCredit={left <= 0.01} />
               {left <= 1 && <ProposalFee taskId={task.id} fee={fee} paid buyer={(me!.billing ?? null) as Buyer | null} {...pay} />}

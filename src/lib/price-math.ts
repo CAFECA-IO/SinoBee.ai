@@ -19,24 +19,31 @@ export const HEALTHY_MARGIN = 1.5;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * A plan's multiplier is the usage it includes, as a multiple of its fee, at published model prices:
- *   max usage V = fee × multiplier;  L168 = V ÷ 4.8;  L6 = L168 ÷ 10
- * 30 days = four full weeks + 48 h, and 48 h = 8 six-hour windows, so maxing every window costs
- * 4·L168 + min(L168, 8·L6) = 4.8·L168 = V. The week is a calendar week (Sunday 00:00 UTC), so a period starting
- * mid-week can reach 5·L168 ≈ 1.04·V at worst (accepted; see plans.ts).
+ * Plans in working hours (工時, 2026-10-23). A month is 22 working days of 6 hours = 132 工時; a plan's multiplier
+ * is the usage it includes per 30 days, as a multiple of its fee, at published model prices:
+ *   V (30-day usage) = fee × multiplier = 132 工時 → one 工時 R = V ÷ 132
+ *   L6  (rolling 6 hours)  = 6 R = V ÷ 22          one working day
+ *   weekly grant            = V × 7 ÷ 30           4.4 R per subscribed day, credited on Sunday 00:00 UTC
+ *   L168 (weekly cap)       = 16 × L6              what a week may use: grant + carry-over, capped here
+ * Unused weekly quota carries over while the subscription runs unbroken, so over any span use ≤ the grants of the
+ * days paid for: the worst-case vendor cost stays V ÷ buffer per 30 days and the margin buffer ÷ multiplier.
+ * User levels raise L6 and the cap (not the grant), see src/lib/level.ts.
  */
+export const WORKDAYS_PER_MONTH = 22;
+export const HOURS_PER_DAY = 6;
+export const WEEK_CAP_DAYS = 16;
+export const weekGrantTwd = (maxCostTwd: number) => (maxCostTwd > 0 ? (maxCostTwd * 7) / 30 : 0);
+
 export function planLimits(feeTwd: number, multiplier: number) {
   if (!(feeTwd > 0) || !(multiplier > 0)) return { maxCostTwd: 0, l168Twd: 0, l6Twd: 0 };
-  const maxCost = feeTwd * multiplier;
-  const l168 = maxCost / 4.8;
-  return { maxCostTwd: r2(maxCost), l168Twd: r2(l168), l6Twd: r2(l168 / 10) };
+  return limitsFromMax(feeTwd * multiplier);
 }
 
-/** The same windows from a max usage directly (the free plan: no fee, an allowance set by the admin) */
+/** The same limits from a 30-day usage directly (the free plan: no fee, an allowance set by the admin) */
 export function limitsFromMax(maxCostTwd: number) {
   if (!(maxCostTwd > 0)) return { maxCostTwd: 0, l168Twd: 0, l6Twd: 0 };
-  const l168 = maxCostTwd / 4.8;
-  return { maxCostTwd: r2(maxCostTwd), l168Twd: r2(l168), l6Twd: r2(l168 / 10) };
+  const l6 = r2(maxCostTwd / WORKDAYS_PER_MONTH);
+  return { maxCostTwd: r2(maxCostTwd), l168Twd: r2(l6 * WEEK_CAP_DAYS), l6Twd: l6 };
 }
 
 /**

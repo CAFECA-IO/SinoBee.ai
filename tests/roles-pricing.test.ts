@@ -1,7 +1,7 @@
 import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import { useTestDb } from "./helpers/testdb";
-import { bufferFor, planMargin } from "../src/lib/price-math";
+import { bufferFor, planMargin, weekGrantTwd } from "../src/lib/price-math";
 
 useTestDb();
 delete process.env.OWNER_ACCOUNT;
@@ -171,18 +171,18 @@ test("published price = vendor USD × FX × buffer; history and scheduled change
   await models.savePricingSettings(admin.id, { fx: 32.5, buffer: 1.2 });
 });
 
-test("plans: allowance = fee × usage multiplier (Pro 1.5×, Ultra 5×); margin = buffer ÷ multiplier", async () => {
+test("plans: 30-day usage = fee × multiplier (0.8× = buffer 1.2 ÷ 1.5); L6 = V ÷ 22, weekly cap = 16 × L6; margin = buffer ÷ multiplier", async () => {
   await reset();
   await db.plan.deleteMany();
   const admin = await signIn(acc("b"));
   const list = await plans.listPlans();
   const low = list.find((p) => p.code === "low")!;
   const high = list.find((p) => p.code === "high")!;
-  assert.deepEqual([low.feeTwd, low.multiplier, low.maxCostTwd, low.l168Twd, low.l6Twd], [840, 1.5, 1260, 262.5, 26.25]);
-  assert.deepEqual([high.feeTwd, high.multiplier, high.maxCostTwd, high.l168Twd, high.l6Twd], [3675, 5, 18375, 3828.13, 382.81]);
-  // maxing every window over 30 days uses exactly the allowance
-  const l168 = 18375 / 4.8;
-  assert.ok(Math.abs(4 * l168 + Math.min(l168, 8 * (l168 / 10)) - 18375) < 1e-9);
+  assert.deepEqual([low.feeTwd, low.multiplier, low.maxCostTwd, low.l168Twd, low.l6Twd], [840, 0.8, 672, 488.8, 30.55]);
+  assert.deepEqual([high.feeTwd, high.multiplier, high.maxCostTwd, high.l168Twd, high.l6Twd], [3675, 0.8, 2940, 2138.24, 133.64]);
+  // 132 工時 a month: one 工時 = V ÷ 132, L6 = 6 工時, weekly grant = 30.8 工時
+  assert.ok(Math.abs(672 / 132 - 5.0909) < 1e-4 && Math.abs(weekGrantTwd(672) - (672 * 7) / 30) < 1e-9);
+  assert.ok(Math.abs(planMargin(0.8, 1.2) - 1.5) < 1e-9, "the default plans keep 50% over cost at buffer 1.2");
   // the buffer, not the plan, decides the margin
   assert.ok(Math.abs(planMargin(1.5, 1.08) - 0.72) < 1e-9);
   assert.equal(planMargin(5, 7.5), 1.5);
@@ -191,9 +191,9 @@ test("plans: allowance = fee × usage multiplier (Pro 1.5×, Ultra 5×); margin 
 
   await assert.rejects(plans.savePlan(admin.id, { ...high, multiplier: 0 }), /between 0 and 100/);
   await assert.rejects(plans.savePlan(admin.id, { ...high, multiplier: 101 }), /between 0 and 100/);
-  assert.equal((await plans.listPlans()).find((p) => p.code === "high")!.multiplier, 5, "unchanged after refusal");
+  assert.equal((await plans.listPlans()).find((p) => p.code === "high")!.multiplier, 0.8, "unchanged after refusal");
   const saved = await plans.savePlan(admin.id, { ...low, feeTwd: 900, multiplier: 2 });
-  assert.deepEqual([saved.maxCostTwd, saved.l168Twd, saved.l6Twd], [1800, 375, 37.5]);
+  assert.deepEqual([saved.maxCostTwd, saved.l168Twd, saved.l6Twd], [1800, 1309.12, 81.82]);
   await assert.rejects(plans.savePlan(admin.id, { code: "high", name: "x", nameEn: "x", feeTwd: 1, multiplier: 2, concurrency: 1, active: true }), /exists/);
   assert.ok(await db.adminAudit.findFirst({ where: { action: "plan.update", targetId: low.id } }));
 });

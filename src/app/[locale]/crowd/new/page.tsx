@@ -8,6 +8,7 @@ import { modelsForClient } from "@/lib/public-config";
 import { skillOption } from "@/lib/skill-option";
 import { checkoutCards } from "@/lib/crowd/cards";
 import { EVAL_METHODS } from "@/lib/crowd/rules";
+import { feeWaived } from "@/lib/crowd/proposal";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const t = await getTranslations({ locale: (await params).locale, namespace: "crowd" });
@@ -25,6 +26,8 @@ export default async function NewCrowdPage({ params, searchParams }: { params: P
   const skill = await skillOption(sp.skill);
   const models = (await modelsForClient()).map(({ id, label, vendor }) => ({ id, label, vendor }));
   const fee = Math.round(config.crowd.proposalFee);
+  // subscribers start proposals without the fee
+  const waived = await feeWaived(me!.id);
   return (
     <div className="container-x py-12">
       <h1 className="h1">{t("newTitle")}</h1>
@@ -33,12 +36,12 @@ export default async function NewCrowdPage({ params, searchParams }: { params: P
         {[0, 1, 2].map((i) => (
           <li key={i} className={`card p-4 ${i === 0 ? "border-accent" : ""}`}>
             <div className="text-xs font-bold text-accent">{i + 1}</div>
-            <div className="mt-1">{t(`steps.${i}`, { fee })}</div>
+            <div className="mt-1">{i === 0 && waived ? t("steps.0waived") : t(`steps.${i}`, { fee })}</div>
           </li>
         ))}
       </ol>
       <div className="mt-8">
-        <CrowdNewForm models={models} skill={skill} kind={sp.kind === "evaluation" ? "EVALUATION" : "TASK"} evalMethods={EVAL_METHODS} fee={fee} buyer={(me!.billing ?? null) as Buyer | null} {...await checkoutCards(me!.id)} />
+        <CrowdNewForm models={models} skill={skill} kind={sp.kind === "evaluation" ? "EVALUATION" : "TASK"} evalMethods={EVAL_METHODS} fee={fee} waived={waived} buyer={(me!.billing ?? null) as Buyer | null} {...await checkoutCards(me!.id)} />
       </div>
     </div>
   );

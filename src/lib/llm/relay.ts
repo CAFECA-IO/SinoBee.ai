@@ -308,7 +308,7 @@ async function runPlain(p: Prepared, maxOut: number, setMax?: (n: number) => voi
   const u = p.fmt === "anthropic" ? anthropicUsage(json.usage as Record<string, unknown>) : openaiUsage(json.usage as Record<string, unknown>);
   const s: Settlement = u ? { kind: "usage", ...u } : { kind: "estimate", prompt: p.promptEstimate, output: estimateTokens(p.fmt === "anthropic" ? json.content : json.choices), reason: "no usage in response" };
   const done = await settle(ledger.id, s);
-  return Response.json(json, { status: r.status, headers: { ...(await quotaHeaders(p.ctx.plan, done).catch(() => ({}))), ...droppedHeader(p) } });
+  return Response.json(json, { status: r.status, headers: { ...(await quotaHeaders(p.ctx, done).catch(() => ({}))), ...droppedHeader(p) } });
 }
 
 // ───────────── streaming ─────────────
@@ -420,7 +420,7 @@ async function pump(p: Prepared, r: Response, ledgerId: string, expected: number
         const row = await finish(usage ? { kind: "usage", ...usage } : ({ ...estimateNow(), reason: "stream ended without usage" } as Settlement));
         // headers left before the answer existed: the answer's share of the quota goes last, as an SSE comment
         // (ignored by SSE parsers that do not look for it)
-        const q = await quotaHeaders(p.ctx.plan, row).catch(() => ({}));
+        const q = await quotaHeaders(p.ctx, row).catch(() => ({}));
         if (Object.keys(q).length) sink.push(`: x-sinobee-quota ${JSON.stringify(q)}\n\n`);
         sink.end();
         return;

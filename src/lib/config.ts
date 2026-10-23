@@ -307,12 +307,6 @@ export const config = {
     get chargeGraceDays() {
       return svNum("crowd.chargeGraceDays");
     },
-    get quotaPeriodShare() {
-      return svNum("crowd.quotaPeriodShare");
-    },
-    get quotaTaskShare() {
-      return svNum("crowd.quotaTaskShare");
-    },
     get resultsDays() {
       return svNum("crowd.resultsDays");
     },

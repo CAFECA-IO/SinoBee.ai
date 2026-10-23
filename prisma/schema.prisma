@@ -62,6 +62,7 @@ model User {
   vaultKey          VaultKey?
   vaultPacks        VaultPack[]
   shares            ConversationShare[]
+  quotaWeeks        QuotaWeek[]
   reports           Report[]
   reviewedTools     ToolVersion[]       @relation("toolReviewer")
   toolRatings       ToolRating[]
@@ -446,6 +447,9 @@ model Task {
   specChat            Json?
   /// proposal fee credit (published-price TWD) and what the spec dialogue, storage and extra file space used
   proposalCreditTwd   Decimal          @default(0) @db.Decimal(20, 6)
+  /// spec dialogue and reference-file cost the platform absorbed because the proposer was subscribed (no proposal fee
+  /// while subscribed, 2026-10-23); for cost statistics only, never joins the budget or becomes points
+  proposalWaivedTwd   Decimal          @default(0) @db.Decimal(20, 6)
   proposalUsedTwd     Decimal          @default(0) @db.Decimal(20, 6)
   /// unused proposal credit moved into the budget when funded (kept by the platform at settlement, never points)
   proposalToBudgetTwd Decimal          @default(0) @db.Decimal(20, 6)
@@ -1424,4 +1428,18 @@ model LlmStreamChunk {
   events   Json
 
   @@index([streamId, seq])
+}
+
+/// Weekly quota carry-over (src/lib/llm/quota.ts): what the week starting `weekStart` (Sunday 00:00 UTC) carries in
+/// from the week before, within one unbroken run of subscription periods starting at `blockStart`. Computed once
+/// the week before has ended; a row whose blockStart differs from the user's current run is ignored.
+model QuotaWeek {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart   DateTime
+  blockStart  DateTime
+  carryInTwd  Decimal  @db.Decimal(20, 6)
+  createdAt   DateTime @default(now())
+
+  @@id([userId, weekStart])
 }

@@ -4,7 +4,7 @@ import { config } from "../config";
 import { HttpError } from "../errors";
 import { cleanBuyer, type Buyer } from "../payments";
 import { BuyerInput } from "../buyer-schema";
-import { headroom, quotaContext } from "../llm/quota";
+import { quotaContext } from "../llm/quota";
 import type { Prisma } from "@/generated/prisma/client";
 import { latestCard, usableCard } from "./cards";
 import { bookPoints, pointBalance, spendPoints } from "./points";
@@ -15,15 +15,15 @@ import { SHARE_OPTIONS, sharePrice } from "./rules";
  *  CARD    a saved card; nothing is charged until the goal is reached (then one charge per backer and task); with
  *          usePoints the backer's points pay first and the card only the rest (all points → a POINTS pledge)
  *  POINTS  platform points, deducted now and given back if the campaign fails
- *  QUOTA   subscription quota (published-price TWD), deducted now inside the 6 h window and the week, given back as
- *          quota only (never cash or points); capped per period and per task
+ *  QUOTA   (legacy) subscription quota. New quota pledges are no longer taken (2026-10-23); the ones already made
+ *          are still collected, settled and given back as quota (returnQuota)
  * After funding (start-early campaigns that stay open, or a task that ran out of budget) card pledges are charged
  * at once and every pledge adds to the budget immediately.
  */
 
 export const PledgeInput = z.object({
   shares: z.coerce.number().int().refine((n) => (SHARE_OPTIONS as readonly number[]).includes(n), "shares must be 1, 5 or 20"),
-  source: z.enum(["CARD", "POINTS", "QUOTA"]),
+  source: z.enum(["CARD", "POINTS"], { message: "pay with a card or platform points" }),
   /** needed for CARD pledges: the e-invoice goes to this buyer when the card is charged */
   buyer: BuyerInput.optional(),
   /**
@@ -53,27 +53,6 @@ async function collectedNonCard(taskId: string) {
   return r._sum.amountTwd ?? 0;
 }
 
-async function quotaPledge(userId: string, taskId: string, amount: number, goal: number) {
-  const ctx = await quotaContext(userId);
-  // quota pledges spend a paid subscription's allowance; the free allowance is for using SinoBee only
-  if (!ctx.subscriptionId) throw new HttpError(400, "pledging with quota needs a paid subscription");
-  const room = await headroom(ctx);
-  if (room.free < amount) throw new HttpError(429, `not enough subscription quota right now (${Math.floor(room.free)} TWD free in the current window)`);
-  // per period: quota pledges (net of returns) ≤ share × the plan's usage allowance
-  const period = await db.usageLedger.aggregate({ where: { userId, subscriptionId: ctx.subscriptionId, endpoint: { in: ["crowd-pledge", "crowd-return"] } }, _sum: { settledTwd: true } });
-  const periodCap = ctx.plan.maxCostTwd * config.crowd.quotaPeriodShare;
-  if (Number(period._sum.settledTwd ?? 0) + amount > periodCap + 1e-6) throw new HttpError(400, `quota pledges are limited to ${Math.floor(periodCap)} TWD per subscription period`);
-  // per task: quota pledges ≤ share × goal
-  const onTask = await db.pledge.aggregate({ where: { taskId, source: "QUOTA", status: { in: ["ACTIVE", "CHARGED"] } }, _sum: { amountTwd: true } });
-  const taskCap = goal * config.crowd.quotaTaskShare;
-  if ((onTask._sum.amountTwd ?? 0) + amount > taskCap + 1e-6) throw new HttpError(400, `quota can cover at most ${Math.floor(taskCap)} TWD of this task's goal`);
-  const now = new Date();
-  const row = await db.usageLedger.create({
-    data: { userId, subscriptionId: ctx.subscriptionId, planId: ctx.plan.id, modelId: "crowd", endpoint: "crowd-pledge", status: "SETTLED", heldTwd: amount, settledTwd: amount, priceTwd: {}, settledAt: now },
-  });
-  return row.id;
-}
-
 export type PledgeArgs = Omit<z.infer<typeof PledgeInput>, "usePoints"> & { usePoints?: boolean };
 
 export async function pledge(userId: string, taskId: string, input: PledgeArgs) {
@@ -84,13 +63,13 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
   if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, "this task is not taking pledges");
   if (task.status === "FUNDING" && task.deadlineAt && task.deadlineAt <= new Date()) throw new HttpError(400, "crowdfunding has ended");
   if (!(SHARE_OPTIONS as readonly number[]).includes(input.shares)) throw new HttpError(400, "shares must be 1, 5 or 20");
+  if (input.source !== "CARD" && input.source !== "POINTS") throw new HttpError(400, "pay with a card or platform points");
   if (config.crowd.pledgeMinKyc > 0) {
     const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { kycLevel: true } });
     if ((u.kycLevel ?? 0) < config.crowd.pledgeMinKyc) throw new HttpError(403, `pledging needs CAFECA KYC level ${config.crowd.pledgeMinKyc} or higher`);
   }
   const amount = input.shares * sharePrice();
   let cardId: string | null = null;
-  let usageLedgerId: string | null = null;
   let pointsTwd = 0;
   // a top-up round is open: the pledge waits for the round's goal like a campaign pledge
   const topup = task.status === "NEEDS_FUNDING" && !!task.topupGoalTwd;
@@ -108,13 +87,11 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
     cardId = card.id;
     if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
     await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
-  } else if (source === "QUOTA") {
-    usageLedgerId = await quotaPledge(userId, taskId, amount, task.goalTwd ?? amount);
   }
 
   const { currentChecklist } = await import("./checklist");
   const termsVersion = (await currentChecklist()).version;
-  const p = await db.pledge.create({ data: { taskId, userId, source, shares: input.shares, amountTwd: amount, cardId, usageLedgerId, pointsTwd, topup, termsVersion } });
+  const p = await db.pledge.create({ data: { taskId, userId, source, shares: input.shares, amountTwd: amount, cardId, pointsTwd, topup, termsVersion } });
   if (source === "POINTS" || pointsTwd > 0) {
     try {
       await spendPoints(userId, source === "POINTS" ? amount : pointsTwd, `pledge:${p.id}`, taskId);

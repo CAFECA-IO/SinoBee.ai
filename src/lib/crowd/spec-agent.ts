@@ -5,7 +5,7 @@ import { currentModels, type ModelPriceView } from "../models";
 import { costTwd } from "../llm/quota";
 import { NO_PLATFORM_MODEL, jobHasModel, platformChat, type ChatMessage, type ChatUsage } from "../platform-model";
 import type { Prisma } from "@/generated/prisma/client";
-import { creditLeft, ownDraft, placeholderTitle, useCredit } from "./proposal";
+import { creditLeft, feeWaived, ownDraft, placeholderTitle, useCredit } from "./proposal";
 import { CATEGORIES, EVAL_METHODS, isCategory, normalizeSpec, type Spec } from "./rules";
 import type { ChecklistItem } from "./checklist-default";
 import type { Task } from "@/generated/prisma/client";
@@ -193,7 +193,7 @@ function runJob(taskId: string, kind: Job["kind"], work: () => Promise<unknown>)
 export async function startGenerate(userId: string, taskId: string) {
   const task = await ownDraft(userId, taskId);
   if (task.spec) return { state: "done" as const };
-  checkCredit(task);
+  await checkCredit(task);
   if (jobs.get(taskId)?.state !== "running") runJob(taskId, "generate", () => generateSpec(userId, taskId));
   return { state: "running" as const };
 }
@@ -201,7 +201,7 @@ export async function startGenerate(userId: string, taskId: string) {
 /** Start one dialogue turn in the background */
 export async function startTurn(userId: string, taskId: string, message: string) {
   if (!message.trim()) throw new HttpError(400, "message is required");
-  checkCredit(await ownDraft(userId, taskId));
+  await checkCredit(await ownDraft(userId, taskId));
   runJob(taskId, "turn", () => specTurn(userId, taskId, message));
   return { state: "running" as const };
 }
@@ -220,7 +220,8 @@ async function ask(task: Task, chat: ChatTurn[], message: string) {
   return { parsed: parseAnswer(answer), cost, current };
 }
 
-function checkCredit(task: Task) {
+async function checkCredit(task: Task) {
+  if (await feeWaived(task.userId)) return; // subscribed: no fee, no limit
   if (Number(task.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee first");
   if (creditLeft(task) <= 0.01) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
 }
@@ -232,7 +233,7 @@ function checkCredit(task: Task) {
 export async function generateSpec(userId: string, taskId: string) {
   const task = await ownDraft(userId, taskId);
   if (task.spec) return { generated: false, spec: normalizeSpec(task.spec), creditLeft: creditLeft(task) };
-  checkCredit(task);
+  await checkCredit(task);
   {
     const instruction =
       "Draft the complete crowdfunding proposal from my description now: a short title, the category, every part of the spec and the cost estimate" +
@@ -252,7 +253,7 @@ export async function specTurn(userId: string, taskId: string, message: string) 
   const task = await ownDraft(userId, taskId);
   const text = message.trim().slice(0, 8000);
   if (!text) throw new HttpError(400, "message is required");
-  checkCredit(task);
+  await checkCredit(task);
   const chat = ((task.specChat ?? []) as ChatTurn[]).slice(-MAX_TURNS);
   // the dialogue starts with the model's own draft; the API wants a user turn first
   const history = chat[0]?.role === "assistant" ? [{ role: "user" as const, content: "Draft the proposal from my description.", at: chat[0].at }, ...chat] : chat;
