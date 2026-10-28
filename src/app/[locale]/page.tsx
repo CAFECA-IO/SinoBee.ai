@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
+import { withDbFallback } from "@/lib/db-health";
 import { SkillCard } from "@/components/skill-card";
 import { isOfficialSkill, skillTag } from "@/lib/skills/official";
 import { skillMarks } from "@/components/skill-tag";
@@ -12,14 +13,15 @@ import { BlackBox, type BlackBoxText } from "@/components/black-box";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES = ["research", "data", "files", "browser", "video", "work"] as const;
+/** six working modes, each with an example request */
+const FEATURES = ["research", "track", "device", "learn", "build", "video"] as const;
 const ICONS: Record<(typeof FEATURES)[number], string> = {
   research: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
-  data: "M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6",
-  files: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-  browser: "M3 5h18v14H3zM3 9h18M7 7h.01M10 7h.01",
+  track: "M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16M5 19h.01",
+  device: "M3 5h18v11H3zM8 21h8M12 16v5",
+  learn: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5",
+  build: "M8 9l-4 3 4 3M16 9l4 3-4 3M13.5 5l-3 14",
   video: "M3 6h12v12H3zM15 10l6-3v10l-6-3",
-  work: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
 };
 
 /** what sets SinoBee apart: four cards, each with a honeycomb picture of its mechanism */
@@ -31,7 +33,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   setRequestLocale(locale);
   const t = await getTranslations("home");
   const tSkills = await getTranslations("skills");
-  const [skills, stats] = await Promise.all([
+  // the landing page still renders without the database: no stats, no popular skills
+  const { value: data } = await withDbFallback(() => Promise.all([
     db.skill.findMany({
       where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } },
       include: { publisher: true, versions: { where: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } }, orderBy: { publishedAt: "desc" }, take: 1, select: { anchorCode: true, status: true, signature: true } } },
@@ -39,7 +42,9 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       take: 6,
     }),
     Promise.all([db.skill.count({ where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } } }), db.task.count({ where: { status: "COMPLETED" } }), db.evaluationReport.count({ where: { task: { status: "COMPLETED" } } })]),
-  ]);
+  ]), null);
+  const skills = data?.[0] ?? [];
+  const stats = data?.[1] ?? null;
 
   return (
     <>
@@ -71,7 +76,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
 
-      {/* stats */}
+      {/* stats (hidden while the database is unreachable) */}
+      {stats && (
       <section className="container-x grid grid-cols-3 gap-4 py-10 text-center">
         {[
           [stats[0], t("statSkills")],
@@ -84,6 +90,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           </div>
         ))}
       </section>
+      )}
 
       {/* features: what it can do */}
       <section className="container-x py-12">
@@ -100,6 +107,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <div className="min-w-0">
                 <h3 className="font-semibold">{t(`f.${f}.title`)}</h3>
                 <p className="mt-1 text-sm text-muted">{t(`f.${f}.body`)}</p>
+                <p className="mt-2 text-xs text-ink/70">{t(`f.${f}.ex`)}</p>
               </div>
             </div>
           ))}
@@ -125,7 +133,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
                 <h3 className="mt-2 text-xl font-extrabold leading-snug">{t(`hl.items.${k}.title`)}</h3>
                 <p className="mt-2.5 text-sm leading-relaxed text-muted">{t(`hl.items.${k}.body`)}</p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {[0, 1, 2].map((i) => (
+                  {Object.keys(t.raw(`hl.items.${k}.tags`) as Record<string, string>).map((i) => (
                     <span key={i} className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs text-accent">{t(`hl.items.${k}.tags.${i}`)}</span>
                   ))}
                 </div>

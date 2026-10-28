@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { fetchSiteStatus } from "./site-status";
 
 /**
  * Corner ribbon on every page while the site is in test mode. Asked from the browser (/api/site) so statically
@@ -12,10 +13,7 @@ export function TestRibbon() {
   const [on, setOn] = useState(false);
   useEffect(() => {
     let alive = true;
-    fetch("/api/site", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j: { testMode?: boolean }) => alive && setOn(!!j.testMode))
-      .catch(() => undefined);
+    void fetchSiteStatus().then((j) => alive && setOn(!!j?.testMode));
     return () => {
       alive = false;
     };

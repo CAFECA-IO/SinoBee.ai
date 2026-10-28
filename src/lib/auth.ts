@@ -7,6 +7,7 @@ import type { VerifiedSignIn } from "./cafeca";
 import type { Device, User } from "@/generated/prisma/client";
 import { verifySignedRequest } from "./device-sign";
 import { HttpError } from "./errors";
+import { ROLE_HINT_COOKIE } from "./role-hint";
 
 export const SESSION_COOKIE = "sb_session";
 export const BIND_COOKIE = "sb_bind";
@@ -73,8 +74,9 @@ export async function createSession(userId: string, channel?: { id: string; expi
 export async function destroySession() {
   const jar = await cookies();
   const t = jar.get(SESSION_COOKIE)?.value;
-  if (t) await db.session.deleteMany({ where: { tokenHash: sha256Hex(t) } });
+  jar.delete(ROLE_HINT_COOKIE);
   jar.delete(SESSION_COOKIE);
+  if (t) await db.session.deleteMany({ where: { tokenHash: sha256Hex(t) } });
 }
 
 export type CurrentUser = User & { sessionId: string; channelId: string | null };

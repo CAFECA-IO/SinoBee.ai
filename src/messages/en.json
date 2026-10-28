@@ -45,32 +45,38 @@
     "statSkills": "Hub skills",
     "statTasks": "Tasks completed",
     "statReports": "Public evaluation reports",
-    "featuresTitle": "One assistant that finishes the job",
-    "featuresLead": "Research, analysis, file clean-up, browsing, video production and scheduled background work, each from one sentence.",
+    "featuresTitle": "One assistant, six ways to work",
+    "featuresLead": "From one-off research to long-term tracking, from operating your computer to building a whole project: say it in one sentence and get the finished work back.",
     "f": {
       "research": {
         "title": "Research",
-        "body": "Reads web pages, news, documents and GitHub projects, cross-checks sources and cites them."
+        "body": "Reads web pages, news, documents and GitHub projects, analyzes CSV, Excel and database exports, cross-checks sources and delivers cited reports, tables and charts.",
+        "ex": "e.g. \"Compare GPU prices across three cloud providers, with sources\""
       },
-      "data": {
-        "title": "Data analysis",
-        "body": "Analyzes CSV, Excel, logs and database exports and produces charts and reports."
+      "track": {
+        "title": "Long-term tracking",
+        "body": "Name topics and items to watch: it gathers intelligence on a schedule, tags what changed and assesses the impact, comparing each run with the last; when you need depth, a briefing arrives within 2 hours.",
+        "ex": "e.g. \"Every morning, track market news for every Sino Stock Saver product\""
       },
-      "files": {
-        "title": "File management",
-        "body": "Sorts, renames, converts and batch-processes files — never overwriting a file with the same name."
+      "device": {
+        "title": "Operating devices",
+        "body": "Drives a real browser and desktop apps, and works with files, databases and remote hosts: signing in, filling forms, downloading reports, moving data. Docker mode adds a virtual desktop you can watch and take over; risky actions always ask first.",
+        "ex": "e.g. \"Sign in to the admin panel and download last month’s orders\""
       },
-      "browser": {
-        "title": "Browser & desktop",
-        "body": "A real Chromium with saved logins; Docker mode adds a virtual desktop you can watch and take over."
+      "learn": {
+        "title": "Learning and knowledge",
+        "body": "Reads links, documents or folders and turns the know-how into reusable skills; your feedback and every task’s experience are folded into memory, so its knowledge base keeps growing.",
+        "ex": "e.g. \"/learn this internal handbook\""
+      },
+      "build": {
+        "title": "Large projects",
+        "body": "Splits big jobs into milestones run by parallel sub-agents; writes code, runs tests and uses git, with independent acceptance checks. Interrupted work resumes where it stopped, and a spent budget still delivers what is done.",
+        "ex": "e.g. \"Port this Flask service to FastAPI with all tests passing\""
       },
       "video": {
-        "title": "AI video production",
-        "body": "One sentence becomes a short film, documentary or ad: script, characters, locations, shot list, voice, rendering, editing and subtitles are automatic, with a draft to approve before the final render. A production kit is exported too, so a sequel keeps the same characters and look."
-      },
-      "work": {
-        "title": "Background work & schedules",
-        "body": "Sub-agents working in parallel, fixed workflows (YAML graphs), a shared blackboard and schedules; the Work tab shows past, present and next, and interrupted work can resume."
+        "title": "Video production",
+        "body": "One sentence to a short film, documentary or ad: script, characters, storyboard, voice-over, rendering, editing and subtitles, with a draft to approve before the final render and an asset kit that keeps sequels consistent.",
+        "ex": "e.g. \"Make a 30-second documentary about Taiwanese tea\""
       }
     },
     "hl": {
@@ -86,7 +92,8 @@
           "tags": {
             "0": "Milestones",
             "1": "Parallel sub-agents",
-            "2": "Partial delivery"
+            "2": "Partial delivery",
+            "3": "Daily topic tracking"
           },
           "art": "Four honeycomb cells as milestones: one first, two in parallel, one that merges them"
         },
@@ -2688,5 +2695,17 @@
       "noScreenTip": "This grading read the source only; it never saw the page",
       "sawShots": "saw {n} screenshots"
     }
+  },
+  "dbDown": {
+    "userBar": "Some data can't be loaded right now due to maintenance. Please try again shortly.",
+    "dismiss": "Dismiss",
+    "adminTitle": "Database unreachable",
+    "adminBody": "Down since {since} ({code}). Visitors only see a maintenance notice; check the database service and DATABASE_URL.",
+    "adminTarget": "Target: {kind} {target}",
+    "pageTitle": "Under maintenance",
+    "pageBody": "The data for this page can't be loaded right now. We're on it; please try again shortly.",
+    "retry": "Reload",
+    "errTitle": "Something went wrong",
+    "errBody": "This page can't be shown right now. Please try again shortly."
   }
 }

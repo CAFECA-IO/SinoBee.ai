@@ -9,6 +9,7 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { ConfirmHost } from "@/components/confirm";
 import { TestRibbon } from "@/components/test-ribbon";
+import { DbNotice } from "@/components/db-notice";
 import { ClickGuard } from "@/components/click-guard";
 import "../globals.css";
 
@@ -42,6 +43,7 @@ export default async function LocaleLayout({ children, params }: { children: Rea
           <CafecaProvider wallet={config.cafecaWallet} statement={t("statement")}>
             <div className="flex min-h-screen flex-col">
               <Header />
+              <DbNotice />
               <main className="flex-1">{children}</main>
               <Footer />
             </div>

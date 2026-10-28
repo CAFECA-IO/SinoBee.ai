@@ -61,6 +61,21 @@ const getNonce = () =>
 
 
 
+/**
+ * The signed-in user, or null. Anything but a 200 with a user (e.g. 503 while the database is down) reads as signed
+ * out, so the header keeps working instead of rendering an error body as a user.
+ */
+async function fetchMe(): Promise<Me> {
+  try {
+    const r = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!r.ok) return null;
+    const m = (await r.json()) as Me;
+    return m && typeof m === "object" && typeof (m as { account?: unknown }).account === "string" ? m : null;
+  } catch {
+    return null;
+  }
+}
+
 export function CafecaProvider({ wallet, statement, children }: { wallet: string; statement: string; children: ReactNode }) {
   const [sdk, setSdk] = useState<CafecaClient | null>(null);
   const [me, setMe] = useState<Me>(null);
@@ -71,7 +86,7 @@ export function CafecaProvider({ wallet, statement, children }: { wallet: string
   const handled = useRef(false);
 
   const refresh = useCallback(async () => {
-    const m = (await fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json())) as Me;
+    const m = await fetchMe();
     setMe(m);
     return void m;
   }, []);
@@ -94,7 +109,7 @@ export function CafecaProvider({ wallet, statement, children }: { wallet: string
     setSdk(client);
     const back = window.CafecaConnect.handleRedirect();
     if (back?.response) await finishLogin(client, back.response).catch((e) => console.error(e));
-    const m = (await fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json())) as Me;
+    const m = await fetchMe();
     setMe(m);
     if (m?.channelId) setChannel(await client.restoreChannel(m.channelId).catch(() => null));
     setReady(true);
