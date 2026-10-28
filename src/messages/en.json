@@ -415,6 +415,14 @@
       "engineering-feasibility": {
         "title": "Engineering feasibility",
         "body": "Takes a video or text, tests each claim against physics with a numeric model and gives a verdict; if it works, a 3D animated page shows how the system runs and where it stops, if not, why the key properties cannot be achieved, with a report."
+      },
+      "dimensional-drawing": {
+        "title": "Dimensional drawings",
+        "body": "Turns a UI component or product into an Apple-style monochrome spec sheet: paddings, gaps, radii, layers and viewport placement as named variables. By Enes Ozturk (MIT)."
+      },
+      "dimensional-drawing-motion": {
+        "title": "Dimensional drawing films",
+        "body": "Animates a finished dimensional drawing into a ~10 s film: lines draw in, the camera pulls back, layers lift into an exploded view. By Enes Ozturk (MIT)."
       }
     },
     "howTitle": "How skills work",
