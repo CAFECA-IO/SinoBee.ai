@@ -20,12 +20,15 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "meta" });
+  // link-preview picture, 1200×630 (1.91:1, what Facebook, X and LINE crop to)
+  const ogImage = { url: `/og/sinobee-${locale === "en" ? "en" : "zh-TW"}.png`, width: 1200, height: 630, alt: t("title") };
   return {
     metadataBase: new URL(config.origin),
     title: { default: t("title"), template: `%s · SinoBee.ai` },
     description: t("description"),
     icons: { icon: "/icon.svg" },
-    openGraph: { title: t("title"), description: t("description"), siteName: "SinoBee.ai", images: ["/screenshots/usecase-research.png"] },
+    openGraph: { title: t("title"), description: t("description"), siteName: "SinoBee.ai", images: [ogImage] },
+    twitter: { card: "summary_large_image", title: t("title"), description: t("description"), images: [ogImage.url] },
     alternates: { languages: { "zh-TW": "/", en: "/en" } },
   };
 }
