@@ -220,7 +220,10 @@
     "viewAll": "全部技能",
     "ctaTry": "線上使用",
     "tryNote": "不用安裝：在 agent.sinobee.ai 直接開一個 SinoBee 試試看。",
-    "heroAlt": "一群機器蜜蜂在蜂巢裡分頭工作：查資料、寫文件、分析、寫程式、整理檔案"
+    "heroAlt": "一群機器蜜蜂在蜂巢裡分頭工作：查資料、寫文件、分析、寫程式、整理檔案",
+    "adminPreview": "管理者預覽",
+    "tryNoteSoon": "線上使用即將開放。現在可以免費下載，在自己的電腦上啟動 SinoBee。",
+    "tryNoteAdmin": "線上使用尚未對外開放，只有管理者看得到這個按鈕；一般訪客看到的是 Coming soon。"
   },
   "download": {
     "title": "下載與安裝 SinoBee",
@@ -746,6 +749,7 @@
         "unset": "未設定"
       },
       "group": {
+        "site": "網站功能",
         "payments": "金流設定",
         "apiKeys": "模型與工具 API 金鑰",
         "llm": "模型轉接",
@@ -773,6 +777,7 @@
       "show": "顯示",
       "copy": "複製",
       "groupHelp": {
+        "site": "網站上對外開放的功能。變更立即生效，不需重新啟動。",
         "payments": "收款服務設定。",
         "apiKeys": "平台使用的模型與搜尋金鑰；供模型轉接與任務容器使用。",
         "llm": "訂閱用戶的模型轉接限制與上游網址。",
@@ -2334,7 +2339,14 @@
     "title": "線上使用 SinoBee",
     "lead": "你專屬的 SinoBee（含虛擬桌面）在 SinoBee.ai 的伺服器上執行，檔案與設定會保留在你的空間。第一次啟動需要幾十秒。",
     "starting": "正在啟動你的 SinoBee…",
-    "retry": "再試一次"
+    "retry": "再試一次",
+    "soonTitle": "線上使用即將開放",
+    "soonBody": "我們正在準備雲端版的 SinoBee。開放之前，你可以免費下載，在自己的電腦上啟動，功能完全相同。",
+    "soonDownload": "免費下載安裝",
+    "soonHome": "回首頁",
+    "adminPreview": "管理者預覽",
+    "adminPreviewBody": "線上使用尚未對外開放，一般用戶目前看到的是 Coming soon 頁。",
+    "adminSwitch": "前往開關設定"
   },
   "study": {
     "back": "← 返回評鑑",

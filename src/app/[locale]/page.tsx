@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { db } from "@/lib/db";
 import { withDbFallback } from "@/lib/db-health";
+import { agentAccess } from "@/lib/agent-access";
 import { SkillCard } from "@/components/skill-card";
 import { isOfficialSkill, skillTag } from "@/lib/skills/official";
 import { skillMarks } from "@/components/skill-tag";
@@ -44,6 +45,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     Promise.all([db.skill.count({ where: { versions: { some: { status: { in: ["APPROVED", "PENDING_REVIEW"] }, scanVerdict: { not: "DANGEROUS" } } } } }), db.task.count({ where: { status: "COMPLETED" } }), db.evaluationReport.count({ where: { task: { status: "COMPLETED" } } })]),
   ]), null);
   const skills = data?.[0] ?? [];
+  const access = await agentAccess();
   const stats = data?.[1] ?? null;
 
   return (
@@ -60,12 +62,29 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               <span className="bg-gradient-to-r from-[#2fb3a0] to-[#7fe8b6] bg-clip-text text-transparent">{t("title2")}</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted">{t("lead")}</p>
+            {/* 線上使用 is an admin switch (off by default): visitors then get the download first and a Coming soon tag */}
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/agent" target="_blank" className="btn-primary !px-6 !py-3 text-base"><Icon name="rocket" />{t("ctaTry")}</Link>
-              <Link href="/download" aria-label={t("ctaInstall")} data-tip={t("ctaInstall")} className="icon-btn outline lg"><Icon name="download" /></Link>
+              {access.allowed ? (
+                <>
+                  <Link href="/agent" target="_blank" className="btn-primary !px-6 !py-3 text-base">
+                    <Icon name="rocket" />
+                    {t("ctaTry")}
+                    {access.admin && <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold text-warn">{t("adminPreview")}</span>}
+                  </Link>
+                  <Link href="/download" aria-label={t("ctaInstall")} data-tip={t("ctaInstall")} className="icon-btn outline lg"><Icon name="download" /></Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/download" className="btn-primary !px-6 !py-3 text-base"><Icon name="download" />{t("ctaInstall")}</Link>
+                  <button type="button" disabled aria-disabled="true" className="btn !cursor-not-allowed border border-dashed border-line bg-panel !px-4 !py-3 text-base text-muted !opacity-100">
+                    {t("ctaTry")}
+                    <span className="rounded-full bg-warn-soft px-2 py-0.5 text-xs font-bold text-warn">Coming soon</span>
+                  </button>
+                </>
+              )}
               <Link href="/crowd/new" aria-label={t("ctaCommission")} data-tip={t("ctaCommission")} className="icon-btn outline lg"><Icon name="users" /></Link>
             </div>
-            <p className="mt-3 text-sm text-muted">{t("tryNote")}</p>
+            <p className={`mt-3 text-sm ${access.admin ? "text-warn" : "text-muted"}`}>{access.online ? t("tryNote") : access.admin ? t("tryNoteAdmin") : t("tryNoteSoon")}</p>
             <div className="mt-8 max-w-xl">
               <CopyCode code={"git clone https://github.com/CAFECA-IO/SinoBee.git && cd SinoBee\ndocker compose up -d --build"} />
             </div>

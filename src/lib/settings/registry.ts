@@ -29,7 +29,7 @@ export type SettingDef = {
   required?: boolean;
 };
 
-export const GROUPS = ["payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner", "crowd"] as const;
+export const GROUPS = ["site", "payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner", "crowd"] as const;
 export type SettingGroup = (typeof GROUPS)[number];
 
 /** payment providers offered in /admin → Settings → Payments; each lists its own fields below */
@@ -38,6 +38,7 @@ export const PAYMENT_PROVIDERS = [{ id: "oen", name: "Oen 應援科技（oen.tw�
 const L = (zh: string, en: string) => ({ zh, en });
 
 export const SETTINGS: SettingDef[] = [
+  { key: "site.agentOnline", env: "AGENT_ONLINE", type: "bool", group: "site", default: "0", label: L("線上使用", "Use online"), help: L("開啟後首頁顯示「線上使用」按鈕，/agent 可以開始使用。關閉時一般用戶看到 Coming soon，管理者仍可照常進入 /agent 測試", "When on, the home page shows the Use online button and /agent can be used. When off, visitors see Coming soon; admins can still open /agent to test") },
   { key: "site.testMode", env: "SITE_TEST_MODE", type: "bool", group: "payments", default: "0", label: L("測試模式", "Test mode"), help: L("開啟後首頁與管理後台顯示「測試版」緞帶，所有付款與綁卡改走 Oen 測試環境，測試期間的款項不計入營收", "Shows a TEST ribbon on the home page and in the admin, and sends every payment and card binding to Oen's testing environment; test payments are left out of revenue") },
   // ───── payments ─────
   { key: "payments.provider", env: "PAYMENT_PROVIDER", type: "select", group: "payments", default: "oen", options: ["oen"], label: L("金流服務", "Payment provider") },

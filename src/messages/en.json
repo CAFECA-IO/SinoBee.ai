@@ -220,7 +220,10 @@
     "viewAll": "All skills",
     "ctaTry": "Use online",
     "tryNote": "Nothing to install: open a SinoBee at agent.sinobee.ai and try it.",
-    "heroAlt": "A swarm of robot bees working through a honeycomb: research, documents, analysis, code and files"
+    "heroAlt": "A swarm of robot bees working through a honeycomb: research, documents, analysis, code and files",
+    "adminPreview": "Admin preview",
+    "tryNoteSoon": "Use online is coming soon. Until then, download SinoBee for free and run it on your own computer.",
+    "tryNoteAdmin": "Use online is not open yet: only admins see this button; visitors see Coming soon."
   },
   "download": {
     "title": "Download & install SinoBee",
@@ -746,6 +749,7 @@
         "unset": "Not set"
       },
       "group": {
+        "site": "Site features",
         "payments": "Payments",
         "apiKeys": "Model and tool API keys",
         "llm": "Model relay",
@@ -773,6 +777,7 @@
       "show": "Show",
       "copy": "Copy",
       "groupHelp": {
+        "site": "Features the site opens to the public. Changes apply at once, no restart needed.",
         "payments": "Payment provider settings.",
         "apiKeys": "Platform model and search keys, used by the relay and task containers.",
         "llm": "Relay limits for subscribers and upstream URLs.",
@@ -2334,7 +2339,14 @@
     "title": "Use SinoBee online",
     "lead": "Your own SinoBee (with a virtual desktop) runs on SinoBee.ai's servers; your files and settings stay in your space. The first start takes a few tens of seconds.",
     "starting": "Starting your SinoBee…",
-    "retry": "Try again"
+    "retry": "Try again",
+    "soonTitle": "Use online is coming soon",
+    "soonBody": "We are getting the cloud version of SinoBee ready. Until it opens, download it for free and run it on your own computer, with exactly the same features.",
+    "soonDownload": "Download for free",
+    "soonHome": "Home",
+    "adminPreview": "Admin preview",
+    "adminPreviewBody": "Use online is not open yet; visitors currently see the Coming soon page.",
+    "adminSwitch": "Open the switch"
   },
   "study": {
     "back": "← Back to evaluations",

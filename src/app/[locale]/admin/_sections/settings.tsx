@@ -8,7 +8,7 @@ import { Icon } from "@/components/icon";
 import { PageHead } from "@/components/admin/kit";
 import type { AdminParams } from "../page";
 
-const GROUPS = ["payments", "apiKeys", "llm", "legal", "cafeca", "pricing", "retention", "storage", "boltchain", "hub", "runner", "security"] as const;
+const GROUPS = ["site", "payments", "apiKeys", "llm", "legal", "cafeca", "pricing", "retention", "storage", "boltchain", "hub", "runner", "security"] as const;
 
 export async function SiteSettings({ superAdmin, locale, sp }: { superAdmin: boolean; locale: string; sp: AdminParams }) {
   const t = await getTranslations("admin.settings");

@@ -112,6 +112,10 @@ export const config = {
 
   /** Oen payments (https://developer.oen.tw) */
   /** Test mode (admin switch): TEST ribbon, Oen testing environment for every new payment and card */
+  /** 線上使用 (admin switch, off by default): when off only admins can open /agent */
+  get agentOnline() {
+    return svBool("site.agentOnline");
+  },
   get testMode() {
     return svBool("site.testMode");
   },
