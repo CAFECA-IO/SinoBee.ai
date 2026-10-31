@@ -423,6 +423,10 @@
       "dimensional-drawing-motion": {
         "title": "尺寸圖動畫",
         "body": "把完成的尺寸圖做成約 10 秒的動畫：線條逐筆畫出、鏡頭拉遠、圖層浮起成爆炸圖。原作者 Enes Ozturk（MIT）。"
+      },
+      "machine": {
+        "title": "3D 機器模擬",
+        "body": "一句話生成照片級、由物理計算驅動的互動 3D 機器模擬（單一 HTML，可剖面、爆炸、故障），並錄成可發佈的影片。原作者 Airsup（MIT）。"
       }
     },
     "howTitle": "技能怎麼運作",

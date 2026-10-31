@@ -423,6 +423,10 @@
       "dimensional-drawing-motion": {
         "title": "Dimensional drawing films",
         "body": "Animates a finished dimensional drawing into a ~10 s film: lines draw in, the camera pulls back, layers lift into an exploded view. By Enes Ozturk (MIT)."
+      },
+      "machine": {
+        "title": "Machine simulations",
+        "body": "Turns one line into a photoreal, physics-driven interactive 3D simulation of a machine in a single HTML file, with cutaway, explode and break modes, plus a film to post. By Airsup (MIT)."
       }
     },
     "howTitle": "How skills work",
