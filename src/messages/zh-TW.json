@@ -427,6 +427,10 @@
       "machine": {
         "title": "3D 機器模擬",
         "body": "一句話生成照片級、由物理計算驅動的互動 3D 機器模擬（單一 HTML，可剖面、爆炸、故障），並錄成可發佈的影片。原作者 Airsup（MIT）。"
+      },
+      "book-to-skill": {
+        "title": "書轉技能",
+        "body": "把書籍或文件（PDF、EPUB、DOCX、HTML、Markdown、純文字、RTF）轉成結構化的技能：萃取框架、原則、技巧與反模式，而不是摘要。原作者 virgiliojr94（MIT）。"
       }
     },
     "howTitle": "技能怎麼運作",

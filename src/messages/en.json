@@ -427,6 +427,10 @@
       "machine": {
         "title": "Machine simulations",
         "body": "Turns one line into a photoreal, physics-driven interactive 3D simulation of a machine in a single HTML file, with cutaway, explode and break modes, plus a film to post. By Airsup (MIT)."
+      },
+      "book-to-skill": {
+        "title": "Book to skill",
+        "body": "Turns a book or document (PDF, EPUB, DOCX, HTML, Markdown, text, RTF) into a structured skill of its frameworks, principles, techniques and anti-patterns, not a summary. By virgiliojr94 (MIT)."
       }
     },
     "howTitle": "How skills work",

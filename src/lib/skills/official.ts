@@ -7,7 +7,7 @@ export const OFFICIAL_PUBLISHER = "cafeca";
 /** Skills bundled with SinoBee and published by the official publisher (prisma/seed-skills) */
 export const OFFICIAL = ["ai-video-production", "memory-management", "database-analysis", "web-research", "browser-form-filling",
   "desktop-automation", "code-repo-explainer", "skill-authoring", "anatomy", "youtube-analysis", "engineering-feasibility",
-  "dimensional-drawing", "dimensional-drawing-motion", "machine"] as const;
+  "dimensional-drawing", "dimensional-drawing-motion", "machine", "book-to-skill"] as const;
 export type OfficialName = (typeof OFFICIAL)[number];
 
 export const isOfficialSkill = (publisher: string | null | undefined, name: string) =>
