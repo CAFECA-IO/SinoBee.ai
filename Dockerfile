@@ -1,6 +1,11 @@
 # SinoBee.ai — web (Next.js standalone) and worker images
 FROM node:24.22.1-bookworm-slim AS deps
 WORKDIR /app
+# better-sqlite3 builds from source (node-gyp) when no prebuilt binary is downloaded for this Node version/platform,
+# and node-gyp needs Python, make and a C++ compiler. Only the deps/build/worker stages carry them; the web image
+# starts from a clean node image.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 # bolt-vault (WASM) is a local package
 COPY vendor ./vendor
