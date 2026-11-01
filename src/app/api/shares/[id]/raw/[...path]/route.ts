@@ -44,6 +44,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string; pat
       "referrer-policy": "no-referrer",
       // the sandboxed frame has an opaque origin: its subresource requests are cross-origin
       "cross-origin-resource-policy": "cross-origin",
+      // ...and the ones the browser makes in CORS mode come from origin "null": ES modules (three.js through an import
+      // map), fetch() of the page's data files, textures and environment maps loaded with crossOrigin. Without this
+      // header every module was blocked and the page stayed blank. It opens nothing: the capability in the path is
+      // what lets anyone read these files, "*" carries no cookies, and the response varies by nothing else.
+      "access-control-allow-origin": "*",
       "cache-control": "private, max-age=3600",
     },
   });

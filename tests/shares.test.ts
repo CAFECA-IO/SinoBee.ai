@@ -206,3 +206,24 @@ test("a large turn keeps its timeline (questions, work, checks, key files) and o
   bad.messages[1] = { ...bad.messages[1], timeline: { mode: "full", items: [{ kind: "script", q: "x" }] } } as never;
   await assert.rejects(() => sh.createShare(owner, bad));
 });
+
+
+test("a shared page's files answer the sandboxed frame's CORS requests (ES modules, fetch, textures)", async () => {
+  const mod = Buffer.from("export const A = 1;\n");
+  const s = await sh.createShare(owner, doc({ entry: "fig/page.html", files: [
+    { name: "fig/page.html", mime: "text/html", data: Buffer.from('<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script><script type="module">import "three";</script>').toString("base64") },
+    { name: "fig/vendor/three.module.js", mime: "text/javascript", data: mod.toString("base64") },
+  ] }));
+  const { viewCap } = await import("../src/lib/shares/view-cap");
+  const route = await import("../src/app/api/shares/[id]/raw/[...path]/route");
+  const get = (cap: string, file: string) => route.GET(new Request(`http://localhost/api/shares/${s.id}/raw/${cap}/${file}`),
+    { params: Promise.resolve({ id: s.id, path: [cap, ...file.split("/")] }) });
+  const r = await get(viewCap(s.id), "fig/vendor/three.module.js");
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("access-control-allow-origin"), "*");
+  assert.equal(r.headers.get("access-control-allow-credentials"), null);       // never with cookies
+  assert.equal(Buffer.from(await r.arrayBuffer()).toString(), mod.toString());
+  const page = await get(viewCap(s.id), "fig/page.html");
+  assert.match(page.headers.get("content-security-policy") ?? "", /^sandbox allow-scripts /);  // still an opaque origin
+  assert.equal((await get("zz.badcapabilitybadcapabilitybadcapab", "fig/vendor/three.module.js")).status, 404);  // still needs the capability
+});
