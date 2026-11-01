@@ -26,6 +26,15 @@ test("frontmatter validation", () => {
 test("semver ordering", () => {
   assert.ok(compareVersions("1.10.0", "1.9.9") > 0);
   assert.ok(compareVersions("1.0.0-beta", "1.0.0") < 0);
+  // prereleases compare by identifier (SemVer 2.0 §11), so a revised mirror edition is a newer version
+  assert.ok(compareVersions("1.4.1-main.7540eef.sinobee.2", "1.4.1-main.7540eef.sinobee.1") > 0);
+  assert.ok(compareVersions("1.4.1-main.7540eef.sinobee.1", "1.4.1-main.7540eef") > 0);
+  assert.ok(compareVersions("1.0.0-alpha", "1.0.0-alpha.1") < 0);
+  assert.ok(compareVersions("1.0.0-alpha.1", "1.0.0-alpha.beta") < 0);
+  assert.ok(compareVersions("1.0.0-beta.2", "1.0.0-beta.11") < 0);
+  assert.ok(compareVersions("1.0.0-rc.1", "1.0.0") < 0);
+  assert.equal(compareVersions("1.2.3+build.5", "1.2.3"), 0);
+  assert.equal(compareVersions("1.1.1-main.e948829", "1.1.1-main.e948829"), 0);
 });
 
 test("scanner flags prompt injection", () => {

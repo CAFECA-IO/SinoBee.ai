@@ -68,11 +68,33 @@ export function tagsOf(fm: Frontmatter): string[] {
     .slice(0, 12);
 }
 
-/** Compare semver-ish versions (numeric parts only, prerelease < release) */
+/**
+ * Compare versions by SemVer 2.0 precedence: major.minor.patch numerically, then a prerelease sorts before its
+ * release, and two prereleases compare identifier by identifier (numbers numerically, numbers before words,
+ * words in ASCII order, more identifiers wins when the rest are equal); build metadata (+…) is ignored.
+ * Comparing prereleases matters for mirrored skills such as "1.4.1-main.7540eef.sinobee.2", whose x.y.z stays
+ * at the upstream's while the SinoBee edition is revised: ignoring the prerelease made the seed skip the new one.
+ */
 export function compareVersions(a: string, b: string): number {
-  const pa = a.split(/[-+]/)[0].split(".").map(Number);
-  const pb = b.split(/[-+]/)[0].split(".").map(Number);
-  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0);
-  const ra = a.includes("-"), rb = b.includes("-");
-  return ra === rb ? 0 : ra ? -1 : 1;
+  const split = (v: string) => {
+    const noBuild = v.split("+")[0];
+    const dash = noBuild.indexOf("-");
+    const core = (dash < 0 ? noBuild : noBuild.slice(0, dash)).split(".").map(Number);
+    return { core, pre: dash < 0 ? [] : noBuild.slice(dash + 1).split(".") };
+  };
+  const va = split(a), vb = split(b);
+  for (let i = 0; i < 3; i++) {
+    const x = va.core[i] || 0, y = vb.core[i] || 0;
+    if (x !== y) return x - y;
+  }
+  if (!va.pre.length || !vb.pre.length) return va.pre.length === vb.pre.length ? 0 : va.pre.length ? -1 : 1;
+  for (let i = 0; i < Math.min(va.pre.length, vb.pre.length); i++) {
+    const x = va.pre[i], y = vb.pre[i];
+    if (x === y) continue;
+    const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+    if (nx && ny) return Number(x) - Number(y);
+    if (nx !== ny) return nx ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return va.pre.length - vb.pre.length;
 }
