@@ -431,6 +431,10 @@
       "book-to-skill": {
         "title": "Book to skill",
         "body": "Turns a book or document (PDF, EPUB, DOCX, HTML, Markdown, text, RTF) into a structured skill of its frameworks, principles, techniques and anti-patterns, not a summary. By virgiliojr94 (MIT)."
+      },
+      "engineering-plant-diagram": {
+        "title": "Engineering plant diagrams",
+        "body": "Draws a whole plant (wastewater, water treatment, power, chemical) from one model as a zoomable SVG you can switch between an isometric 3D view and a plan: facilities built from their real structures, colour-coded pipes per fluid with flow arrows, and process figures."
       }
     },
     "howTitle": "How skills work",
