@@ -435,6 +435,10 @@
       "engineering-plant-diagram": {
         "title": "Engineering plant diagrams",
         "body": "Draws a whole plant (wastewater, water treatment, power, chemical) from one model as a zoomable SVG you can switch between an isometric 3D view and a plan: facilities built from their real structures, colour-coded pipes per fluid with flow arrows, and process figures."
+      },
+      "code-modernization": {
+        "title": "Code modernization",
+        "body": "Modernizes a legacy codebase in any language: assessment, map, business rules with citations, a plan you approve, then an upgrade, rewrite or rebuild with script-checked proof that the new code behaves like the old. By Anthropic (Apache-2.0), SinoBee edition."
       }
     },
     "howTitle": "How skills work",
