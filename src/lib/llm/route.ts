@@ -98,6 +98,26 @@ function sees(model: string) {
   return /claude|gpt-4o|gpt-4\.1|gpt-5|gemini|vision|vl\b|llava/i.test(model);
 }
 
+// Locutus nodes declare whether a model reads images; the hub's model list carries it (cached for a minute).
+const lv = globalThis as unknown as { __sbLocutusVision?: { at: number; ids: Set<string> } };
+async function locutusVision(): Promise<Set<string>> {
+  const c = lv.__sbLocutusVision;
+  if (c && Date.now() - c.at < 60_000) return c.ids;
+  const p = config.llm.providers.locutus;
+  const ids = new Set<string>();
+  if (p?.base && p.key) {
+    try {
+      const r = await fetch(`${p.base}/models`, { headers: { authorization: `Bearer ${p.key}` }, signal: AbortSignal.timeout(3000) });
+      const j = (await r.json()) as { data?: { id: string; vision?: boolean }[] };
+      for (const m of j.data ?? []) if (m.vision) ids.add(`locutus/${m.id}`.toLowerCase());
+    } catch {
+      /* hub down: no Locutus model counts as seeing */
+    }
+  }
+  lv.__sbLocutusVision = { at: Date.now(), ids };
+  return ids;
+}
+
 async function evalFacts(models: string[], skill?: string | null) {
   const rows = await db.benchEval.findMany({
     where: { hidden: false, visibility: "public" },
@@ -159,7 +179,10 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
   const catalog = await relayModels(role === "embed");
   const byId = new Map((await currentModels()).map((m) => [m.modelId.toLowerCase(), m]));
   let models = own ? [...new Set(req.candidates!.map((c) => norm(String(c))).filter(Boolean))].slice(0, 30) : catalog.map((m) => m.modelId.toLowerCase());
-  if (req.needs?.vision) models = models.filter(sees);
+  if (req.needs?.vision) {
+    const loc = models.some((m) => m.startsWith("locutus/")) ? await locutusVision() : new Set<string>();
+    models = models.filter((m) => (m.startsWith("locutus/") ? loc.has(m) : sees(m)));
+  }
   if (Array.isArray(req.exclude) && req.exclude.length) {
     const ex = new Set(req.exclude.map((x) => norm(String(x))));
     models = models.filter((m) => !ex.has(m));
@@ -190,12 +213,13 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
   }
 
   const [facts, reports, health] = await Promise.all([evalFacts(models, req.skill), reported(models, kind), relayHealth(models)]);
-  const prices = models.map((m) => byId.get(m)).filter(Boolean).map((m) => blended(m!));
+  // free models (Locutus nodes, local ones) have no price signal: the prior stays neutral and they do not set the middle
+  const prices = models.map((m) => byId.get(m)).filter(Boolean).map((m) => blended(m!)).filter((p) => p > 0);
   const midPrice = median(prices) ?? 100;
   const rows: Ranked[] = models.map((m) => {
     const f = facts.get(m)!;
     const price = byId.get(m) ? blended(byId.get(m)!) : null;
-    const prior = price != null ? Math.max(30, Math.min(90, 60 + 25 * Math.log10(price / midPrice))) : 50;
+    const prior = price != null && price > 0 ? Math.max(30, Math.min(90, 60 + 25 * Math.log10(price / midPrice))) : 50;
     const quality = f.skill.length ? median(f.skill)! : f.all.length ? median(f.all)! : prior;
     const rep = reports.get(m)!;
     const h = health.get(m)!;

@@ -259,3 +259,31 @@ test("through the relay: provider locutus, held and settled from the node's usag
   n.ws.close();
   await waitFor(() => hub.status().length === 0);
 });
+
+test("route: a free Locutus model gets a real score, and reads images only when its node says so", async () => {
+  const { db } = await import("../src/lib/db");
+  const models = await import("../src/lib/models");
+  const { rank } = await import("../src/lib/llm/route");
+  const admin = await db.user.findFirst({ where: { isAdmin: true } }) ?? await db.user.create({ data: { account: "0x" + "b".repeat(40), role: "ADMIN", isAdmin: true } });
+  await models.ensureModelPrices();
+  await db.modelPrice.updateMany({ data: { enabled: false } });
+  const zero = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+  await models.savePrice(admin.id, { modelId: "locutus/qwen-free", label: "Qwen free", vendor: "Locutus", usd: zero, enabled: true });
+  await models.savePrice(admin.id, { modelId: "locutus/gemma-eyes", label: "Gemma eyes", vendor: "Locutus", usd: zero, enabled: true });
+  models.invalidateModelCache();
+
+  const r = await rank({ role: "main", preference: "balanced", task_kind: "chat", needs: { tools: true } });
+  assert.deepEqual(r.ranked.map((x) => x.model).sort(), ["locutus/gemma-eyes", "locutus/qwen-free"]);
+  for (const x of r.ranked) assert.ok(Number.isFinite(x.score), `score of ${x.model}: ${x.score}`);
+
+  const n = new FakeNode(node, [
+    { id: "qwen-free", sha256: "a1", formats: ["openai"], context: 65536 },
+    { id: "gemma-eyes", sha256: "b2", formats: ["openai"], context: 65536, vision: true } as never,
+  ]);
+  await n.link();
+  (globalThis as { __sbLocutusVision?: unknown }).__sbLocutusVision = undefined;
+  const v = await rank({ role: "main", preference: "balanced", task_kind: "chat", needs: { vision: true } });
+  assert.deepEqual(v.ranked.map((x) => x.model), ["locutus/gemma-eyes"], "only the model its node declared as seeing");
+  n.ws.close();
+  await waitFor(() => hub.status().length === 0);
+});
