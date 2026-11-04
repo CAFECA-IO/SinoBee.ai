@@ -439,6 +439,10 @@
       "code-modernization": {
         "title": "Code modernization",
         "body": "Modernizes a legacy codebase in any language: assessment, map, business rules with citations, a plan you approve, then an upgrade, rewrite or rebuild with script-checked proof that the new code behaves like the old. By Anthropic (Apache-2.0), SinoBee edition."
+      },
+      "scroll-world": {
+        "title": "Scroll-through worlds",
+        "body": "Builds a landing page where scrolling flies a camera through an AI-generated world: scene by scene, from outside into each interior and on to the next with no cuts, with frame-locked video clips and a framework-agnostic scroll engine. By cyw (@oso95, MIT), SinoBee edition."
       }
     },
     "howTitle": "How skills work",
