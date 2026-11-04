@@ -26,7 +26,7 @@ before(async () => {
 
 test("keys are generated once, stored encrypted, and the key file is private", async () => {
   const made = await store.generateMissing(() => undefined);
-  assert.deepEqual(made.sort(), ["boltchain.masterKey", "boltchain.walletKey", "hub.signingKey"]);
+  assert.deepEqual(made.sort(), ["boltchain.masterKey", "boltchain.walletKey", "hub.signingKey", "locutus.hubSecret"]);
   assert.deepEqual(await store.generateMissing(() => undefined), [], "only once");
   const row = await db.siteSetting.findUniqueOrThrow({ where: { key: "cfg.hub.signingKey" } });
   assert.match(row.value, /^enc:v1:/, "encrypted at rest");

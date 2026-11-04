@@ -21,6 +21,7 @@
  *                                 SINOBEE_SRC); rebuild the Boltchain and H3 images; pull PostgreSQL / Ollama
  *   npm run swarm -- --no-worker  web only
  *   npm run swarm -- --no-agent   do not start the agent gateway (線上使用: each user's own SinoBee container)
+ *   npm run swarm -- --no-locutus do not start the Locutus hub (Borg Locutus nodes supplying models; locutus.enabled)
  *   npm run swarm -- --no-boltchain   do not start the Boltchain node (storage stays local/S3)
  *   npm run swarm -- --no-postgres    never start PostgreSQL (SQLite unless DATABASE_URL is set)
  *   npm run swarm -- --postgres       start PostgreSQL even though SQLite data exists (it is not copied)
@@ -56,7 +57,7 @@ else {
   }
 }
 
-const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", agent: "\x1b[96m", bolt: "\x1b[32m", docker: "\x1b[34m" } as const;
+const color = { swarm: "\x1b[33m", web: "\x1b[36m", worker: "\x1b[35m", agent: "\x1b[96m", locutus: "\x1b[92m", bolt: "\x1b[32m", docker: "\x1b[34m" } as const;
 const log = (who: keyof typeof color, line: string) => console.log(`${color[who]}[${who}]\x1b[0m ${line}`);
 
 function pipe(who: keyof typeof color, p: ChildProcess) {
@@ -160,7 +161,7 @@ function stopAll(code = 0) {
 process.on("SIGINT", () => stopAll(0));
 process.on("SIGTERM", () => stopAll(0));
 
-function start(who: "web" | "worker" | "agent", cmd: string, argv: string[], env: Record<string, string> = {}) {
+function start(who: "web" | "worker" | "agent" | "locutus", cmd: string, argv: string[], env: Record<string, string> = {}) {
   const p = spawn(cmd, argv, { cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   pipe(who, p);
   children.push(p);
@@ -219,6 +220,12 @@ async function main() {
   if (!args.has("--no-agent") && dockerAvailable()) {
     start("agent", bin("tsx"), ["scripts/agent-gateway.ts"]);
     log("swarm", `線上使用 (agent gateway) → ${process.env.AGENT_ORIGIN}`);
+  }
+  // Borg Locutus nodes supplying models (locutus.enabled): the hub they link to
+  const { svBool } = await import("../src/lib/settings/cache");
+  if (!args.has("--no-locutus") && svBool("locutus.enabled")) {
+    start("locutus", bin("tsx"), ["scripts/locutus-hub.ts"]);
+    log("swarm", "Locutus hub started (locutus.enabled)");
   }
   log("swarm", `SinoBee.ai → ${process.env.PUBLIC_ORIGIN}  (${dev ? "dev" : "production"}${args.has("--no-worker") ? ", no worker" : " + worker"})  Ctrl-C to stop`);
 }

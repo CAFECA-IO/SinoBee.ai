@@ -132,6 +132,27 @@ The header's 線上使用 button opens `/agent`. It needs a signed-in user, then
 - **No platform API keys** go into these containers. Users sign in to SinoBee.ai inside SinoBee (subscription models) or use local models.
 - The desktop view (`/__vnc/…`) goes through the gateway too.
 
+### Locutus nodes supplying models
+
+Borg Locutus nodes (`locutusd` in the Borg repo) can supply models to the subscription relay. The protocol is `borg-locutus-link/1`, specified in Borg's `docs/spec/locutus-platform-link.md`.
+
+- **Nodes dial in.** A node keeps a WebSocket open to the **Locutus hub** (`npm run locutus-hub`), so it needs no open port. Swarm starts the hub on `locutus.hubPort` (default 10026) when `locutus.enabled` is on.
+- **Registered nodes only.** A node proves its address by signing the hub's challenge (EIP-191, checked with viem). Only addresses listed in `locutus.nodes` are accepted, written `0x…=name`. Node operators see users' prompts, so register only machines the platform trusts.
+- **To the relay the hub is one more upstream.** It is the provider `locutus`, an OpenAI-compatible server on 127.0.0.1 guarded by `locutus.hubSecret` (generated). Holds, settlement, resumable streams and parameter compatibility work as for any vendor.
+- **Billing.** Each answer ends with a receipt the node signs (request hash, model, tokens). The hub checks it and logs it. The user is charged from the usage the relay parses, as for any vendor.
+- **Setting it up:**
+  1. Turn on `locutus.enabled`, then restart swarm.
+  2. Forward `/locutus/link` to the hub's port in the reverse proxy, with WebSocket upgrade. For example, in NGINX:
+
+     ```
+     location /locutus/link { proxy_pass http://127.0.0.1:10026/link; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; proxy_read_timeout 3600s; }
+     ```
+
+  3. Set `locutus.publicUrl` to the resulting address, e.g. `wss://sinobee.ai/locutus/link`, for node operators.
+  4. On the node, run `locutusd init` to get its address, add it to `locutus.nodes`, and add a `[platform]` section to `locutus.toml` with `url` set to that address.
+  5. In /admin → 模型與定價, sync the catalog. The node's models appear as `locutus/<model>`; add them, set a cost-based price (they have no list price), and offer them.
+- If the hub does not run on the same host as the web server, set `LOCUTUS_HUB_URL` (default `http://127.0.0.1:<hubPort>`) and `LOCUTUS_HUB_HOST`.
+
 Objects stored before Boltchain was turned on can be moved later: `npm run storage-migrate -- --anchor-skills --run`.
 
 If `PUBLIC_ORIGIN` points to localhost on another port (e.g. the `:3000` default in `.env.example`), swarm moves it to the swarm port so Sign in with CAFECA keeps matching; a public origin such as `https://sinobee.ai` behind a reverse proxy is left unchanged.

@@ -353,6 +353,8 @@ export const config = {
       deepseek: { kind: "openai" as const, get base() { return sv("llm.base.deepseek"); }, get key() { return sv("apiKeys.deepseek"); } },
       // local open models: Ollama's OpenAI-compatible API; no API key (a placeholder marks it as usable once a URL is set)
       ollama: { kind: "openai" as const, get base() { return ollamaBase() ? `${ollamaBase()}/v1` : ""; }, get key() { return ollamaBase() ? "ollama" : ""; } },
+      // Borg Locutus nodes behind the local hub (scripts/locutus-hub.ts): an OpenAI-compatible upstream on 127.0.0.1
+      locutus: { kind: "openai" as const, get base() { return svBool("locutus.enabled") ? `${process.env.LOCUTUS_HUB_URL || `http://127.0.0.1:${svNum("locutus.hubPort")}`}/openai` : ""; }, get key() { return svBool("locutus.enabled") ? sv("locutus.hubSecret") : ""; } },
     } as Record<string, { kind: "openai" | "anthropic"; readonly base: string; readonly key: string }>,
     get rpm() {
       return svNum("llm.rpm");
