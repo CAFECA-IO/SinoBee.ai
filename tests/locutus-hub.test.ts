@@ -394,3 +394,34 @@ test("model warnings: Locutus models are checked against the linked nodes, not t
   n.ws.close();
   await waitFor(() => hub.status().length === 0);
 });
+
+test("model warnings: a paused vendor's models are not failing now, but what to fix before resuming is listed", async () => {
+  const { db } = await import("../src/lib/db");
+  const models = await import("../src/lib/models");
+  const pause = await import("../src/lib/llm/pause");
+  const { settingsCache } = await import("../src/lib/settings/cache");
+  const { modelProblems } = await import("../src/app/[locale]/admin/_sections/warnings");
+  const actor = (await db.user.findFirst({ where: { isAdmin: true } })) ?? (await db.user.create({ data: { account: "0x" + "e".repeat(40), role: "ADMIN", isAdmin: true } }));
+  const usd = { input: 1, cacheRead: 0.1, cacheWrite: 1, output: 2 };
+  await models.savePrice(actor.id, { modelId: "deepseek/ds-test", label: "DS test", vendor: "DeepSeek", usd, enabled: true });
+  await models.savePrice(actor.id, { modelId: "openai/gpt-test", label: "GPT test", vendor: "OpenAI", usd, enabled: true });
+  models.invalidateModelCache();
+  // openai has a key the vendor rejected at the last catalog sync; deepseek has none
+  settingsCache().values.set("apiKeys.openai", "sk-expired");
+  await db.siteSetting.upsert({ where: { key: "ai.catalog" }, create: { key: "ai.catalog", value: JSON.stringify({ openai: { at: new Date().toISOString(), models: [], error: "401 Your API key has expired." } }) }, update: { value: JSON.stringify({ openai: { at: new Date().toISOString(), models: [], error: "401 Your API key has expired." } }) } });
+  (globalThis as { __sbAi?: unknown }).__sbAi = null;
+
+  let p = await modelProblems();
+  assert.ok(p.noKey.some((m) => m.modelId === "deepseek/ds-test"));
+  assert.ok(p.badKey.some((m) => m.modelId === "openai/gpt-test"), "a rejected key is a failure too");
+
+  await pause.setPaused(actor.id, "deepseek", true);
+  await pause.setPaused(actor.id, "openai", true);
+  await pause.pauses(true);
+  p = await modelProblems();
+  assert.ok(!p.noKey.some((m) => m.modelId.startsWith("deepseek/")) && !p.badKey.some((m) => m.modelId.startsWith("openai/")), "paused: no calls, so not failing");
+  assert.deepEqual(p.whenResumed.map((w) => `${w.vendor}:${w.why}`).sort(), ["deepseek:noKey", "openai:badKey"]);
+  await pause.setPaused(actor.id, "deepseek", false);
+  await pause.setPaused(actor.id, "openai", false);
+  settingsCache().values.delete("apiKeys.openai");
+});
