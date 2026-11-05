@@ -1208,6 +1208,8 @@
       "close": "關閉",
       "unknownTitle": "{n} 個提供中的模型不在供應商清單裡",
       "noKeyTitle": "{n} 個提供中的模型沒有 API 金鑰，呼叫會失敗",
+      "unservedTitle": "{n} 個提供中的 Locutus 模型目前沒有節點供應",
+      "unservedBody": "沒有連線中的節點服務 {models}，分配時會先略過，直接呼叫會失敗。到下方 Locutus 卡片確認節點是否連線，或先下架。",
       "addKeys": "填入金鑰",
       "tiersTitle": "等級與備援順序",
       "tiersHelp": "主要模型失敗時依箭頭順序改用下一個；網頁、程式等複雜工作不會分到 Haiku、Luna、Flash Lite、mini、nano 這一級。",

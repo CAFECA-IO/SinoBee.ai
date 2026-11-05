@@ -374,3 +374,23 @@ test("the admin card: approving a waiting node registers it and offers its model
   await store.saveSetting(actor.id, "locutus.publicUrl", "wss://sinobee.test/locutus/link");
   await assert.rejects(store.saveSetting(actor.id, "locutus.publicUrl", "https://sinobee.test/locutus/link"), /wss\/ws URL/);
 });
+
+test("model warnings: Locutus models are checked against the linked nodes, not the synced catalog", async () => {
+  const { db } = await import("../src/lib/db");
+  const models = await import("../src/lib/models");
+  const { modelProblems } = await import("../src/app/[locale]/admin/_sections/warnings");
+  const actor = (await db.user.findFirst({ where: { isAdmin: true } })) ?? (await db.user.create({ data: { account: "0x" + "d".repeat(40), role: "ADMIN", isAdmin: true } }));
+  const zero = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+  await models.savePrice(actor.id, { modelId: "locutus/qwen-test", label: "q", vendor: "Locutus", usd: zero, enabled: true });
+  await models.savePrice(actor.id, { modelId: "locutus/ghost", label: "g", vendor: "Locutus", usd: zero, enabled: true });
+  models.invalidateModelCache();
+  const n = new FakeNode();
+  await n.link();
+  (globalThis as { __sbLocutusServed?: unknown }).__sbLocutusServed = undefined;
+  const p = await modelProblems();
+  const unserved = p.unserved.map((m) => m.modelId);
+  assert.ok(unserved.includes("locutus/ghost") && !unserved.includes("locutus/qwen-test"), unserved.join(", "));
+  assert.ok(!p.unknown.some((m) => m.modelId.startsWith("locutus/")), "never 'not in the vendor's list'");
+  n.ws.close();
+  await waitFor(() => hub.status().length === 0);
+});

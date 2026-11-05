@@ -1208,6 +1208,8 @@
       "close": "Close",
       "unknownTitle": "{n} offered {n, plural, one {model is} other {models are}} not in the vendor's list",
       "noKeyTitle": "{n} offered {n, plural, one {model has} other {models have}} no API key and would fail",
+      "unservedTitle": "{n} offered Locutus {n, plural, one {model has} other {models have}} no linked node now",
+      "unservedBody": "No linked node serves {models}: allocation skips them and direct calls fail. Check the nodes on the Locutus card below, or withdraw the models.",
       "addKeys": "Add keys",
       "tiersTitle": "Tiers and fallback order",
       "tiersHelp": "When a model fails the next one in line is used; complex work (pages, code) never gets the Haiku / Luna / Flash Lite / mini / nano class.",

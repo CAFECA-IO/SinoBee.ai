@@ -150,6 +150,7 @@ export async function Models({ sp }: { sp: AdminParams }) {
         <Link className="btn-primary !py-1.5" href={adminHref(base, { model: "new" })}>{t("addModel")}</Link>
       </PageHead>
       {problems.unknown.length > 0 && <Banner tone="err" title={t("unknownTitle", { n: problems.unknown.length })}>{tp("unknownIds", { models: problems.unknown.map((m) => m.modelId).join(", ") })}</Banner>}
+      {problems.unserved.length > 0 && <Banner tone="warn" title={t("unservedTitle", { n: problems.unserved.length })}>{t("unservedBody", { models: problems.unserved.map((m) => m.modelId).join(", ") })}</Banner>}
       {problems.noKey.length > 0 && (
         <Banner tone="warn" title={t("noKeyTitle", { n: problems.noKey.length })} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=settings&group=apiKeys">{t("addKeys")}</Link>}>
           {problems.noKey.map((m) => m.label).join("、")}

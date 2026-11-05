@@ -101,7 +101,7 @@ function sees(model: string) {
 // The Locutus models some linked node serves now, and which of them read images (the node declares it); from the
 // hub's model list, cached for a minute. A Locutus model no node serves is left out (its call would fail).
 const lv = globalThis as unknown as { __sbLocutusServed?: { at: number; all: Set<string>; vision: Set<string> } };
-async function locutusServed(): Promise<{ all: Set<string>; vision: Set<string> }> {
+export async function locutusServed(): Promise<{ all: Set<string>; vision: Set<string> }> {
   const c = lv.__sbLocutusServed;
   if (c && Date.now() - c.at < 60_000) return c;
   const p = config.llm.providers.locutus;
