@@ -62,7 +62,7 @@ export async function draftChecklist(): Promise<Checklist & { changed: boolean }
 
 /** Clean and check a list: ids kept or assigned, texts trimmed, dimensions known */
 export function normalizeItems(raw: unknown): ChecklistItem[] {
-  if (!Array.isArray(raw)) throw new HttpError(400, "items must be a list");
+  if (!Array.isArray(raw)) throw new HttpError(400, { zh: "項目必須是清單", en: "items must be a list" });
   const used = new Set<string>();
   const next: Record<string, number> = {};
   const items: ChecklistItem[] = [];
@@ -72,7 +72,7 @@ export function normalizeItems(raw: unknown): ChecklistItem[] {
     if (!(DIMENSIONS as readonly string[]).includes(dimension)) throw new HttpError(400, `unknown dimension: ${String(o.dimension)}`);
     const zh = String(o.zh ?? "").trim().slice(0, 500);
     const en = String(o.en ?? "").trim().slice(0, 500);
-    if (!zh || !en) throw new HttpError(400, "every item needs both the Chinese and the English text");
+    if (!zh || !en) throw new HttpError(400, { zh: "每個項目都需要中文與英文", en: "every item needs both the Chinese and the English text" });
     let id = typeof o.id === "string" && /^[A-Z]\d{2,3}$/.test(o.id) && o.id.startsWith(PREFIX[dimension]) && !used.has(o.id) ? o.id : "";
     items.push({ id, dimension, zh, en });
     if (id) used.add(id);
@@ -115,14 +115,14 @@ export async function discardDraft() {
 /** Publish the draft as the next version; it applies to every proposal screened from now on */
 export async function publishDraft(actorId: string, note: string) {
   const text = note.trim().slice(0, 2000);
-  if (!text) throw new HttpError(400, "describe what changed");
+  if (!text) throw new HttpError(400, { zh: "請說明改了什麼", en: "describe what changed" });
   const draft = await db.checklistVersion.findFirst({ where: { publishedAt: null } });
-  if (!draft) throw new HttpError(400, "there is no draft to publish");
+  if (!draft) throw new HttpError(400, { zh: "沒有可發布的草稿", en: "there is no draft to publish" });
   const items = normalizeItems(draft.items);
   const problems = checklistProblems(items);
   if (problems.length) throw new HttpError(400, problems.join("; "));
   const cur = await currentChecklist();
-  if (JSON.stringify(items) === JSON.stringify(cur.items)) throw new HttpError(400, "the draft is the same as the current version");
+  if (JSON.stringify(items) === JSON.stringify(cur.items)) throw new HttpError(400, { zh: "草稿與目前版本相同", en: "the draft is the same as the current version" });
   const version = cur.version + 1;
   await db.checklistVersion.update({ where: { id: draft.id }, data: { version, items: items as unknown as Prisma.InputJsonValue, note: text, publishedAt: new Date(), createdById: actorId } });
   await audit(actorId, "crowd.checklist.publish", { type: "checklist", id: String(version) }, { note: text, items: items.length });
@@ -137,7 +137,7 @@ export async function publishDraft(actorId: string, note: string) {
 /** Ask a model to change the draft as the admin describes; the result is saved as the draft (not published) */
 export async function editDraftWithAi(actorId: string, instruction: string): Promise<{ items: ChecklistItem[]; reply: string }> {
   const text = instruction.trim().slice(0, 4000);
-  if (!text) throw new HttpError(400, "describe the change");
+  if (!text) throw new HttpError(400, { zh: "請說明這次修改", en: "describe the change" });
   const draft = await draftChecklist();
   if (!(await jobHasModel("checklist"))) {
     if (process.env.NODE_ENV === "production") throw new HttpError(503, NO_PLATFORM_MODEL);
@@ -157,7 +157,7 @@ export async function editDraftWithAi(actorId: string, instruction: string): Pro
   try {
     parsed = JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1));
   } catch {
-    throw new HttpError(502, "the model did not return a checklist");
+    throw new HttpError(502, { zh: "模型沒有回傳檢查清單", en: "the model did not return a checklist" });
   }
   const items = await saveDraft(actorId, parsed.items);
   return { items, reply: typeof parsed.reply === "string" ? parsed.reply : "" };

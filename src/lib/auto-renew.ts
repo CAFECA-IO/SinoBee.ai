@@ -39,11 +39,11 @@ export async function setAutoRenew(userId: string, on: boolean, opts: { cardId?:
     return autoRenewState(userId);
   }
   const { usableCard } = await import("./crowd/cards");
-  if (!opts.cardId) throw new HttpError(400, "choose a saved card for automatic renewal");
+  if (!opts.cardId) throw new HttpError(400, { zh: "請選一張已儲存的卡片用於自動續訂", en: "choose a saved card for automatic renewal" });
   const card = await usableCard(userId, opts.cardId);
   const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { billing: true } });
   const buyer = opts.buyer ? cleanBuyer(opts.buyer) : (u.billing as Buyer | null);
-  if (!buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
+  if (!buyer) throw new HttpError(400, { zh: "開立電子發票需要買受人名稱與 Email", en: "buyer name and email are required for the e-invoice" });
   await db.user.update({ where: { id: userId }, data: { autoRenew: true, autoRenewCardId: card.id, billing: buyer as Prisma.InputJsonValue } });
   return autoRenewState(userId);
 }
@@ -100,7 +100,7 @@ export async function renewTick(now = new Date()) {
     // claim the attempt first so two workers never charge twice
     if (!(await db.subscription.updateMany({ where: { id: sub.id, renewAttempts: { lt: due } }, data: { renewAttempts: due } })).count) continue;
     try {
-      if (!sub.user.autoRenewCardId) throw new HttpError(400, "no card chosen for automatic renewal");
+      if (!sub.user.autoRenewCardId) throw new HttpError(400, { zh: "尚未選擇自動續訂的卡片", en: "no card chosen for automatic renewal" });
       const pay = await createPayment({
         userId: sub.userId, purpose: "SUBSCRIPTION", amountTwd: fee, planId: plan.id, buyer: sub.user.billing as Buyer, cardId: sub.user.autoRenewCardId,
         meta: { autoRenew: true, after: sub.endsAt.toISOString() },

@@ -157,12 +157,12 @@ export type PriceInput = {
 
 /** Save a new price row (history is never rewritten). FX and buffer come from the current settings. */
 export async function savePrice(actorId: string, p: PriceInput) {
-  if (!MODEL_ID.test(p.modelId)) throw new HttpError(400, "model id must look like provider/model");
-  if (!p.label.trim() || !p.vendor.trim()) throw new HttpError(400, "label and vendor are required");
+  if (!MODEL_ID.test(p.modelId)) throw new HttpError(400, { zh: "模型代碼格式應為「供應商/模型」", en: "model id must look like provider/model" });
+  if (!p.label.trim() || !p.vendor.trim()) throw new HttpError(400, { zh: "請填寫名稱與供應商", en: "label and vendor are required" });
   for (const k of PRICE_KINDS) if (!usdOk(p.usd[k])) throw new HttpError(400, `invalid ${k} price`);
   const effectiveAt = p.effectiveAt ?? new Date();
-  if (Number.isNaN(+effectiveAt)) throw new HttpError(400, "invalid effective date");
-  if (+effectiveAt < Date.now() - 60_000) throw new HttpError(400, "effective date cannot be in the past");
+  if (Number.isNaN(+effectiveAt)) throw new HttpError(400, { zh: "生效時間格式不正確", en: "invalid effective date" });
+  if (+effectiveAt < Date.now() - 60_000) throw new HttpError(400, { zh: "生效時間不能早於現在", en: "effective date cannot be in the past" });
   const { fx, buffer } = await pricingSettings();
   const prev = (await pricesAt(new Date(8.64e15))).find((m) => m.modelId === p.modelId);
   const row = await db.modelPrice.create({
@@ -185,9 +185,9 @@ export async function savePrice(actorId: string, p: PriceInput) {
  */
 export async function savePricingSettings(actorId: string, s: { fx: number; buffer: number; effectiveAt?: Date }) {
   if (!(s.fx >= 1 && s.fx <= 1000)) throw new HttpError(400, "FX rate out of range");
-  if (!(s.buffer >= 1 && s.buffer <= 3)) throw new HttpError(400, "buffer must be between 1 and 3");
+  if (!(s.buffer >= 1 && s.buffer <= 3)) throw new HttpError(400, { zh: "加成倍數需介於 1 到 3", en: "buffer must be between 1 and 3" });
   const effectiveAt = s.effectiveAt ?? new Date();
-  if (+effectiveAt < Date.now() - 60_000) throw new HttpError(400, "effective date cannot be in the past");
+  if (+effectiveAt < Date.now() - 60_000) throw new HttpError(400, { zh: "生效時間不能早於現在", en: "effective date cannot be in the past" });
   const before = await pricingSettings();
   const models = await pricesAt(new Date(8.64e15));
   await db.$transaction([

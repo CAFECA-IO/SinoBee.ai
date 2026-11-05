@@ -181,8 +181,8 @@ const UNPRICED = (id: string) => id.startsWith("ollama/") || id.startsWith("locu
  */
 export async function addModelsWithAiPrices(actorId: string, modelIds: string[]): Promise<PriceGuess[]> {
   const ids = [...new Set(modelIds.map((s) => s.trim()).filter(Boolean))];
-  if (!ids.length) throw new HttpError(400, "pick at least one model");
-  if (ids.length > 20) throw new HttpError(400, "at most 20 models at a time");
+  if (!ids.length) throw new HttpError(400, { zh: "請至少選一個模型", en: "pick at least one model" });
+  if (ids.length > 20) throw new HttpError(400, { zh: "一次最多 20 個模型", en: "at most 20 models at a time" });
   const catalog = await modelCatalogFromApi();
   const label = (id: string) => catalog[id.split("/")[0]]?.models.find((m) => `${id.split("/")[0]}/${m.id}` === id)?.label ?? id.split("/").slice(1).join("/");
   // local models (Ollama) and Locutus nodes have no API price: they are added at 0
@@ -216,7 +216,7 @@ async function lookUpPrices(models: { id: string; label: string }[]): Promise<Ma
   try {
     parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   } catch {
-    throw new HttpError(502, "the AI did not return prices; try again");
+    throw new HttpError(502, { zh: "AI 沒有回傳價格，請再試一次", en: "the AI did not return prices; try again" });
   }
   for (const m of parsed.models ?? []) {
     if (m.found === false || typeof m.id !== "string") continue;

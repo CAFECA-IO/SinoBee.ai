@@ -112,7 +112,7 @@ export async function ensurePersonalAgent(userId: string): Promise<PersonalAgent
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  throw new HttpError(504, "your SinoBee did not start in time; try again in a minute");
+  throw new HttpError(504, { zh: "你的 SinoBee 沒有及時啟動，請一分鐘後再試", en: "your SinoBee did not start in time; try again in a minute" });
 }
 
 /** Stops the user's container (its volumes stay); used for idle containers */

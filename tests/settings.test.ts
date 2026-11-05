@@ -126,3 +126,20 @@ test("rotating the skill signing key keeps the old public key published", async 
   assert.notEqual(keys[0], before);
   assert.equal(keys[1], before);
 });
+
+test("a value swarm filled in is a default the admin can override, not a locked environment value", async () => {
+  process.env.BOLT_RPC_URL = "http://127.0.0.1:8545";
+  process.env.SINOBEE_SWARM_ENV = "BOLT_RPC_URL";
+  try {
+    assert.deepEqual((await import("../src/lib/settings/cache")).resolve("boltchain.rpcUrl"), { value: "http://127.0.0.1:8545", source: "swarm" });
+    await store.saveSetting(adminId, "boltchain.rpcUrl", "https://rpc.example.test");
+    assert.deepEqual((await import("../src/lib/settings/cache")).resolve("boltchain.rpcUrl"), { value: "https://rpc.example.test", source: "db" });
+    // a variable the operator set is still locked
+    delete process.env.SINOBEE_SWARM_ENV;
+    assert.equal((await import("../src/lib/settings/cache")).resolve("boltchain.rpcUrl").source, "env");
+  } finally {
+    delete process.env.BOLT_RPC_URL;
+    delete process.env.SINOBEE_SWARM_ENV;
+    await store.saveSetting(adminId, "boltchain.rpcUrl", "");
+  }
+});

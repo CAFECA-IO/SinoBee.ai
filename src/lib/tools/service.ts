@@ -45,7 +45,7 @@ export async function publishTool(user: User, raw: unknown, visibility: Visibili
   const findings = scanTool(m, visibility);
   if (findings.some((f) => f.level === "error"))
     throw Object.assign(new HttpError(422, "rejected: " + findings.filter((f) => f.level === "error").map((f) => `${f.path} ${f.message}`).join("; ")), { findings });
-  if (visibility === "PUBLIC" && !user.publisher) throw new HttpError(400, "set a publisher id in your account before publishing public tools");
+  if (visibility === "PUBLIC" && !user.publisher) throw new HttpError(400, { zh: "發布公開工具前請先在帳號設定發布者代號", en: "set a publisher id in your account before publishing public tools" });
 
   const existing = await db.tool.findUnique({ where: { ownerId_name: { ownerId: user.id, name: m.name } }, include: { versions: { select: { version: true } } } });
   if (existing?.versions.some((v) => v.version === m.version)) throw new HttpError(409, `version ${m.version} already exists — bump the version`);
@@ -73,26 +73,26 @@ export async function publishTool(user: User, raw: unknown, visibility: Visibili
 /** Who may see a tool: anyone for approved public versions, otherwise only its owner (and admins) */
 export async function findTool(viewer: User | null, owner: string, name: string) {
   const ownerUser = await db.user.findFirst({ where: { OR: [{ publisher: owner }, { account: owner.toLowerCase() }] } });
-  if (!ownerUser) throw new HttpError(404, "not found");
+  if (!ownerUser) throw new HttpError(404, { zh: "找不到", en: "not found" });
   const t = await db.tool.findUnique({ where: { ownerId_name: { ownerId: ownerUser.id, name } }, include: { owner: true, versions: { orderBy: { publishedAt: "desc" } } } });
-  if (!t) throw new HttpError(404, "not found");
+  if (!t) throw new HttpError(404, { zh: "找不到", en: "not found" });
   const isOwner = viewer?.id === t.ownerId || !!viewer?.isAdmin;
-  if (!isOwner && t.visibility !== "PUBLIC") throw new HttpError(404, "not found");
+  if (!isOwner && t.visibility !== "PUBLIC") throw new HttpError(404, { zh: "找不到", en: "not found" });
   // others only ever see reviewed versions that were published for everyone
   const versions = isOwner ? t.versions : t.versions.filter((v) => v.status === "APPROVED" && v.public);
-  if (!versions.length) throw new HttpError(404, "not found");
+  if (!versions.length) throw new HttpError(404, { zh: "找不到", en: "not found" });
   return { tool: t, versions, isOwner };
 }
 
 export async function setVisibility(user: User, name: string, visibility: Visibility) {
   const t = await db.tool.findUnique({ where: { ownerId_name: { ownerId: user.id, name } }, include: { versions: { orderBy: { publishedAt: "desc" }, take: 1 } } });
-  if (!t) throw new HttpError(404, "not found");
+  if (!t) throw new HttpError(404, { zh: "找不到", en: "not found" });
   const latest = t.versions[0];
   if (visibility === "PUBLIC") {
     const m = latest.manifest as ToolManifest;
     const findings = scanTool(m, "PUBLIC");
     if (findings.some((f) => f.level === "error")) throw new HttpError(422, findings.filter((f) => f.level === "error").map((f) => `${f.path} ${f.message}`).join("; "));
-    if (!user.publisher) throw new HttpError(400, "set a publisher id first");
+    if (!user.publisher) throw new HttpError(400, { zh: "請先設定發布者代號", en: "set a publisher id first" });
     // going public needs review of the latest version
     if (!(latest.public && latest.status === "APPROVED")) await db.toolVersion.update({ where: { id: latest.id }, data: { status: "PENDING_REVIEW", public: true, scanFindings: findings as object[] } });
   }
@@ -100,7 +100,7 @@ export async function setVisibility(user: User, name: string, visibility: Visibi
 }
 
 export async function reviewTool(admin: User, versionId: string, approve: boolean, note?: string) {
-  if (!(await db.toolVersion.findUnique({ where: { id: versionId }, select: { id: true } }))) throw new HttpError(404, "version not found");
+  if (!(await db.toolVersion.findUnique({ where: { id: versionId }, select: { id: true } }))) throw new HttpError(404, { zh: "找不到這個版本", en: "version not found" });
   const v = await db.toolVersion.update({
     where: { id: versionId },
     data: { status: approve ? "APPROVED" : "REJECTED", reviewNote: note ?? null, reviewerId: admin.id, reviewedAt: new Date() },
@@ -117,7 +117,7 @@ export async function reviewTool(admin: User, versionId: string, approve: boolea
 
 export async function deleteTool(user: User, name: string) {
   const t = await db.tool.findUnique({ where: { ownerId_name: { ownerId: user.id, name } }, include: { versions: true } });
-  if (!t) throw new HttpError(404, "not found");
+  if (!t) throw new HttpError(404, { zh: "找不到", en: "not found" });
   const { deleteObject } = await import("../storage");
   // private definitions are shredded at once; versions that were public stay stored 90 days (installs may reference them)
   for (const v of t.versions) if (v.objectKey) await deleteObject(v.objectKey, v.public ? { retainDays: 90 } : {});
@@ -127,8 +127,8 @@ export async function deleteTool(user: User, name: string) {
 /** 1–5 stars from a user who can see the tool (not its owner) */
 export async function rateTool(user: User, toolId: string, stars: number) {
   const t = await db.tool.findUnique({ where: { id: toolId }, include: { versions: { where: { status: "APPROVED", public: true }, take: 1 } } });
-  if (!t || t.visibility !== "PUBLIC" || !t.versions.length) throw new HttpError(404, "not found");
-  if (t.ownerId === user.id) throw new HttpError(400, "you cannot rate your own tool");
+  if (!t || t.visibility !== "PUBLIC" || !t.versions.length) throw new HttpError(404, { zh: "找不到", en: "not found" });
+  if (t.ownerId === user.id) throw new HttpError(400, { zh: "不能評分自己的工具", en: "you cannot rate your own tool" });
   await db.toolRating.upsert({ where: { toolId_userId: { toolId, userId: user.id } }, create: { toolId, userId: user.id, stars }, update: { stars } });
   const agg = await db.toolRating.aggregate({ where: { toolId }, _avg: { stars: true }, _count: { stars: true } });
   return db.tool.update({ where: { id: toolId }, data: { ratingAvg: agg._avg.stars ?? 0, ratingCount: agg._count.stars } });

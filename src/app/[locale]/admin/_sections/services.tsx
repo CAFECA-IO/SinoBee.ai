@@ -10,7 +10,7 @@ import { VENDORS } from "@/lib/llm/vendors";
 import { SETTINGS, SETTING } from "@/lib/settings/registry";
 import { settingsForAdmin } from "@/lib/settings/store";
 import { LocalDate } from "@/components/date";
-import { PageHead } from "@/components/admin/kit";
+import { PageHead, twd } from "@/components/admin/kit";
 import { VendorPauseSwitch } from "@/components/admin/model-actions";
 import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem } from "@/components/admin-site-settings";
 import { RemoveKey, ServicePicker, TestConnection } from "@/components/admin-connector";
@@ -90,6 +90,7 @@ export async function Services({ sp, superAdmin, locale }: { sp: AdminParams; su
   const keySetting = current.vendor ? items.find((i) => i.key === `apiKeys.${current.id}`) : undefined;
   const level = stateOf(current.id);
   const line = health.services.find((x) => x.id === current.id)?.line;
+  const spend = current.vendor && config.llm.providers[current.id]?.key ? await (await import("@/lib/llm/quota")).providerSpendToday(current.id) : null;
 
   const extraConn: ReactNode =
     current.id === "oen" ? (
@@ -124,6 +125,12 @@ export async function Services({ sp, superAdmin, locale }: { sp: AdminParams; su
             <h2 className="text-xl font-semibold">{nameOf(current)}</h2>
             <span className={`badge font-semibold ${PILL[level]}`}>{MARK[level]} {th(`state.${level}`)}</span>
             {line && <span className="text-sm text-[#c9d6dc]">{th(`line.${line.key}`, line.values ?? {})}</span>}
+            {spend && (
+              <span className={`text-sm ${spend.reached ? "font-semibold text-[#ffb4bd]" : "text-[#c9d6dc]"}`} data-spend>
+                {spend.limit > 0 ? t("spendCap", { spent: twd(spend.spent), limit: twd(spend.limit) }) : t("spend", { spent: twd(spend.spent) })}
+                {spend.reached ? ` · ${t("capReached")}` : ""}
+              </span>
+            )}
             <span className="flex-1" />
             {current.vendor && models.length > 0 && <span className="rounded-xl bg-white px-2 py-1"><VendorPauseSwitch vendor={current.id} label={nameOf(current)} paused={isPaused} offered={offered.length} /></span>}
           </header>
@@ -131,7 +138,7 @@ export async function Services({ sp, superAdmin, locale }: { sp: AdminParams; su
           <SettingsBoard compact sections={[]} items={mine} canEdit={superAdmin} zh={zh} titles={titles}
             parts={[
               { id: "conn", title: t("conn"), keys: current.conn, extra: extraConn },
-              ...(current.limits ? [{ id: "limits", title: t("limits"), keys: current.limits }] : []),
+              ...(current.limits ? [{ id: "limits", title: t("limits"), keys: current.limits, extra: spend?.fromEnv ? <p className="text-xs text-warn">{t("capFromEnv", { env: spend.fromEnv, limit: twd(spend.limit) })}</p> : undefined }] : []),
             ]} />
 
           {current.vendor && (

@@ -9,10 +9,10 @@ import { HttpError } from "./errors";
  */
 export async function consumeAndVerify(response: SignInResponse, bind?: string): Promise<VerifiedSignIn> {
   const nonce = response?.message?.nonce;
-  if (typeof nonce !== "string") throw new HttpError(400, "invalid response");
+  if (typeof nonce !== "string") throw new HttpError(400, { zh: "回應格式不正確", en: "invalid response" });
   const where = { nonce, used: false, expiresAt: { gt: new Date() }, ...(bind ? { bind } : {}) };
   const r = await db.authNonce.updateMany({ where, data: { used: true } });
-  if (r.count !== 1) throw new HttpError(400, "nonce invalid, used or not issued to this browser");
+  if (r.count !== 1) throw new HttpError(400, { zh: "登入請求無效、已使用或不是發給這個瀏覽器的，請重新整理後再試", en: "nonce invalid, used or not issued to this browser" });
   try {
     return await cafeca.verify(response, { domain: config.origin, nonce });
   } catch (e) {

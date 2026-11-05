@@ -30,11 +30,11 @@ export async function bookPoints(p: { userId: string; delta: number; reason: str
 
 /** Spend points for a pledge; refuses when the balance is short (checked again after booking to stop double spends) */
 export async function spendPoints(userId: string, amount: number, ref: string, taskId: string) {
-  if ((await pointBalance(userId)) < amount) throw new HttpError(400, "not enough points");
+  if ((await pointBalance(userId)) < amount) throw new HttpError(400, { zh: "點數不足", en: "not enough points" });
   await bookPoints({ userId, delta: -amount, reason: "pledge", ref, taskId });
   if ((await pointBalance(userId)) < 0) {
     await db.pointLedger.deleteMany({ where: { ref } });
-    throw new HttpError(409, "not enough points");
+    throw new HttpError(409, { zh: "點數不足", en: "not enough points" });
   }
 }
 

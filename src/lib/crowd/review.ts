@@ -51,15 +51,15 @@ export async function paidShares(taskId: string, userId: string) {
 
 export async function castVote(userId: string, taskId: string, approve: boolean, reason?: string) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task?.crowdfund || task.status !== "IN_REVIEW") throw new HttpError(400, "this task is not in review");
+  if (!task?.crowdfund || task.status !== "IN_REVIEW") throw new HttpError(400, { zh: "這個任務不在驗收階段", en: "this task is not in review" });
   const shares = await paidShares(taskId, userId);
-  if (!shares) throw new HttpError(403, "only backers whose pledge was collected can vote");
+  if (!shares) throw new HttpError(403, { zh: "只有已扣款的贊助者能投票", en: "only backers whose pledge was collected can vote" });
   if (config.crowd.voteMinKyc > 0) {
     const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { kycLevel: true } });
     if ((u.kycLevel ?? 0) < config.crowd.voteMinKyc) throw new HttpError(403, `voting needs CAFECA KYC level ${config.crowd.voteMinKyc} or higher`);
   }
   const text = reason?.trim().slice(0, 2000) || null;
-  if (!approve && !text) throw new HttpError(400, "tell the agent what is missing (a reason is required to reject)");
+  if (!approve && !text) throw new HttpError(400, { zh: "請說明還缺什麼（退回需要填寫原因）", en: "tell the agent what is missing (a reason is required to reject)" });
   const key = { taskId_userId_round: { taskId, userId, round: task.reworks } };
   await db.acceptanceVote.upsert({ where: key, create: { taskId, userId, round: task.reworks, approve, reason: text, shares }, update: { approve, reason: text, shares } });
   await maybeCloseEarly(task);
@@ -118,7 +118,7 @@ export async function closeReview(taskId: string, now = new Date()) {
 /** Admin decision on a disputed task */
 export async function resolveDispute(actorId: string, taskId: string, decision: "accept" | "refund", note?: string) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task || task.status !== "DISPUTED") throw new HttpError(400, "this task is not disputed");
+  if (!task || task.status !== "DISPUTED") throw new HttpError(400, { zh: "這個任務沒有爭議", en: "this task is not disputed" });
   const status = decision === "accept" ? "COMPLETED" : "FAILED";
   const r = await db.task.updateMany({ where: { id: taskId, status: "DISPUTED" }, data: { status, finishedAt: new Date(), ...(decision === "refund" ? { error: `Refunded by the platform: ${note ?? ""}`.slice(0, 2000) } : {}) } });
   if (r.count !== 1) return;

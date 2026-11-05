@@ -17,8 +17,8 @@ import { MAX_MULTIPLIER, limitsFromMax, planLimits as limits } from "./price-mat
 export { MAX_MULTIPLIER } from "./price-math";
 
 export function planLimits(feeTwd: number, multiplier: number) {
-  if (!(feeTwd > 0)) throw new HttpError(400, "fee must be positive");
-  if (!(multiplier > 0)) throw new HttpError(400, "multiplier must be positive");
+  if (!(feeTwd > 0)) throw new HttpError(400, { zh: "費用必須大於 0", en: "fee must be positive" });
+  if (!(multiplier > 0)) throw new HttpError(400, { zh: "倍數必須大於 0", en: "multiplier must be positive" });
   return limits(feeTwd, multiplier);
 }
 
@@ -94,9 +94,9 @@ export type FreePlanInput = { name: string; nameEn: string; maxCostTwd: number; 
 
 /** The free plan's allowance: max usage per 30 days at published prices (L168 / L6 derived as for paid plans) */
 export async function saveFreePlan(actorId: string, p: FreePlanInput): Promise<PlanView> {
-  if (!p.name.trim() || !p.nameEn.trim()) throw new HttpError(400, "name is required");
-  if (!(Number.isFinite(p.maxCostTwd) && p.maxCostTwd >= 0 && p.maxCostTwd <= 100_000)) throw new HttpError(400, "allowance out of range");
-  if (!(Number.isInteger(p.concurrency) && p.concurrency >= 1 && p.concurrency <= 64)) throw new HttpError(400, "concurrency must be 1–64");
+  if (!p.name.trim() || !p.nameEn.trim()) throw new HttpError(400, { zh: "請填寫名稱", en: "name is required" });
+  if (!(Number.isFinite(p.maxCostTwd) && p.maxCostTwd >= 0 && p.maxCostTwd <= 100_000)) throw new HttpError(400, { zh: "額度超出範圍（0–100,000）", en: "allowance out of range" });
+  if (!(Number.isInteger(p.concurrency) && p.concurrency >= 1 && p.concurrency <= 64)) throw new HttpError(400, { zh: "同時執行數需介於 1 到 64", en: "concurrency must be 1–64" });
   const before = await freePlan();
   const row = await db.plan.update({
     where: { code: FREE_PLAN },
@@ -120,19 +120,19 @@ export type PlanInput = {
 
 /** Create or update a plan (multiplier = max usage ÷ fee, 0 < m ≤ 100). L6/L168 are always recomputed. */
 export async function savePlan(actorId: string, p: PlanInput): Promise<PlanView> {
-  if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(p.code)) throw new HttpError(400, "code must be a short slug");
-  if (p.code === FREE_PLAN) throw new HttpError(400, "the free plan is edited on its own form");
-  if (!p.name.trim() || !p.nameEn.trim()) throw new HttpError(400, "name is required");
-  if (!(Number.isFinite(p.feeTwd) && p.feeTwd >= 1 && p.feeTwd <= 1_000_000)) throw new HttpError(400, "fee out of range");
+  if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(p.code)) throw new HttpError(400, { zh: "代碼只能用小寫英文、數字與 -（最多 32 字）", en: "code must be a short slug" });
+  if (p.code === FREE_PLAN) throw new HttpError(400, { zh: "免費方案請在它自己的表單編輯", en: "the free plan is edited on its own form" });
+  if (!p.name.trim() || !p.nameEn.trim()) throw new HttpError(400, { zh: "請填寫名稱", en: "name is required" });
+  if (!(Number.isFinite(p.feeTwd) && p.feeTwd >= 1 && p.feeTwd <= 1_000_000)) throw new HttpError(400, { zh: "費用超出範圍（1–1,000,000）", en: "fee out of range" });
   if (!(Number.isFinite(p.multiplier) && p.multiplier > 0 && p.multiplier <= MAX_MULTIPLIER)) throw new HttpError(400, `multiplier must be between 0 and ${MAX_MULTIPLIER}`);
-  if (!(Number.isInteger(p.concurrency) && p.concurrency >= 1 && p.concurrency <= 64)) throw new HttpError(400, "concurrency must be 1–64");
+  if (!(Number.isInteger(p.concurrency) && p.concurrency >= 1 && p.concurrency <= 64)) throw new HttpError(400, { zh: "同時執行數需介於 1 到 64", en: "concurrency must be 1–64" });
   const fee = Math.round(p.feeTwd * 100) / 100;
   const data = {
     code: p.code, name: p.name.trim(), nameEn: p.nameEn.trim(), feeTwd: fee, multiplier: p.multiplier,
     ...planLimits(fee, p.multiplier), concurrency: p.concurrency, days: 30, active: p.active, sortOrder: p.sortOrder ?? 0,
   };
   const before = p.id ? await db.plan.findUnique({ where: { id: p.id } }) : null;
-  if (p.id && !before) throw new HttpError(404, "plan not found");
+  if (p.id && !before) throw new HttpError(404, { zh: "找不到這個方案", en: "plan not found" });
   const clash = await db.plan.findUnique({ where: { code: p.code } });
   if (clash && clash.id !== p.id) throw new HttpError(409, "a plan with this code exists");
   const row = before ? await db.plan.update({ where: { id: before.id }, data }) : await db.plan.create({ data });

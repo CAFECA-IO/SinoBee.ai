@@ -178,7 +178,7 @@ export function specJobState(taskId: string): { state: "idle" | "running" | "err
 }
 
 function runJob(taskId: string, kind: Job["kind"], work: () => Promise<unknown>) {
-  if (jobs.get(taskId)?.state === "running") throw new HttpError(409, "the AI is still working on this proposal");
+  if (jobs.get(taskId)?.state === "running") throw new HttpError(409, { zh: "AI 還在處理這份提案", en: "the AI is still working on this proposal" });
   jobs.set(taskId, { state: "running", kind, at: Date.now() });
   void work().then(
     () => jobs.delete(taskId),
@@ -200,7 +200,7 @@ export async function startGenerate(userId: string, taskId: string) {
 
 /** Start one dialogue turn in the background */
 export async function startTurn(userId: string, taskId: string, message: string) {
-  if (!message.trim()) throw new HttpError(400, "message is required");
+  if (!message.trim()) throw new HttpError(400, { zh: "請輸入訊息", en: "message is required" });
   await checkCredit(await ownDraft(userId, taskId));
   runJob(taskId, "turn", () => specTurn(userId, taskId, message));
   return { state: "running" as const };
@@ -222,8 +222,8 @@ async function ask(task: Task, chat: ChatTurn[], message: string) {
 
 async function checkCredit(task: Task) {
   if (await feeWaived(task.userId)) return; // subscribed: no fee, no limit
-  if (Number(task.proposalCreditTwd) <= 0) throw new HttpError(402, "pay the proposal fee first");
-  if (creditLeft(task) <= 0.01) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
+  if (Number(task.proposalCreditTwd) <= 0) throw new HttpError(402, { zh: "請先支付提案費", en: "pay the proposal fee first" });
+  if (creditLeft(task) <= 0.01) throw new HttpError(402, { zh: "提案額度已用完；再購買一次提案費即可繼續", en: "proposal credit used up — buy another proposal fee to continue" });
 }
 
 /**
@@ -240,7 +240,7 @@ export async function generateSpec(userId: string, taskId: string) {
       (task.kind === "EVALUATION" ? ", plus the evaluation method and criteria" : "") +
       ". In the reply, say in two or three sentences what you assumed and what I should check.";
     const { parsed, cost } = await ask(task, [], instruction);
-    if (!parsed.spec) throw new HttpError(502, "the AI did not return a complete spec; try again");
+    if (!parsed.spec) throw new HttpError(502, { zh: "AI 沒有回傳完整規格，請再試一次", en: "the AI did not return a complete spec; try again" });
     const now = new Date().toISOString();
     const chat: ChatTurn[] = [{ role: "assistant", content: parsed.reply || "…", at: now }];
     const updated = await db.task.update({ where: { id: taskId }, data: { specChat: chat as unknown as Prisma.InputJsonValue, ...applied(task, parsed) } });
@@ -252,7 +252,7 @@ export async function generateSpec(userId: string, taskId: string) {
 export async function specTurn(userId: string, taskId: string, message: string) {
   const task = await ownDraft(userId, taskId);
   const text = message.trim().slice(0, 8000);
-  if (!text) throw new HttpError(400, "message is required");
+  if (!text) throw new HttpError(400, { zh: "請輸入訊息", en: "message is required" });
   await checkCredit(task);
   const chat = ((task.specChat ?? []) as ChatTurn[]).slice(-MAX_TURNS);
   // the dialogue starts with the model's own draft; the API wants a user turn first

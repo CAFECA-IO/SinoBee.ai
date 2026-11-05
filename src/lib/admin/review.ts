@@ -126,6 +126,6 @@ export const MIN_REASON = 4;
  * told), and approving a version the scanner flagged needs the reviewer to confirm they read the findings.
  */
 export function assertReviewInput(v: { findings: number }, decision: "approve" | "reject" | "revoke", note: string | undefined, acknowledged: boolean | undefined) {
-  if ((decision === "reject" || decision === "revoke") && (note ?? "").trim().length < MIN_REASON) throw new HttpError(400, "say why: the publisher receives the reason");
-  if (decision === "approve" && v.findings > 0 && !acknowledged) throw new HttpError(400, "confirm that you checked the scan findings before approving");
+  if ((decision === "reject" || decision === "revoke") && (note ?? "").trim().length < MIN_REASON) throw new HttpError(400, { zh: "請說明原因：發布者會收到這段說明", en: "say why: the publisher receives the reason" });
+  if (decision === "approve" && v.findings > 0 && !acknowledged) throw new HttpError(400, { zh: "核准前請先確認已看過掃描結果", en: "confirm that you checked the scan findings before approving" });
 }

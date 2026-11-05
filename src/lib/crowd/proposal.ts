@@ -43,10 +43,10 @@ export function placeholderTitle(description: string): string {
 export async function createDraft(userId: string, raw: z.input<typeof DraftInput>) {
   const input = DraftInput.parse(raw);
   const model = await offeredModel(input.model);
-  if (!model) throw new HttpError(400, "unsupported model");
+  if (!model) throw new HttpError(400, { zh: "不支援這個模型", en: "unsupported model" });
   if (input.skillVersionId) {
     const sv = await db.skillVersion.findUnique({ where: { id: input.skillVersionId } });
-    if (!sv || sv.status === "REVOKED" || sv.status === "REJECTED") throw new HttpError(400, "skill version not available");
+    if (!sv || sv.status === "REVOKED" || sv.status === "REJECTED") throw new HttpError(400, { zh: "這個技能版本目前不能使用", en: "skill version not available" });
   }
   const { fx, buffer } = await pricingSettings();
   const { currentChecklist } = await import("./checklist");
@@ -76,8 +76,8 @@ export async function createDraft(userId: string, raw: z.input<typeof DraftInput
 /** The proposer's own draft (or 404) */
 export async function ownDraft(userId: string, taskId: string): Promise<Task> {
   const t = await db.task.findUnique({ where: { id: taskId } });
-  if (!t || t.userId !== userId || !t.crowdfund) throw new HttpError(404, "proposal not found");
-  if (t.status !== "DRAFT") throw new HttpError(400, "the proposal is already open for pledges");
+  if (!t || t.userId !== userId || !t.crowdfund) throw new HttpError(404, { zh: "找不到這份提案", en: "proposal not found" });
+  if (t.status !== "DRAFT") throw new HttpError(400, { zh: "這份提案已開放贊助", en: "the proposal is already open for pledges" });
   return t;
 }
 
@@ -97,7 +97,7 @@ export const proposalPaid = (t: Pick<Task, "proposalCreditTwd">, waived: boolean
 /** Charge one proposal fee to a saved card (the first one, or another when the credit ran out) */
 export async function buyProposalFee(userId: string, taskId: string, buyer: Buyer, cardId: string) {
   await ownDraft(userId, taskId);
-  if (await feeWaived(userId)) throw new HttpError(400, "subscribers start proposals without the proposal fee");
+  if (await feeWaived(userId)) throw new HttpError(400, { zh: "訂閱者提案免付提案費", en: "subscribers start proposals without the proposal fee" });
   return createPayment({ userId, purpose: "CROWD_PROPOSAL", amountTwd: Math.round(config.crowd.proposalFee), taskId, buyer, cardId });
 }
 
@@ -122,12 +122,12 @@ export async function useCredit(taskId: string, twd: number, opts: { allowOverdr
     return;
   }
   if (!opts.allowOverdraw) {
-    if (creditLeft(t) + 1e-9 < amount) throw new HttpError(402, "proposal credit used up — buy another proposal fee to continue");
+    if (creditLeft(t) + 1e-9 < amount) throw new HttpError(402, { zh: "提案額度已用完；再購買一次提案費即可繼續", en: "proposal credit used up — buy another proposal fee to continue" });
     // conditional update: the credit cannot be spent twice by concurrent requests
     where.proposalUsedTwd = t.proposalUsedTwd;
   }
   const r = await db.task.updateMany({ where, data: { proposalUsedTwd: { increment: amount } } });
-  if (r.count !== 1) throw new HttpError(409, "proposal credit changed, try again");
+  if (r.count !== 1) throw new HttpError(409, { zh: "提案額度已變動，請再試一次", en: "proposal credit changed, try again" });
 }
 
 // ───────────── reference files ─────────────
@@ -138,10 +138,10 @@ const safeName = (n: string) => n.replace(/[\\/]/g, "_").replace(/[^\p{L}\p{N}._
 
 export async function addFile(userId: string, taskId: string, f: { filename: string; contentType: string; data: Buffer; visibility: (typeof FILE_VISIBILITY)[number] }) {
   const t = await ownDraft(userId, taskId);
-  if (!f.data.length) throw new HttpError(400, "empty file");
+  if (!f.data.length) throw new HttpError(400, { zh: "檔案是空的", en: "empty file" });
   const stored = await db.taskInputFile.aggregate({ where: { taskId, deletedAt: null }, _sum: { sizeBytes: true }, _count: true });
   const before = Number(stored._sum.sizeBytes ?? 0);
-  if (stored._count >= 50) throw new HttpError(400, "at most 50 reference files");
+  if (stored._count >= 50) throw new HttpError(400, { zh: "參考檔案最多 50 個", en: "at most 50 reference files" });
   if (before + f.data.length > config.crowd.maxFileBytes) throw new HttpError(413, `reference files are limited to ${Math.round(config.crowd.maxFileBytes / 1048576)} MB in total`);
   const cost = fileCost(before, f.data.length, Number(t.usdTwdRate));
   await useCredit(taskId, cost.total);
@@ -159,7 +159,7 @@ export async function addFile(userId: string, taskId: string, f: { filename: str
 export async function removeFile(userId: string, taskId: string, fileId: string) {
   await ownDraft(userId, taskId);
   const f = await db.taskInputFile.findUnique({ where: { id: fileId } });
-  if (!f || f.taskId !== taskId || f.deletedAt) throw new HttpError(404, "file not found");
+  if (!f || f.taskId !== taskId || f.deletedAt) throw new HttpError(404, { zh: "找不到這個檔案", en: "file not found" });
   await db.taskInputFile.update({ where: { id: fileId }, data: { deletedAt: new Date() } });
   await deleteObject(f.key).catch(() => undefined);
 }
@@ -208,19 +208,19 @@ export async function openFunding(userId: string, taskId: string, raw: z.input<t
   const input = OpenInput.parse(raw);
   const self = input.mode === "self";
   const t = await ownDraft(userId, taskId);
-  if (!proposalPaid(t, await feeWaived(userId))) throw new HttpError(402, "pay the proposal fee first");
+  if (!proposalPaid(t, await feeWaived(userId))) throw new HttpError(402, { zh: "請先支付提案費", en: "pay the proposal fee first" });
   const spec = t.spec ? normalizeSpec(t.spec) : null;
   const gaps = specGaps(spec);
   if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);
-  if (t.kind === "EVALUATION" && !t.evalMethod) throw new HttpError(400, "the spec is missing: evaluation method");
-  if (!self && input.durationDays === undefined) throw new HttpError(400, "pick a crowdfunding period");
+  if (t.kind === "EVALUATION" && !t.evalMethod) throw new HttpError(400, { zh: "規格缺少評測方式", en: "the spec is missing: evaluation method" });
+  if (!self && input.durationDays === undefined) throw new HttpError(400, { zh: "請選擇眾籌期間", en: "pick a crowdfunding period" });
   const rate = self ? 0 : feeRate(input.durationDays!);
   const min = minimumGoal(spec!.estimate.p90Twd, rate);
   const goal = self ? min : (input.goalTwd ?? min);
   if (self) {
     const { usableCard } = await import("./cards");
-    if (!input.cardId || !(await usableCard(userId, input.cardId))) throw new HttpError(400, "pick a saved card to pay with");
-    if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
+    if (!input.cardId || !(await usableCard(userId, input.cardId))) throw new HttpError(400, { zh: "請選一張已儲存的卡片付款", en: "pick a saved card to pay with" });
+    if (!input.buyer) throw new HttpError(400, { zh: "開立電子發票需要買受人名稱與 Email", en: "buyer name and email are required for the e-invoice" });
     await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
   }
   if (goal % sharePrice() !== 0) throw new HttpError(400, `the goal must be a multiple of ${sharePrice()} TWD`);
@@ -244,7 +244,7 @@ export async function openFunding(userId: string, taskId: string, raw: z.input<t
       prompt: specMarkdown(t.title, description, spec as Spec),
     },
   });
-  if (r.count !== 1) throw new HttpError(409, "the proposal changed, reload the page");
+  if (r.count !== 1) throw new HttpError(409, { zh: "提案已變更，請重新整理頁面", en: "the proposal changed, reload the page" });
   await db.specRevision.deleteMany({ where: { taskId } });
   await db.specRevision.create({ data: { taskId, version: 1, spec: spec as unknown as Prisma.InputJsonValue, note: "opened" } });
   await db.task.update({ where: { id: taskId }, data: { specVersion: 1 } });
@@ -265,10 +265,10 @@ export async function openFunding(userId: string, taskId: string, raw: z.input<t
  */
 export async function reviseSpec(userId: string, taskId: string, raw: unknown, note: string) {
   const t = await db.task.findUnique({ where: { id: taskId } });
-  if (!t || t.userId !== userId || !t.crowdfund) throw new HttpError(404, "task not found");
-  if (t.status !== "FUNDING") throw new HttpError(400, "the spec can only be revised while the campaign is open");
+  if (!t || t.userId !== userId || !t.crowdfund) throw new HttpError(404, { zh: "找不到這個任務", en: "task not found" });
+  if (t.status !== "FUNDING") throw new HttpError(400, { zh: "只有眾籌進行中才能修改規格", en: "the spec can only be revised while the campaign is open" });
   const text = note.trim().slice(0, 2000);
-  if (!text) throw new HttpError(400, "describe what changed");
+  if (!text) throw new HttpError(400, { zh: "請說明改了什麼", en: "describe what changed" });
   const spec = normalizeSpec(raw);
   const gaps = specGaps(spec);
   if (gaps.length) throw new HttpError(400, `the spec is missing: ${gaps.join(", ")}`);

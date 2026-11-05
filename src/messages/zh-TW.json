@@ -577,7 +577,7 @@
     "pending": "待審核",
     "approved": "已上架",
     "empty": "沒有項目。",
-    "noKey": "技能簽章金鑰尚未產生；重新啟動網站時會自動產生（系統設定 → Skill Hub 簽章）。",
+    "noKey": "技能簽章金鑰尚未產生；重新啟動網站時會自動產生（服務 › Skill Hub 簽章）。",
     "note": "審核備註（選填）",
     "approve": "通過並簽章",
     "reject": "退回",
@@ -587,7 +587,7 @@
     "verifiedPublisher": "已驗證發布者",
     "tab": {
       "reports": "檢舉",
-      "storage": "儲存狀態",
+      "storage": "儲存與 Boltchain",
       "users": "用戶",
       "plans": "訂閱方案",
       "audit": "操作紀錄",
@@ -603,7 +603,7 @@
     },
     "st": {
       "enabled": "啟用",
-      "off": "未設定（BOLT_RPC_URL / BOLT_WALLET_KEY / BOLT_MASTER_KEY）",
+      "off": "未設定：到「服務 › Boltchain」填入節點網址、錢包與主金鑰",
       "wallet": "網站錢包",
       "balance": "餘額",
       "error": "錯誤",
@@ -616,7 +616,19 @@
       "offShort": "未啟用",
       "offTitle": "Boltchain 儲存尚未啟用",
       "setUp": "前往設定",
-      "noObjects": "還沒有任何物件。"
+      "noObjects": "還沒有任何物件。",
+      "epoch": "週期（epoch）",
+      "status": {
+        "PENDING": "等待上鏈",
+        "STORED": "已上鏈",
+        "FAILED": "上鏈失敗（鏡像仍可讀取）",
+        "DELETED": "已刪除"
+      },
+      "anchor": {
+        "pending": "等待中",
+        "issued": "已存證",
+        "failed": "失敗"
+      }
     },
     "takedown": "下架",
     "dismiss": "不處理",
@@ -734,7 +746,7 @@
     "payments": {
       "mode": "付款模式",
       "merchant": "Oen 網域",
-      "notConfigured": "未設定 OEN_MERCHANT_ID / OEN_API_TOKEN",
+      "notConfigured": "尚未設定：到「服務 › Oen」填入網域名稱與 API Token",
       "last30": "近 30 天收款",
       "refunded30": "近 30 天退款",
       "all": "全部",
@@ -813,7 +825,7 @@
         "llm": "訂閱用戶的模型轉接限制與上游網址。",
         "legal": "顯示在服務條款、隱私權政策與退款政策。",
         "cafeca": "登入、通知與初始管理者。",
-        "pricing": "眾籌任務的虛擬機與儲存計價（模型價格在「模型定價」）。",
+        "pricing": "眾籌任務的虛擬機與儲存計價（模型價格在「模型與定價」）。",
         "retention": "成果與容器保存期限、訂閱寬限期。",
         "storage": "成果檔案的鏡像儲存位置。",
         "boltchain": "分散式儲存與存證。",
@@ -821,7 +833,10 @@
         "runner": "任務容器的資源與映像檔。",
         "crowd": "每份金額、提案費、眾籌期與服務費、參考檔案。"
       },
-      "custom": "已自訂"
+      "custom": "已自訂",
+      "rotating": "產生中…",
+      "rotated": "已換上新金鑰；舊公鑰仍保留公布，已簽的技能不受影響",
+      "rotateFailed": "沒有成功：{error}"
     },
     "nav": {
       "review": "審核",
@@ -839,7 +854,7 @@
       "notSynced": "尚未同步",
       "modelCount": "{n} 個模型",
       "tiersTitle": "平台模型等級",
-      "tiersHelp": "每個等級依序設定主要模型與備援模型：主要模型失敗（例如模型代號不存在、金鑰失效、供應商故障）時依序改用備援。主要模型留空＝自動（使用「模型定價」中第一個有金鑰的上架模型，再依序備援）。",
+      "tiersHelp": "每個等級依序設定主要模型與備援模型：主要模型失敗（例如模型代號不存在、金鑰失效、供應商故障）時依序改用備援。主要模型留空＝自動（使用「模型與定價」中第一個有金鑰的上架模型，再依序備援）。",
       "syncFirst": "請先從供應商同步模型清單。",
       "tier": {
         "high": "高階",
@@ -862,9 +877,9 @@
       "save": "儲存",
       "saved": "已儲存",
       "missingPrices": "以下模型尚未定價，平台使用時無法計費：{models}",
-      "lookUpThese": "用 AI 查價並加入模型定價",
-      "addTitle": "加入模型定價（AI 查價）",
-      "addHelp": "勾選供應商清單中尚未定價的模型，由平台 AI（「AI 查詢模型價格」的等級，可搜尋網路時會搜尋官方價目）查詢官方價格後加入「模型定價」。新加入的模型先設為下架，請在模型定價核對價格後再上架。",
+      "lookUpThese": "用 AI 查價並加入「模型與定價」",
+      "addTitle": "加入「模型與定價」（AI 查價）",
+      "addHelp": "勾選供應商清單中尚未定價的模型，由平台 AI（「AI 查詢模型價格」的等級，可搜尋網路時會搜尋官方價目）查詢官方價格後加入「模型與定價」。新加入的模型先設為下架，請在「模型與定價」核對價格後再上架。",
       "lookingUp": "AI 查價中：{models}（可能需要一兩分鐘，可離開此頁）",
       "lookUp": "AI 查價並加入（{n}）",
       "allPriced": "供應商清單中的模型都已定價。",
@@ -872,7 +887,7 @@
       "usd": "USD／百萬 tokens（輸入／快取讀／快取寫／輸出）",
       "note": "說明",
       "notFound": "AI 查不到價格，已以 0 加入，請手動填寫",
-      "checkPrices": "已加入模型定價（下架）。請到「模型定價」核對後上架。"
+      "checkPrices": "已加入「模型與定價」（下架）。請到「模型與定價」核對後上架。"
     },
     "screening": {
       "self": "個人支付"
@@ -882,7 +897,7 @@
       "lead": "Ollama 是平台 AI 的一個模型來源：已下載的模型同步後會以 ollama/‹名稱› 出現在上方的模型清單與分級中，不需要 API 金鑰、沒有 API 費用。",
       "connected": "已連線 · v{version}",
       "offline": "無法連線",
-      "notConfigured": "尚未設定 Ollama：用 npm run swarm 啟動（會自動寫入 .env 的 OLLAMA_URL），或在「設定 → Ollama 網址」填入。",
+      "notConfigured": "尚未設定 Ollama：到「服務 › Ollama」填入網址（用 npm run swarm 啟動時會自動帶入）。",
       "installed": "已下載的模型",
       "none": "還沒有下載任何模型。",
       "useHint": "下載完成後模型清單會自動同步；到上方「分級」把 ollama/… 模型排進高階／標準／輕量即可使用。",
@@ -920,7 +935,7 @@
       "day": "{n} 天"
     },
     "ov": {
-      "modeLive": "正式模式",
+      "modeLive": "正式收款中 · Oen 正式環境",
       "modeTest": "測試模式開啟中",
       "blocking": "上線前還有 {n} 項會擋住用戶",
       "adviceCount": "另有 {n} 項建議",
@@ -1025,7 +1040,9 @@
           "fix": "儲存方式是 S3 卻沒有 bucket，上傳與讀取成果都會失敗。"
         }
       },
-      "healthLink": "站台健康：{bad} 項故障、{warn} 項注意 → 查看並修正"
+      "healthLink": "站台健康：{bad} 項故障、{warn} 項注意 → 查看並修正",
+      "modeMock": "模擬結帳（不會收款）",
+      "modeOenTest": "Oen 測試環境（未正式收款）"
     },
     "rv": {
       "search": "搜尋名稱或發布者",
@@ -1264,9 +1281,13 @@
       "local": "本機模型，不需金鑰",
       "getKey": "取得 API Key",
       "moreVendors": "其他可接上的供應商",
-      "moreVendorsHelp": "這些供應商還沒有金鑰，也沒有定價的模型。取得金鑰後填入「系統設定 › 模型與工具 API 金鑰」，再按「從供應商同步」，它們的模型就會出現在上方。",
+      "moreVendorsHelp": "這些供應商還沒有金鑰，也沒有定價的模型。點下方名稱到「服務」頁填入金鑰，再按「從供應商同步」，它們的模型就會出現在上方。",
       "fillKeys": "前往填入金鑰 →",
-      "serviceLink": "服務頁"
+      "serviceLink": "服務頁",
+      "fixAt": "到服務頁修正",
+      "reviewFirst": "檢視第一個並下架",
+      "seeNodes": "查看節點",
+      "nodesNoKey": "節點供應，不需金鑰"
     },
     "pl": {
       "close": "關閉",
@@ -1425,7 +1446,7 @@
       }
     },
     "locutus": {
-      "off": "Locutus 供應目前關閉（設定 → locutus.enabled），節點連不上。",
+      "off": "Locutus 供應目前關閉，節點連不上。到「服務 › Locutus」開啟。",
       "hubDown": "連不到 Locutus 集線器：{error}。節點狀態暫時看不到；確認 swarm 有啟動集線器。",
       "pending": "等待核准",
       "pendingHelp": "這些節點以自己的私鑰證明了地址，但還沒登錄。核准後約 1 分鐘內連上。",
@@ -1529,7 +1550,9 @@
       "revertAsk": "把這筆變更的設定回復到套用前的值？",
       "reverted": "已回復 {n} 項，略過 {skipped} 項",
       "jump": "跳到分組…",
-      "count": "{n} 項"
+      "count": "{n} 項",
+      "sourceSwarm": "由 swarm 帶入（可覆寫）",
+      "sourceSwarmTip": "npm run swarm 自動填入 {env}；在這裡填值會覆寫它"
     },
     "health": {
       "title": "站台健康",
@@ -1586,6 +1609,10 @@
         "locutusHub": {
           "title": "連不到 Locutus 集線器",
           "fix": "{error}；確認 swarm 有啟動集線器。"
+        },
+        "dailyCap": {
+          "title": "{vendor} 已達今日支出上限",
+          "fix": "今日 NT${spent} / 上限 NT${limit}：它的模型暫停到台灣時間早上 8 點；需要時可提高上限。"
         }
       },
       "draftsTitle": "未套用的變更（{n}）",
@@ -1656,7 +1683,15 @@
       "testing": "測試中…",
       "testOk": "連線正常：可列出 {n} 個模型（{at}）",
       "testFail": "連線失敗：{error}",
-      "pick": "選擇服務"
+      "pick": "選擇服務",
+      "spend": "今日支出 {spent}（不設上限）",
+      "spendCap": "今日支出 {spent} / 上限 {limit}",
+      "capReached": "已達上限，今天暫停到早上 8 點",
+      "capFromEnv": "這家供應商的上限由環境變數 {env} 設為 {limit}，下方欄位的值對它不生效。"
+    },
+    "navBadge": {
+      "fix": "{n} 項需修正",
+      "todo": "{n} 項待處理"
     }
   },
   "hubApi": {

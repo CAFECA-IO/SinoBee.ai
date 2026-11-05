@@ -51,7 +51,7 @@ export async function upsertUser(v: VerifiedSignIn) {
       ...(v.claims.kyc_level !== undefined ? { kycLevel: v.claims.kyc_level } : {}),
     },
   });
-  if (user.disabledAt) throw new HttpError(403, "account disabled");
+  if (user.disabledAt) throw new HttpError(403, { zh: "帳號已停用", en: "account disabled" });
   return applySignInRole(user);
 }
 
@@ -93,19 +93,19 @@ export { HttpError };
 
 export async function requireUser(): Promise<CurrentUser> {
   const u = await currentUser();
-  if (!u) throw new HttpError(401, "unauthorized");
+  if (!u) throw new HttpError(401, { zh: "尚未登入或登入已過期，請重新登入", en: "unauthorized" });
   return u;
 }
 
 export async function requireAdmin(): Promise<CurrentUser> {
   const u = await requireUser();
-  if (!isAdminRole(u.role)) throw new HttpError(403, "forbidden");
+  if (!isAdminRole(u.role)) throw new HttpError(403, { zh: "需要管理員權限", en: "forbidden" });
   return u;
 }
 
 export async function requireSuperAdmin(): Promise<CurrentUser> {
   const u = await requireUser();
-  if (u.role !== "SUPERADMIN") throw new HttpError(403, "forbidden");
+  if (u.role !== "SUPERADMIN") throw new HttpError(403, { zh: "只有超級管理員能做這件事", en: "forbidden" });
   return u;
 }
 

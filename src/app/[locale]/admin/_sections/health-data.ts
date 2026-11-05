@@ -44,6 +44,12 @@ export async function siteHealth() {
   const econ = await Promise.all(plans.map((p) => planEconomics(p, buffer)));
   const losing = econ.filter((e) => e.margin !== null && e.margin < 1).length;
   if (losing) issues.push({ id: "plans", level: "warn", kind: "plansLoss", values: { n: losing }, href: "/admin?tab=plans" });
+  // a vendor that reached its daily spend cap: its models stop until 08:00 Taiwan time (audit 1-6)
+  const { providerSpendToday } = await import("@/lib/llm/quota");
+  for (const v of VENDORS.filter((x) => config.llm.providers[x.id]?.key && config.llm.dailyLimit(x.id) > 0)) {
+    const sp = await providerSpendToday(v.id);
+    if (sp.reached) issues.push({ id: `dailyCap:${v.id}`, level: "bad", kind: "dailyCap", values: { vendor: v.name, spent: Math.round(sp.spent), limit: sp.limit }, setting: "llm.dailyLimitTwd", href: `/admin?tab=services&id=${v.id}` });
+  }
   let waiting = 0;
   let hub: { linked: number; error: string | null } = { linked: 0, error: null };
   if (config.llm.providers.locutus?.key) {
@@ -68,7 +74,7 @@ export async function siteHealth() {
     const key = !!config.llm.providers[v.id]?.key;
     if (!key && !offered(v.id)) continue;
     const isPaused = paused.has(v.id);
-    const bad = issueOf(`badKey:${v.id}`) || issueOf(`noKey:${v.id}`) || issueOf(`resume:${v.id}`);
+    const bad = issueOf(`badKey:${v.id}`) || issueOf(`noKey:${v.id}`) || issueOf(`resume:${v.id}`) || issueOf(`dailyCap:${v.id}`);
     services.push({ id: v.id, name: v.name, level: bad ? (isPaused ? "warn" : "bad") : isPaused ? "warn" : "ok", line: { key: isPaused ? "svcPaused" : bad ? "svcKeyProblem" : "svcModels", values: { n: offered(v.id) } }, href: `/admin?tab=services&id=${v.id}` });
   }
   const otherVendors = VENDORS.filter((v) => !config.llm.providers[v.id]?.key && !offered(v.id)).length;

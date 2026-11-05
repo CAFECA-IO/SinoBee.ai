@@ -91,15 +91,15 @@ export async function Models({ sp }: { sp: AdminParams }) {
         const models = rows.filter((m) => vendorOf(m.modelId) === v);
         const c = catalog[v];
         const p = paused[v];
-        const vlabel = models[0]?.vendor || (v === "ollama" ? "Ollama" : v);
+        const vlabel = models[0]?.vendor || (v === "ollama" ? "Ollama" : v === "locutus" ? "Locutus" : v);
         return (
           <section key={v} id={`vendor-${v}`} className="card scroll-mt-24 overflow-hidden" data-vendor={v}>
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 ${p?.since ? "bg-warn-soft/40" : "bg-panel-2/60"}`}>
               <Link href={`/admin?tab=services&id=${v}`} className="font-semibold hover:underline" data-tip={t("serviceLink")}>{vlabel}</Link>
-              {v === "ollama" ? <Tag tone="muted">{t("local")}</Tag> : hasKey(v) ? <Tag tone="ok">{t("keyOk")}</Tag> : <Link href="/admin?tab=settings&group=apiKeys"><Tag tone="err">{tai("noKey")}</Tag></Link>}
+              {v === "ollama" || v === "locutus" ? <Tag tone="muted">{t(v === "locutus" ? "nodesNoKey" : "local")}</Tag> : hasKey(v) ? <Tag tone="ok">{t("keyOk")}</Tag> : <Link href={`/admin?tab=services&id=${v}`}><Tag tone="err">{tai("noKey")}</Tag></Link>}
               {!hasKey(v) && vendorById(v) && <a href={vendorById(v)!.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">{t("getKey")} ↗</a>}
               <span className="text-xs text-muted">{c ? tai("modelCount", { n: c.models.length }) + " · " : ""}{t("offeredN", { n: models.filter((m) => m.enabled).length, all: models.length })}</span>
-              {c?.error && <span className="text-xs text-err">{c.error}</span>}
+              {c?.error && <span className="text-xs text-err">{c.error} <Link href={`/admin?tab=services&id=${v}`} className="font-semibold underline">{t("fixAt")}</Link></span>}
               <span className="flex-1" />
               {models.length > 0 && <VendorPauseSwitch vendor={v} label={vlabel} paused={!!p?.since} offered={models.filter((m) => m.enabled).length} />}
             </div>
@@ -151,12 +151,11 @@ export async function Models({ sp }: { sp: AdminParams }) {
           <ul className="flex flex-wrap gap-2">
             {idle.map((v) => (
               <li key={v} className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5" data-idle-vendor={v}>
-                <span className="font-semibold">{vendorById(v)!.name}</span>
+                <Link href={`/admin?tab=services&id=${v}`} className="font-semibold hover:underline">{vendorById(v)!.name}</Link>
                 <a href={vendorById(v)!.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">{t("getKey")} ↗</a>
               </li>
             ))}
           </ul>
-          <Link href="/admin?tab=settings&group=apiKeys" className="text-xs font-semibold text-accent hover:underline">{t("fillKeys")}</Link>
         </section>
       )}
       <p className="text-xs text-muted">{t("unitNote")}</p>
@@ -169,7 +168,7 @@ export async function Models({ sp }: { sp: AdminParams }) {
         <CatalogSync disabled={!providers.some(hasKey)} />
         <Link className="btn-primary !py-1.5" href={adminHref(base, { model: "new" })}>{t("addModel")}</Link>
       </PageHead>
-      {problems.unknown.length > 0 && <Banner tone="err" title={t("unknownTitle", { n: problems.unknown.length })}>{tp("unknownIds", { models: problems.unknown.map((m) => m.modelId).join(", ") })}</Banner>}
+      {problems.unknown.length > 0 && <Banner tone="err" title={t("unknownTitle", { n: problems.unknown.length })} action={<Link className="btn-ghost !py-1.5" href={adminHref(base, { model: problems.unknown[0].modelId })}>{t("reviewFirst")}</Link>}>{tp("unknownIds", { models: problems.unknown.map((m) => m.modelId).join(", ") })}</Banner>}
       {problems.badKey.length > 0 && (
         <Banner tone="err" title={t("badKeyTitle", { n: problems.badKey.length })} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=settings&group=apiKeys">{t("addKeys")}</Link>}>
           {problems.badKey.map((m) => m.label).join("、")}
@@ -180,7 +179,7 @@ export async function Models({ sp }: { sp: AdminParams }) {
           {problems.whenResumed.map((w) => t(w.why === "noKey" ? "resumeNoKey" : "resumeBadKey", { vendor: w.vendor })).join("；")}
         </Banner>
       )}
-      {problems.unserved.length > 0 && <Banner tone="warn" title={t("unservedTitle", { n: problems.unserved.length })}>{t("unservedBody", { models: problems.unserved.map((m) => m.modelId).join(", ") })}</Banner>}
+      {problems.unserved.length > 0 && <Banner tone="warn" title={t("unservedTitle", { n: problems.unserved.length })} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=services&id=locutus">{t("seeNodes")}</Link>}>{t("unservedBody", { models: problems.unserved.map((m) => m.modelId).join(", ") })}</Banner>}
       {problems.noKey.length > 0 && (
         <Banner tone="warn" title={t("noKeyTitle", { n: problems.noKey.length })} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=settings&group=apiKeys">{t("addKeys")}</Link>}>
           {problems.noKey.map((m) => m.label).join("、")}

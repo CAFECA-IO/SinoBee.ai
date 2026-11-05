@@ -105,8 +105,10 @@ async function boltchain() {
   nodeStarted = true;
   await waitForNode(url, addr, blog);
   // tell the web server and the worker where the node is for this run (not stored: the node lives with the swarm)
-  if (!sv("boltchain.rpcUrl")) process.env.BOLT_RPC_URL = url;
-  if (!sv("boltchain.certificates")) process.env.BOLT_CERTIFICATES = DEFAULT_CERTIFICATES;
+  // filled in by swarm, not chosen by the admin: marked so /admin shows them as "由 swarm 帶入" and lets the admin override them
+  const mark = (name: string) => (process.env.SINOBEE_SWARM_ENV = [...new Set([...(process.env.SINOBEE_SWARM_ENV ?? "").split(",").filter(Boolean), name])].join(","));
+  if (!sv("boltchain.rpcUrl")) (process.env.BOLT_RPC_URL = url), mark("BOLT_RPC_URL");
+  if (!sv("boltchain.certificates")) (process.env.BOLT_CERTIFICATES = DEFAULT_CERTIFICATES), mark("BOLT_CERTIFICATES");
 }
 
 /** Move .env settings into the database and create missing keys */

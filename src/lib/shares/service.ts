@@ -197,7 +197,7 @@ export async function createShare(owner: User, input: unknown, uploads: UploadFi
   const days = b.expiresInDays === undefined ? DEFAULT_DAYS : b.expiresInDays;
   const expiresAt = days ? new Date(Date.now() + days * 86400_000) : null;
   const accounts = b.visibility === "LOGIN" ? await resolveAccounts(b.accounts) : [];
-  if (b.visibility !== "LOGIN" && b.accounts.length) throw new HttpError(400, "accounts only apply to LOGIN shares");
+  if (b.visibility !== "LOGIN" && b.accounts.length) throw new HttpError(400, { zh: "指定帳號只適用於「需登入」的分享", en: "accounts only apply to LOGIN shares" });
 
   const objectKey = `shares/${id}/share.json`;
   // stored on Boltchain (2 copies) only until the share expires
@@ -257,7 +257,7 @@ export async function readDoc(objectKey: string): Promise<ShareDoc> {
 
 export async function revokeShare(id: string, by: User, reason = "owner") {
   const s = await db.conversationShare.findUnique({ where: { id }, include: { files: true } });
-  if (!s || (s.ownerId !== by.id && !by.isAdmin)) throw new HttpError(404, "not found");
+  if (!s || (s.ownerId !== by.id && !by.isAdmin)) throw new HttpError(404, { zh: "找不到", en: "not found" });
   if (s.revokedAt) return s;
   // crypto-shred: deleting the objects destroys their keys and cancels the Boltchain deals
   await deleteObject(s.objectKey);
@@ -279,7 +279,7 @@ export const shareUpdate = z.object({
 export async function updateShare(id: string, owner: User, input: unknown) {
   const b = shareUpdate.parse(input);
   const s = await db.conversationShare.findUnique({ where: { id } });
-  if (!s || s.ownerId !== owner.id || s.revokedAt) throw new HttpError(404, "not found");
+  if (!s || s.ownerId !== owner.id || s.revokedAt) throw new HttpError(404, { zh: "找不到", en: "not found" });
   const visibility = b.visibility ?? s.visibility;
   if (b.expiresInDays !== undefined) {
     const { setKeepUntil } = await import("../storage");

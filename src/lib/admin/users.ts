@@ -108,10 +108,10 @@ export async function userDetail(id: string, locale = "zh-TW", now = new Date())
  */
 export async function setDisabled(actor: Pick<User, "id">, userId: string, disabled: boolean, reason?: string) {
   const u = await db.user.findUnique({ where: { id: userId } });
-  if (!u) throw new HttpError(404, "user not found");
-  if (u.id === actor.id) throw new HttpError(400, "you cannot disable your own account");
-  if (disabled && u.role !== "USER") throw new HttpError(400, "revoke the admin role first");
-  if (disabled && !(reason ?? "").trim()) throw new HttpError(400, "give a reason");
+  if (!u) throw new HttpError(404, { zh: "找不到這位用戶", en: "user not found" });
+  if (u.id === actor.id) throw new HttpError(400, { zh: "不能停用自己的帳號", en: "you cannot disable your own account" });
+  if (disabled && u.role !== "USER") throw new HttpError(400, { zh: "請先取消管理員身分", en: "revoke the admin role first" });
+  if (disabled && !(reason ?? "").trim()) throw new HttpError(400, { zh: "請填寫原因", en: "give a reason" });
   const next = await db.user.update({ where: { id: userId }, data: disabled ? { disabledAt: new Date(), disabledReason: reason!.trim().slice(0, 500) } : { disabledAt: null, disabledReason: null } });
   if (disabled) await db.session.deleteMany({ where: { userId } });
   await audit(actor.id, disabled ? "user.disable" : "user.enable", { type: "user", id: userId }, disabled ? { reason: next.disabledReason } : undefined);

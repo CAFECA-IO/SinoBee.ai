@@ -97,8 +97,8 @@ export function LocutusAdmin() {
         {o.models.length === 0 ? (
           <p className="px-4 py-3 text-sm text-muted">{t("noModels")}</p>
         ) : (
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="text-left text-xs text-muted">
+          <table className="block w-full text-sm md:table md:min-w-[760px]">
+            <thead className="hidden text-left text-xs text-muted md:table-header-group">
               <tr className="border-b border-line">
                 <th className="px-4 py-2 font-medium">{t("model")}</th>
                 <th className="px-3 py-2 font-medium">{t("servedBy")}</th>
@@ -106,7 +106,7 @@ export function LocutusAdmin() {
                 <th className="px-4 py-2 font-medium">{t("offer")}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block md:table-row-group">
               {o.models.map((m) => <ModelRow key={m.modelId} m={m} busy={busy} act={act} />)}
             </tbody>
           </table>
@@ -221,8 +221,8 @@ function ModelRow({ m, busy, act }: { m: Model; busy: string; act: Act }) {
   const save = (enabled: boolean) => act(key, { action: "model", modelId: m.modelId, label: m.label, input: num(input), output: num(output), enabled });
   const fresh = !m.priced;
   return (
-    <tr className={`border-b border-line last:border-0 align-top ${fresh ? "bg-warn-soft/30" : ""}`} data-model={m.modelId}>
-      <td className="px-4 py-3">
+    <tr className={`block border-b border-line last:border-0 align-top md:table-row ${fresh ? "bg-warn-soft/30" : ""}`} data-model={m.modelId}>
+      <td className="block px-4 py-2 md:table-cell md:py-3">
         <div className="flex flex-wrap items-center gap-1.5 font-semibold">
           {m.label}
           {m.vision && <span className={badge("info")}>{t("vision")}</span>}
@@ -230,7 +230,8 @@ function ModelRow({ m, busy, act }: { m: Model; busy: string; act: Act }) {
         <div className="font-mono text-[11px] text-muted">{m.modelId}</div>
         {fresh && <div className="mt-1 text-xs text-warn">{t("fresh")}</div>}
       </td>
-      <td className="px-3 py-3">
+      <td className="block px-4 py-2 md:table-cell md:px-3 md:py-3">
+        <div className="mb-1 text-xs text-muted md:hidden">{t("servedBy")}</div>
         {m.nodes.length === 0 ? (
           <span className="text-xs text-err">{t("noNode")}</span>
         ) : (
@@ -247,7 +248,7 @@ function ModelRow({ m, busy, act }: { m: Model; busy: string; act: Act }) {
           </>
         )}
       </td>
-      <td className="px-3 py-3">
+      <td className="block px-4 py-2 md:table-cell md:px-3 md:py-3">
         <div className="flex items-end gap-2">
           <label className="flex flex-col gap-0.5 text-xs text-muted">
             {t("input")}
@@ -263,7 +264,7 @@ function ModelRow({ m, busy, act }: { m: Model; busy: string; act: Act }) {
         </div>
         <div className="mt-1 text-[11px] text-muted">{t("usdNote")}</div>
       </td>
-      <td className="px-4 py-3">
+      <td className="block px-4 py-2 md:table-cell md:py-3">
         <label className="flex min-h-11 items-center gap-2">
           <input type="checkbox" role="switch" className="h-4 w-4 accent-[var(--accent)]" checked={m.enabled} disabled={!!busy || !valid}
             onChange={(e) => save(e.target.checked)} />

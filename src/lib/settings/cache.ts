@@ -10,9 +10,12 @@ const g = globalThis as unknown as { __sbSettings?: Cache };
 
 export const settingsCache = (): Cache => (g.__sbSettings ??= { values: new Map(), loadedAt: 0 });
 
-export type Source = "env" | "db" | "default" | "unset";
+export type Source = "env" | "db" | "swarm" | "default" | "unset";
 
-/** Effective value: process environment (locked) → database → default */
+/** Environment variables `npm run swarm` filled in itself (SINOBEE_SWARM_ENV): defaults, not the admin's choice */
+const fromSwarm = (name: string) => (process.env.SINOBEE_SWARM_ENV ?? "").split(",").includes(name);
+
+/** Effective value: process environment (locked) → database → a value swarm filled in (not locked) → default */
 export function sv(key: string): string {
   return resolve(key).value;
 }
@@ -21,9 +24,11 @@ export function resolve(key: string): { value: string; source: Source } {
   const def = SETTING[key];
   if (!def) throw new Error(`unknown setting ${key}`);
   const env = def.env ? process.env[def.env] : undefined;
-  if (env !== undefined && env !== "") return { value: env, source: "env" };
+  const provided = !!def.env && fromSwarm(def.env);
+  if (env !== undefined && env !== "" && !provided) return { value: env, source: "env" };
   const db = settingsCache().values.get(key);
   if (db !== undefined && db !== "") return { value: db, source: "db" };
+  if (env !== undefined && env !== "") return { value: env, source: "swarm" };
   if (def.default !== undefined) return { value: def.default, source: "default" };
   return { value: "", source: "unset" };
 }

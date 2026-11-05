@@ -24,7 +24,7 @@ export const POST = handle(async (req: Request) => {
     try {
       await saveSetting(actor.id, c.key, c.value, { batch, confirmed: confirmed.has(c.key) });
     } catch (e) {
-      errors[c.key] = e instanceof SettingError ? e.l : e instanceof HttpError ? { zh: e.message, en: e.message } : { zh: "無法儲存", en: "could not be saved" };
+      errors[c.key] = e instanceof SettingError ? e.l : e instanceof HttpError ? (e.l ?? { zh: e.message, en: e.message }) : { zh: "無法儲存", en: "could not be saved" };
     }
   }
   // a new key or API address: sync the model catalog now, so a rejected key or a new model list shows at once

@@ -33,11 +33,17 @@ export async function Overview({ superAdmin, sp }: { superAdmin: boolean; sp: Ad
   return (
     <div className="space-y-5">
       <PageHead title={ta("tab.overview")}>
-        <Link href="/admin?tab=settings&group=payments" className={`chip !py-1 text-[13px] ${config.testMode ? "!border-warn bg-warn-soft !text-warn" : ""}`}>
-          <span className={`h-2 w-2 rounded-full ${config.testMode ? "bg-warn" : "bg-ok"}`} aria-hidden />
-          {config.testMode ? t("modeTest") : t("modeLive")}
-          <span className="text-muted">· Oen {config.payments.mode === "mock" ? "mock" : config.oen.env}</span>
-        </Link>
+        {(() => {
+          // "Live" only when real money moves: test mode off, real checkout, Oen production
+          const mode = config.testMode ? "test" : config.payments.mode === "mock" ? "mock" : config.oen.env !== "production" ? "oenTest" : "live";
+          const warn = mode !== "live";
+          return (
+            <Link href="/admin?tab=services&id=oen" className={`chip !py-1 text-[13px] ${warn ? "!border-warn bg-warn-soft !text-warn" : ""}`} data-mode={mode}>
+              <span className={`h-2 w-2 rounded-full ${warn ? "bg-warn" : "bg-ok"}`} aria-hidden />
+              {t(mode === "test" ? "modeTest" : mode === "mock" ? "modeMock" : mode === "oenTest" ? "modeOenTest" : "modeLive")}
+            </Link>
+          );
+        })()}
       </PageHead>
 
       {blocking.length + advice.length > 0 && (

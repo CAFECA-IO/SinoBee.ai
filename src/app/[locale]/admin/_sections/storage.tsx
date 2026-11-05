@@ -21,15 +21,15 @@ export async function StorageStatus() {
         <Tag tone={s.enabled ? "ok" : "muted"}>{s.enabled ? t("on") : t("offShort")}</Tag>
       </PageHead>
       {!s.enabled && (
-        <Banner tone="info" title={t("offTitle")} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=settings&group=boltchain">{t("setUp")}</Link>}>{t("off")}</Banner>
+        <Banner tone="info" title={t("offTitle")} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=services&id=boltchain">{t("setUp")}</Link>}>{t("off")}</Banner>
       )}
-      {"low" in s && s.low && <Banner tone="warn" title={t("low")} />}
+      {"low" in s && s.low && <Banner tone="warn" title={t("low")} action={<Link className="btn-ghost !py-1.5" href="/admin?tab=services&id=boltchain">{t("setUp")}</Link>} />}
       {"error" in s && s.error && <Banner tone="err" title={t("error")}>{s.error}</Banner>}
       {s.enabled && (
         <section className="card p-4 text-sm">
           <KV
             rows={[
-              ...("wallet" in s ? ([[t("wallet"), <span key="w" className="break-all font-mono">{s.wallet}</span>], [t("balance"), <span key="b" className="font-mono">{bolt(s.balance)} BOLT</span>], ["epoch", <span key="e" className="font-mono">{s.epoch}</span>]] as [string, React.ReactNode][]) : []),
+              ...("wallet" in s ? ([[t("wallet"), <span key="w" className="break-all font-mono">{s.wallet}</span>], [t("balance"), <span key="b" className="font-mono">{bolt(s.balance)} BOLT</span>], [t("epoch"), <span key="e" className="font-mono">{s.epoch}</span>]] as [string, React.ReactNode][]) : []),
               [t("certificates"), <span key="c" className="break-all font-mono">{s.certificates ?? "—"}</span>],
             ]}
           />
@@ -43,10 +43,10 @@ export async function StorageStatus() {
           <table className="w-full">
             <tbody>
               {s.groups.map((g) => (
-                <tr key={g.status} className="border-b border-line last:border-0"><td className="px-4 py-2">{g.status}</td><td className="px-4 py-2 text-right font-mono">{g._count._all}</td><td className="px-4 py-2 text-right font-mono text-muted">{bytes(Number(g._sum.size ?? 0))}</td></tr>
+                <tr key={g.status} className="border-b border-line last:border-0"><td className="px-4 py-2">{t.has(`status.${g.status}`) ? t(`status.${g.status}`) : g.status}</td><td className="px-4 py-2 text-right font-mono">{g._count._all}</td><td className="px-4 py-2 text-right font-mono text-muted">{bytes(Number(g._sum.size ?? 0))}</td></tr>
               ))}
               {anchors.map((g) => (
-                <tr key={`a-${g.status}`} className="border-b border-line last:border-0"><td className="px-4 py-2">{t("anchors")} · {g.status}</td><td className="px-4 py-2 text-right font-mono">{g._count._all}</td><td /></tr>
+                <tr key={`a-${g.status}`} className="border-b border-line last:border-0"><td className="px-4 py-2">{t("anchors")} · {t.has(`anchor.${g.status}`) ? t(`anchor.${g.status}`) : g.status}</td><td className="px-4 py-2 text-right font-mono">{g._count._all}</td><td /></tr>
               ))}
             </tbody>
           </table>

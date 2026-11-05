@@ -99,10 +99,10 @@ export async function ownerState(): Promise<OwnerState> {
 
 /** Enter the claim code. Single use; races are settled by deleting the stored hash. */
 export async function claimSite(user: User, code: string): Promise<User> {
-  if (await ownerBootstrapped()) throw new HttpError(409, "this site already has an owner");
-  if (config.ownerAccount) throw new HttpError(403, "the owner is set by OWNER_ACCOUNT");
+  if (await ownerBootstrapped()) throw new HttpError(409, { zh: "這個網站已經有擁有者", en: "this site already has an owner" });
+  if (config.ownerAccount) throw new HttpError(403, { zh: "擁有者已由伺服器設定（OWNER_ACCOUNT）指定", en: "the owner is set by OWNER_ACCOUNT" });
   const stored = await setting(CLAIM);
-  if (!stored) throw new HttpError(409, "no claim code issued; restart the server to print one");
+  if (!stored) throw new HttpError(409, { zh: "尚未產生認領碼；重新啟動伺服器後會印在紀錄裡", en: "no claim code issued; restart the server to print one" });
   const given = Buffer.from(sha(normalize(code)), "hex");
   if (!timingSafeEqual(given, Buffer.from(stored, "hex"))) {
     const fails = Number((await setting(CLAIM_FAILS)) ?? 0) + 1;
@@ -110,14 +110,14 @@ export async function claimSite(user: User, code: string): Promise<User> {
     await audit(user.id, "owner.claim.fail", { type: "user", id: user.id }, { fails });
     if (fails >= MAX_FAILS) {
       await issueClaimCode();
-      throw new HttpError(429, "too many wrong codes; a new code was printed in the server log");
+      throw new HttpError(429, { zh: "錯誤次數太多；新的認領碼已印在伺服器紀錄裡", en: "too many wrong codes; a new code was printed in the server log" });
     }
-    throw new HttpError(403, "wrong code");
+    throw new HttpError(403, { zh: "認領碼不正確", en: "wrong code" });
   }
   const out = await db.$transaction(async (tx) => {
     const won = await tx.siteSetting.deleteMany({ where: { key: CLAIM, value: stored } });
-    if (won.count !== 1) throw new HttpError(409, "the code was already used");
-    if ((await tx.user.count({ where: { role: "SUPERADMIN" } })) > 0) throw new HttpError(409, "this site already has an owner");
+    if (won.count !== 1) throw new HttpError(409, { zh: "這組認領碼已被使用", en: "the code was already used" });
+    if ((await tx.user.count({ where: { role: "SUPERADMIN" } })) > 0) throw new HttpError(409, { zh: "這個網站已經有擁有者", en: "this site already has an owner" });
     const u = await tx.user.update({ where: { id: user.id }, data: { role: "SUPERADMIN", isAdmin: true } });
     await markBootstrapped(tx, user.id);
     return u;
@@ -127,17 +127,17 @@ export async function claimSite(user: User, code: string): Promise<User> {
 }
 
 function mustBeSuper(actor: Pick<User, "role">) {
-  if (actor.role !== "SUPERADMIN") throw new HttpError(403, "only the super admin can change roles");
+  if (actor.role !== "SUPERADMIN") throw new HttpError(403, { zh: "只有超級管理員能變更身分", en: "only the super admin can change roles" });
 }
 
 /** Grant (ADMIN) or revoke (USER) admin rights. SUPERADMIN only; cannot touch itself or another SUPERADMIN. */
 export async function setRole(actor: User, targetId: string, role: "ADMIN" | "USER"): Promise<User> {
   mustBeSuper(actor);
-  if (role !== "ADMIN" && role !== "USER") throw new HttpError(400, "role must be ADMIN or USER");
-  if (targetId === actor.id) throw new HttpError(400, "you cannot change your own role; transfer super admin instead");
+  if (role !== "ADMIN" && role !== "USER") throw new HttpError(400, { zh: "身分只能是管理員或一般用戶", en: "role must be ADMIN or USER" });
+  if (targetId === actor.id) throw new HttpError(400, { zh: "不能變更自己的身分；請改用移交超級管理員", en: "you cannot change your own role; transfer super admin instead" });
   const t = await db.user.findUnique({ where: { id: targetId } });
-  if (!t) throw new HttpError(404, "user not found");
-  if (t.role === "SUPERADMIN") throw new HttpError(400, "the super admin's role can only change by transfer");
+  if (!t) throw new HttpError(404, { zh: "找不到這位用戶", en: "user not found" });
+  if (t.role === "SUPERADMIN") throw new HttpError(400, { zh: "超級管理員的身分只能透過移交變更", en: "the super admin's role can only change by transfer" });
   if (t.role === role) return t;
   const u = await db.user.update({ where: { id: t.id }, data: { role, isAdmin: isAdminRole(role) } });
   await audit(actor.id, role === "ADMIN" ? "role.grant" : "role.revoke", { type: "user", id: t.id }, { account: t.account, from: t.role, to: role });
@@ -147,13 +147,13 @@ export async function setRole(actor: User, targetId: string, role: "ADMIN" | "US
 /** Hand SUPERADMIN to another user; the current one becomes ADMIN. `confirm` must repeat the target's account. */
 export async function transferSuperAdmin(actor: User, targetId: string, confirm: string): Promise<User> {
   mustBeSuper(actor);
-  if (targetId === actor.id) throw new HttpError(400, "you already are the super admin");
+  if (targetId === actor.id) throw new HttpError(400, { zh: "你已經是超級管理員", en: "you already are the super admin" });
   const t = await db.user.findUnique({ where: { id: targetId } });
-  if (!t) throw new HttpError(404, "user not found");
-  if (confirm.trim().toLowerCase() !== t.account) throw new HttpError(400, "confirmation does not match the target account");
+  if (!t) throw new HttpError(404, { zh: "找不到這位用戶", en: "user not found" });
+  if (confirm.trim().toLowerCase() !== t.account) throw new HttpError(400, { zh: "確認文字與對象帳號不符", en: "confirmation does not match the target account" });
   const out = await db.$transaction(async (tx) => {
     const me = await tx.user.findUnique({ where: { id: actor.id } });
-    if (me?.role !== "SUPERADMIN") throw new HttpError(403, "only the super admin can transfer");
+    if (me?.role !== "SUPERADMIN") throw new HttpError(403, { zh: "只有超級管理員能移交", en: "only the super admin can transfer" });
     await tx.user.update({ where: { id: actor.id }, data: { role: "ADMIN", isAdmin: true } });
     return tx.user.update({ where: { id: t.id }, data: { role: "SUPERADMIN", isAdmin: true } });
   });

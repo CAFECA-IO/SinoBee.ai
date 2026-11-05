@@ -25,7 +25,7 @@ export type PublishResult = { id: string; version: string; status: "pending_revi
 
 /** Validate, scan, hash, bundle and store a new immutable skill version. */
 export async function publishSkill(user: User, data: Buffer, filename: string): Promise<PublishResult> {
-  if (!user.publisher) throw new HttpError(400, "set a publisher id in your account before publishing");
+  if (!user.publisher) throw new HttpError(400, { zh: "發布前請先在帳號設定發布者代號", en: "set a publisher id in your account before publishing" });
   let up;
   try {
     up = await readUpload(data, filename);
@@ -46,7 +46,7 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
   const version = fm.metadata!.version;
   const hash = contentHash(up.files);
 
-  if (await db.revocation.findUnique({ where: { contentHash: hash } })) throw new HttpError(400, "this content has been revoked by the Hub");
+  if (await db.revocation.findUnique({ where: { contentHash: hash } })) throw new HttpError(400, { zh: "這份內容已被平台撤銷", en: "this content has been revoked by the Hub" });
 
   const existing = await db.skill.findUnique({
     where: { publisherId_name: { publisherId: user.id, name: fm.name } },
@@ -122,13 +122,13 @@ export async function publishSkill(user: User, data: Buffer, filename: string): 
 
 export async function reviewVersion(reviewer: User, versionId: string, decision: "approve" | "reject" | "revoke", note?: string) {
   const v = await db.skillVersion.findUnique({ where: { id: versionId }, include: { skill: { include: { publisher: true } } } });
-  if (!v) throw new HttpError(404, "version not found");
+  if (!v) throw new HttpError(404, { zh: "找不到這個版本", en: "version not found" });
   if (decision === "approve") {
-    if (v.scanVerdict === "DANGEROUS") throw new HttpError(400, "cannot approve a version the scanner marked dangerous");
+    if (v.scanVerdict === "DANGEROUS") throw new HttpError(400, { zh: "掃描判定為危險的版本不能核准", en: "cannot approve a version the scanner marked dangerous" });
     if (v.skill.kind === "evaluation") {
       const sec = securityStatus(v.securityReport, false);
-      if (sec.static !== true) throw new HttpError(400, "an evaluation skill must pass the static security scan before approval");
-      if (sec.behavior !== true) throw new HttpError(400, "record the sandbox behavior test (sinobee eval evaluator <name> --test) before approving an evaluation skill");
+      if (sec.static !== true) throw new HttpError(400, { zh: "評測技能需先通過靜態安全掃描才能核准", en: "an evaluation skill must pass the static security scan before approval" });
+      if (sec.behavior !== true) throw new HttpError(400, { zh: "核准評測技能前，請先記錄沙盒行為測試（sinobee eval evaluator <name> --test）", en: "record the sandbox behavior test (sinobee eval evaluator <name> --test) before approving an evaluation skill" });
       if (sec.suite === false) throw new HttpError(400, "a suite written with this evaluation skill tried to steer the judge");
     }
     const signature = signContentHash(v.contentHash);
@@ -151,7 +151,7 @@ export async function reviewVersion(reviewer: User, versionId: string, decision:
 }
 
 export async function rateSkill(userId: string, skillId: string, stars: number) {
-  if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new HttpError(400, "stars must be 1-5");
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new HttpError(400, { zh: "評分需介於 1 到 5 顆星", en: "stars must be 1-5" });
   await db.skillRating.upsert({ where: { skillId_userId: { skillId, userId } }, create: { skillId, userId, stars }, update: { stars } });
   const agg = await db.skillRating.aggregate({ where: { skillId }, _avg: { stars: true }, _count: true });
   await db.skill.update({ where: { id: skillId }, data: { ratingAvg: agg._avg.stars ?? 0, ratingCount: agg._count } });
@@ -163,10 +163,10 @@ export { BundleError };
  * <name> --test`, decoys in place) and records the result; a failure blocks the version for good. */
 export async function recordBehavior(reviewer: User, versionId: string, ok: boolean, note?: string) {
   const v = await db.skillVersion.findUnique({ where: { id: versionId }, include: { skill: true } });
-  if (!v) throw new HttpError(404, "version not found");
-  if (v.skill.kind !== "evaluation") throw new HttpError(400, "only evaluation skills have a behavior test");
+  if (!v) throw new HttpError(404, { zh: "找不到這個版本", en: "version not found" });
+  if (v.skill.kind !== "evaluation") throw new HttpError(400, { zh: "只有評測技能有行為測試", en: "only evaluation skills have a behavior test" });
   const r = (v.securityReport ?? {}) as SecurityReport;
-  if (r.behavior?.ok === false && ok) throw new HttpError(400, "this version already failed its behavior test; publish a new version");
+  if (r.behavior?.ok === false && ok) throw new HttpError(400, { zh: "這個版本的行為測試已失敗；請發布新版本", en: "this version already failed its behavior test; publish a new version" });
   r.behavior = { ok, note: note ?? null, by: reviewer.id, at: new Date().toISOString() };
   await db.skillVersion.update({ where: { id: v.id }, data: { securityReport: r as object } });
   return r;

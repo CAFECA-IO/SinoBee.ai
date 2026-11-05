@@ -89,7 +89,7 @@ export async function createStudy(user: Pick<User, "id">, raw: unknown) {
   const s = studyInput.parse(raw);
   if (s.kind === "skill" && !s.skill) throw new HttpError(400, "a skill evaluation names its skill");
   const models = s.runs.map((r) => r.model);
-  if (new Set(models).size !== models.length) throw new HttpError(400, "one run per model");
+  if (new Set(models).size !== models.length) throw new HttpError(400, { zh: "每個模型只能跑一次", en: "one run per model" });
   const ranked = s.runs.map((r) => ({ model: r.model, ...runStats(r) })).sort((a, b) => b.score - a.score || a.durationS - b.durationS);
   return db.evaluationStudy.create({
     data: {

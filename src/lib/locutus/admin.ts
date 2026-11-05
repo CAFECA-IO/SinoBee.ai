@@ -24,7 +24,7 @@ function hubBase() {
 
 async function hub<T>(path: string, body?: unknown): Promise<T> {
   const base = hubBase();
-  if (!base) throw new HttpError(409, "Locutus supply is turned off (locutus.enabled)");
+  if (!base) throw new HttpError(409, { zh: "Locutus 尚未啟用：到「服務 › Locutus」開啟", en: "Locutus supply is turned off (locutus.enabled)" });
   const r = await fetch(`${base}${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: { authorization: `Bearer ${config.llm.providers.locutus.key}`, "content-type": "application/json" },
@@ -86,11 +86,11 @@ export async function locutusOverview() {
 }
 
 function checkAddress(a: string) {
-  if (!ADDRESS.test(a)) throw new HttpError(400, "the address must be 0x followed by 40 hex digits (locutusd init shows it)");
+  if (!ADDRESS.test(a)) throw new HttpError(400, { zh: "位址格式應為 0x 加 40 個十六進位字元（locutusd init 會顯示）", en: "the address must be 0x followed by 40 hex digits (locutusd init shows it)" });
   return a.toLowerCase();
 }
 function checkLabel(l: string) {
-  if (!LABEL.test(l)) throw new HttpError(400, "the name may use letters, digits, . _ - (up to 40, no spaces)");
+  if (!LABEL.test(l)) throw new HttpError(400, { zh: "名稱只能用英文、數字與 . _ -（最多 40 字，不能有空格）", en: "the name may use letters, digits, . _ - (up to 40, no spaces)" });
   return l;
 }
 
@@ -136,7 +136,7 @@ async function offerModels(actorId: string, modelIds: string[]) {
 export async function removeNode(actorId: string, address: string) {
   const a = checkAddress(address);
   const nodes = parseNodes(svList("locutus.nodes"));
-  if (!nodes.delete(a)) throw new HttpError(404, "not a registered node");
+  if (!nodes.delete(a)) throw new HttpError(404, { zh: "這不是已登記的節點", en: "not a registered node" });
   await writeNodes(actorId, nodes);
   await reload();
 }
@@ -155,7 +155,7 @@ export async function blockNode(actorId: string, address: string) {
 export async function unblockNode(actorId: string, address: string) {
   const a = checkAddress(address);
   const blocked = new Set(svList("locutus.blocked").map((x) => x.toLowerCase()));
-  if (!blocked.delete(a)) throw new HttpError(404, "not blocked");
+  if (!blocked.delete(a)) throw new HttpError(404, { zh: "這個節點沒有被封鎖", en: "not blocked" });
   await writeBlocked(actorId, blocked);
   await reload();
 }
@@ -167,7 +167,7 @@ export async function ignoreNode(address: string) {
 
 /** Price and offer one Locutus model from the card (USD per 1M tokens; Locutus has no cache pricing) */
 export async function setModel(actorId: string, p: { modelId: string; label?: string; input: number; output: number; enabled: boolean }) {
-  if (!p.modelId.startsWith("locutus/")) throw new HttpError(400, "not a Locutus model");
+  if (!p.modelId.startsWith("locutus/")) throw new HttpError(400, { zh: "這不是 Locutus 模型", en: "not a Locutus model" });
   const row = (await pricesAt(new Date(8.64e15))).find((m) => m.modelId === p.modelId);
   return savePrice(actorId, {
     modelId: p.modelId,

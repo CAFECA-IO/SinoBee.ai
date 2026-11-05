@@ -215,7 +215,7 @@ export async function screenProposal(taskId: string) {
 export async function confirmScreening(actorId: string, taskId: string) {
   const task = await db.task.findUnique({ where: { id: taskId } });
   const sc = task?.screening as Screening | null;
-  if (!task?.crowdfund || task.status !== "SCREENING" || sc?.decision !== "review" || !sc.aiDecision) throw new HttpError(409, "the AI has not finished screening this proposal");
+  if (!task?.crowdfund || task.status !== "SCREENING" || sc?.decision !== "review" || !sc.aiDecision) throw new HttpError(409, { zh: "AI 尚未完成這份提案的審查", en: "the AI has not finished screening this proposal" });
   const reviewed = { reviewedBy: actorId, reviewedAt: new Date().toISOString() };
   await audit(actorId, "crowd.screening.confirm", { type: "task", id: taskId }, { decision: sc.aiDecision, passed: sc.passed, failed: sc.failedCount });
   if (sc.aiDecision === "approve") {
@@ -235,7 +235,7 @@ export async function confirmScreening(actorId: string, taskId: string) {
     where: { id: taskId, status: "SCREENING" },
     data: { status: "DRAFT", screenAt: null, screening: { ...sc, ...reviewed, decision: "rejected" } as unknown as Prisma.InputJsonValue },
   });
-  if (r.count !== 1) throw new HttpError(409, "the proposal changed, reload the page");
+  if (r.count !== 1) throw new HttpError(409, { zh: "提案已變更，請重新整理頁面", en: "the proposal changed, reload the page" });
   await db.taskEvent.create({
     data: { taskId, type: "screening.rejected", message: `Screening: ${sc.passed} of ${sc.total} checklist items met, ${failed.length} not met (v${sc.checklistVersion})`, data: { passed: sc.passed, failed: failed.map((f) => f.id), total: sc.total, v: sc.checklistVersion } },
   });
@@ -270,14 +270,14 @@ export async function rerunScreening(actorId: string, taskId: string, note?: str
   const task = await db.task.findUnique({ where: { id: taskId } });
   const prev = task?.screening as Screening | null;
   const rejected = task?.status === "DRAFT" && prev?.decision === "rejected";
-  if (!task?.crowdfund || !(task.status === "SCREENING" || rejected)) throw new HttpError(400, "this proposal is not waiting for screening or sent back by it");
+  if (!task?.crowdfund || !(task.status === "SCREENING" || rejected)) throw new HttpError(400, { zh: "這份提案不在等待審查，也沒有被審查退回", en: "this proposal is not waiting for screening or sent back by it" });
   // a re-review is asked for after the AI has answered (its result is waiting, or the proposal was sent back)
-  if (task.status === "SCREENING" && prev?.decision !== "review") throw new HttpError(409, "the AI is still screening this proposal; wait for its result");
+  if (task.status === "SCREENING" && prev?.decision !== "review") throw new HttpError(409, { zh: "AI 還在審查這份提案，請等待結果", en: "the AI is still screening this proposal; wait for its result" });
   const text = note?.trim().slice(0, 2000) ?? "";
   const notes = [...(prev?.notes ?? []), ...(text ? [{ text, at: new Date().toISOString() }] : [])];
   if (rejected) {
     const r = await db.task.updateMany({ where: { id: taskId, status: "DRAFT" }, data: { status: "SCREENING" } });
-    if (r.count !== 1) throw new HttpError(409, "the proposal changed, reload the page");
+    if (r.count !== 1) throw new HttpError(409, { zh: "提案已變更，請重新整理頁面", en: "the proposal changed, reload the page" });
   }
   await queueScreening(taskId, notes);
   await audit(actorId, "crowd.screening.rerun", { type: "task", id: taskId }, { note: text || null });

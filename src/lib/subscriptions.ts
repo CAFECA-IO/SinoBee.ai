@@ -137,6 +137,6 @@ export async function applyRetention(userId: string) {
 }
 
 export function assertPlanBuyable(plan: { active: boolean; feeTwd: number } | null) {
-  if (!plan || !plan.active) throw new HttpError(404, "plan not available");
-  if (!Number.isInteger(plan.feeTwd)) throw new HttpError(500, "plan fee must be a whole TWD amount");
+  if (!plan || !plan.active) throw new HttpError(404, { zh: "這個方案目前不提供", en: "plan not available" });
+  if (!Number.isInteger(plan.feeTwd)) throw new HttpError(500, { zh: "方案費用必須是整數新台幣", en: "plan fee must be a whole TWD amount" });
 }

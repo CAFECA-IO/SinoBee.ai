@@ -70,7 +70,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
     reports: { n: counts.reports, tone: "accent" },
     crowd: { n: counts.screening + counts.disputes, tone: "accent" },
     payments: { n: counts.payments, tone: "accent" },
-    settings: { n: counts.settingsOpen, tone: "warn" },
+    settings: { n: counts.settings, tone: "warn" },
     plans: warn.plans ? { n: warn.plans, tone: "warn" } : undefined,
     models: warn.models ? { n: warn.models, tone: "warn" } : undefined,
   };
@@ -119,8 +119,8 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                       <Link
                         href={i.href}
                         aria-current={active ? "page" : undefined}
-                        aria-label={i.badge && i.badge.n > 0 ? `${i.label} (${i.badge.n})` : i.label}
-                        title={i.label}
+                        aria-label={i.badge && i.badge.n > 0 ? `${i.label} · ${t(i.badge.tone === "warn" ? "navBadge.fix" : "navBadge.todo", { n: i.badge.n })}` : i.label}
+                        title={i.badge && i.badge.n > 0 ? `${i.label} · ${t(i.badge.tone === "warn" ? "navBadge.fix" : "navBadge.todo", { n: i.badge.n })}` : i.label}
                         className={`relative flex min-h-11 items-center gap-2.5 rounded-lg py-2 text-sm lg:justify-center lg:px-0 xl:justify-start xl:px-3 ${active ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
                       >
                         <Icon name={i.icon} className="h-4 w-4" />

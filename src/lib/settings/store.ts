@@ -211,7 +211,7 @@ export type SettingView = {
   restart?: boolean;
   generated?: boolean;
   env?: string;
-  source: "env" | "db" | "default" | "unset";
+  source: "env" | "db" | "swarm" | "default" | "unset";
   /** non-secret value, or "" */
   value: string;
   /** secrets: whether one is set, and its last 4 characters for recognition */
@@ -288,7 +288,7 @@ export async function settingsHistory(limit = 30): Promise<ChangeSet[]> {
  */
 export async function revertChangeSet(actorId: string, id: string) {
   const set = (await settingsHistory(200)).find((s) => s.id === id);
-  if (!set) throw new HttpError(404, "change set not found");
+  if (!set) throw new HttpError(404, { zh: "找不到這批變更", en: "change set not found" });
   const batch = randomBytes(12).toString("hex");
   const reverted: string[] = [];
   const skipped: { key: string; why: "secret" | "changedSince" | "error"; error?: string }[] = [];

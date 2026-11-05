@@ -128,7 +128,7 @@ export async function Payments({ sp }: { sp: AdminParams }) {
         title={ta("tab.payments")}
         sub={t("summary", { amount: twd(sums._sum.amountTwd ?? 0), n: sums._count._all, refunded: twd(sums._sum.refundedTwd ?? 0) })}
       >
-        {config.payments.mode === "mock" ? <Tag tone="warn">mock</Tag> : !oenConfigured() ? <Link href="/admin?tab=settings&group=payments" className="text-sm text-err">{to("check.payments.title")}</Link> : <Tag tone="ok">Oen · {config.oen.env}</Tag>}
+        {config.payments.mode === "mock" ? <Tag tone="warn">{to("modeMock")}</Tag> : !oenConfigured() ? <Link href="/admin?tab=services&id=oen" className="text-sm text-err">{to("check.payments.title")}</Link> : <Tag tone="ok">Oen · {config.oen.env}</Tag>}
       </PageHead>
       {stale.length > 0 && (
         <Banner tone="warn" title={t("stale", { n: stale.length })} action={stale.length === 1 ? <PaymentSync id={stale[0].id} /> : <Link className="btn-ghost !py-1.5" href={adminHref({ tab: "payments" }, { status: "PENDING" })}>{t("showPending")}</Link>}>

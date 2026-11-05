@@ -57,7 +57,7 @@ export function oenConfigured(sandbox = config.testMode) {
  * environment (with the test credentials when set), whatever mode the site is in now.
  */
 async function call<T>(method: "GET" | "POST", path: string, body: object | undefined, sandbox: boolean, extraHeaders: Record<string, string> = {}): Promise<T> {
-  if (!oenConfigured(sandbox)) throw new HttpError(503, "Oen payments are not configured (OEN_MERCHANT_ID / OEN_API_TOKEN)");
+  if (!oenConfigured(sandbox)) throw new HttpError(503, { zh: "尚未設定 Oen 金流：到「服務 › Oen 金流」填入網域名稱與 API Token", en: "Oen payments are not configured (OEN_MERCHANT_ID / OEN_API_TOKEN)" });
   const c = config.oen.for(sandbox);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30_000);

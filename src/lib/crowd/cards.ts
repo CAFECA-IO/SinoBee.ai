@@ -81,8 +81,8 @@ export async function latestCard(userId: string) {
 /** A card the user picked at checkout: theirs, active, and from the current mode */
 export async function usableCard(userId: string, cardId: string) {
   const card = await db.savedCard.findUnique({ where: { id: cardId } });
-  if (!card || card.userId !== userId || card.status !== "active") throw new HttpError(400, "choose a saved card (or bind one first)");
-  if (card.sandbox !== config.testMode) throw new HttpError(400, card.sandbox ? "this test card cannot be used now that test mode is off" : "real cards cannot be used in test mode; bind a test card");
+  if (!card || card.userId !== userId || card.status !== "active") throw new HttpError(400, { zh: "請選一張已儲存的卡片（或先綁定一張）", en: "choose a saved card (or bind one first)" });
+  if (card.sandbox !== config.testMode) throw new HttpError(400, card.sandbox ? { zh: "測試模式已關閉，這張測試卡不能再使用", en: "this test card cannot be used now that test mode is off" } : { zh: "測試模式下不能使用真實卡片；請綁定測試卡", en: "real cards cannot be used in test mode; bind a test card" });
   return card;
 }
 
@@ -93,25 +93,25 @@ export async function pendingBinding(userId: string) {
 
 /** The card's token (server side only) */
 export function cardToken(card: { tokenSealed: string | null }): string {
-  if (!card.tokenSealed) throw new HttpError(400, "card is not ready");
+  if (!card.tokenSealed) throw new HttpError(400, { zh: "卡片尚未就緒", en: "card is not ready" });
   return open(card.tokenSealed);
 }
 
 /** Forget a card. Oen has no delete API, so removing it here (and the token with it) is what deletes it. */
 export async function removeCard(userId: string, cardId: string) {
   const card = await db.savedCard.findUnique({ where: { id: cardId } });
-  if (!card || card.userId !== userId) throw new HttpError(404, "card not found");
+  if (!card || card.userId !== userId) throw new HttpError(404, { zh: "找不到這張卡片", en: "card not found" });
   const waiting = await db.pledge.count({ where: { cardId, status: { in: ["ACTIVE", "FAILED"] } } });
-  if (waiting) throw new HttpError(400, "this card backs pledges that are not charged yet; add another card first or cancel those pledges");
+  if (waiting) throw new HttpError(400, { zh: "這張卡片還有未扣款的贊助；請先新增另一張卡片或取消那些贊助", en: "this card backs pledges that are not charged yet; add another card first or cancel those pledges" });
   await db.savedCard.update({ where: { id: cardId }, data: { status: "removed", tokenSealed: null, removedAt: new Date() } });
 }
 
 /** Simulated binding (development mock or the built-in test gateway): pretend the buyer finished 3-D Secure */
 export async function completeMockBinding(userId: string, cardId: string, ok: boolean, behaviour: "ok" | "decline" = "ok") {
   const card = await db.savedCard.findUnique({ where: { id: cardId } });
-  if (!card || card.userId !== userId || !simulatedCard(card)) throw new HttpError(404, "card not found");
+  if (!card || card.userId !== userId || !simulatedCard(card)) throw new HttpError(404, { zh: "找不到這張卡片", en: "card not found" });
   // production builds: only test-mode cards may be simulated
-  if (!mockAllowed() && !card.sandbox) throw new HttpError(404, "not found");
+  if (!mockAllowed() && !card.sandbox) throw new HttpError(404, { zh: "找不到", en: "not found" });
   return applyTokenNotice({ purpose: "token", id: card.bindingId, success: ok, token: ok ? `mock_${behaviour}_${randomBytes(8).toString("hex")}` : undefined, paymentInfo: ok ? "424242******4242" : undefined, customId: userId });
 }
 

@@ -416,7 +416,7 @@ async function updateStretch(taskId: string) {
 /** The proposer asks backers for more after the budget ran out: an all-or-nothing round of crowd.topupDays days */
 export async function openTopup(userId: string, taskId: string, goalTwd: number) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task?.crowdfund || task.userId !== userId) throw new HttpError(404, "task not found");
+  if (!task?.crowdfund || task.userId !== userId) throw new HttpError(404, { zh: "找不到這個任務", en: "task not found" });
   if (task.status !== "NEEDS_FUNDING") throw new HttpError(400, "a top-up round can only start when the budget has run out");
   if (task.topupGoalTwd) throw new HttpError(400, "a top-up round is already open");
   if (!Number.isInteger(goalTwd) || goalTwd < sharePrice() || goalTwd % sharePrice() !== 0) throw new HttpError(400, `the goal must be a multiple of ${sharePrice()} TWD`);
@@ -478,7 +478,7 @@ async function topupTick(now: Date) {
  */
 export async function takedownCrowd(taskId: string, reason: string) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task?.crowdfund) throw new HttpError(404, "task not found");
+  if (!task?.crowdfund) throw new HttpError(404, { zh: "找不到這個任務", en: "task not found" });
   if (["SCREENING", "FUNDING", "CHARGING"].includes(task.status)) return failCampaign(task, `Taken down: ${reason}`, { takedown: true });
   await db.task.update({ where: { id: taskId }, data: { isPublic: false, takenDownAt: new Date() } });
   await event(taskId, "takedown", `Hidden from public listings: ${reason}`);

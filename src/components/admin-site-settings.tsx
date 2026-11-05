@@ -20,7 +20,7 @@ export type SettingItem = {
   generated?: boolean;
   required?: boolean;
   env?: string;
-  source: "env" | "db" | "default" | "unset";
+  source: "env" | "db" | "swarm" | "default" | "unset";
   value: string;
   secretSet?: boolean;
   hint?: string;
@@ -352,6 +352,8 @@ function FieldRow({ item, draft, error, canEdit, zh, focused, onChange, onBlur }
             <span className="badge bg-warn-soft text-warn">{t("source.env", { env: item.env ?? "" })}</span>
           ) : item.source === "db" ? (
             <span className="badge bg-panel-2 text-muted">{tc("sourceDb")}</span>
+          ) : item.source === "swarm" ? (
+            <span className="badge bg-[#e6eefc] text-[#2a4fa3] dark:bg-[#16264a] dark:text-[#9db8ff]" title={tc("sourceSwarmTip", { env: item.env ?? "" })}>{tc("sourceSwarm")}</span>
           ) : (
             <span className="badge bg-panel-2 text-muted">{item.source === "default" ? tc("sourceDefault") : tc("sourceUnset")}</span>
           )}
@@ -509,17 +511,29 @@ export function OenCheck() {
 export function RotateHubKey() {
   const t = useTranslations("admin.settings");
   const router = useRouter();
+  const [state, setState] = useState<{ busy?: boolean; ok?: boolean; error?: string }>({});
   return (
-    <button
-      className="btn-ghost !py-1.5"
-      onClick={async () => {
-        if (!(await confirmDialog(t("confirmRotate"), { danger: true }))) return;
-        await post("/api/admin/settings/rotate-hub", {});
-        router.refresh();
-      }}
-    >
-      {t("rotate")}
-    </button>
+    <span className="inline-flex flex-wrap items-center gap-3 text-sm" aria-live="polite">
+      <button
+        className="btn-ghost !py-1.5"
+        disabled={state.busy}
+        onClick={async () => {
+          if (!(await confirmDialog(t("confirmRotate"), { danger: true }))) return;
+          setState({ busy: true });
+          try {
+            await post("/api/admin/settings/rotate-hub", {});
+            setState({ ok: true });
+            router.refresh();
+          } catch (e) {
+            setState({ error: e instanceof Error ? e.message : String(e) });
+          }
+        }}
+      >
+        {state.busy ? t("rotating") : t("rotate")}
+      </button>
+      {state.ok && <span className="text-ok">✓ {t("rotated")}</span>}
+      {state.error && <span className="text-err">{t("rotateFailed", { error: state.error })}</span>}
+    </span>
   );
 }
 

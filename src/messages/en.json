@@ -577,7 +577,7 @@
     "pending": "Pending",
     "approved": "Listed",
     "empty": "Nothing here.",
-    "noKey": "No skill signing key yet; it is generated when the site restarts (Settings → Skill Hub signing).",
+    "noKey": "No skill signing key yet; it is generated when the site restarts (Services › Skill Hub signing).",
     "note": "Review note (optional)",
     "approve": "Approve & sign",
     "reject": "Reject",
@@ -587,7 +587,7 @@
     "verifiedPublisher": "Verified publisher",
     "tab": {
       "reports": "Reports",
-      "storage": "Storage",
+      "storage": "Storage & Boltchain",
       "users": "Users",
       "plans": "Plans",
       "audit": "Audit log",
@@ -603,7 +603,7 @@
     },
     "st": {
       "enabled": "Enabled",
-      "off": "not configured (BOLT_RPC_URL / BOLT_WALLET_KEY / BOLT_MASTER_KEY)",
+      "off": "not set up: open Services › Boltchain and fill in the node URL, wallet and master key",
       "wallet": "Site wallet",
       "balance": "Balance",
       "error": "Error",
@@ -616,7 +616,19 @@
       "offShort": "Off",
       "offTitle": "Boltchain storage is off",
       "setUp": "Set up",
-      "noObjects": "No objects yet."
+      "noObjects": "No objects yet.",
+      "epoch": "Epoch",
+      "status": {
+        "PENDING": "Waiting for the chain",
+        "STORED": "On chain",
+        "FAILED": "Chain failed (mirror still serves it)",
+        "DELETED": "Deleted"
+      },
+      "anchor": {
+        "pending": "Pending",
+        "issued": "Anchored",
+        "failed": "Failed"
+      }
     },
     "takedown": "Take down",
     "dismiss": "Dismiss",
@@ -734,7 +746,7 @@
     "payments": {
       "mode": "Mode",
       "merchant": "Oen domain",
-      "notConfigured": "OEN_MERCHANT_ID / OEN_API_TOKEN not set",
+      "notConfigured": "not set up: open Services › Oen and fill in the domain name and API token",
       "last30": "Received, 30 days",
       "refunded30": "Refunded, 30 days",
       "all": "All",
@@ -821,7 +833,10 @@
         "runner": "Resources and image of task containers.",
         "crowd": "Share price, proposal fee, durations and fees, reference files."
       },
-      "custom": "customised"
+      "custom": "customised",
+      "rotating": "Generating…",
+      "rotated": "New key in place; the old public key stays published, so signed skills keep verifying",
+      "rotateFailed": "Did not work: {error}"
     },
     "nav": {
       "review": "Review",
@@ -882,7 +897,7 @@
       "lead": "Ollama is a model source for the platform's AI: downloaded models appear as ollama/‹name› in the model lists and tiers above after a sync — no API key, no API cost.",
       "connected": "Connected · v{version}",
       "offline": "Unreachable",
-      "notConfigured": "Ollama is not set up: start it with npm run swarm (it writes OLLAMA_URL to .env), or set Settings → Ollama URL.",
+      "notConfigured": "Ollama is not set up: open Services › Ollama and fill in its URL (npm run swarm fills it in for you).",
       "installed": "Downloaded models",
       "none": "No model downloaded yet.",
       "useHint": "The model lists sync when a download finishes; put ollama/… models into the high / standard / light tiers above to use them.",
@@ -920,7 +935,7 @@
       "day": "{n} days"
     },
     "ov": {
-      "modeLive": "Live",
+      "modeLive": "Taking real payments · Oen production",
       "modeTest": "Test mode on",
       "blocking": "{n} {n, plural, one {thing blocks} other {things block}} users before going live",
       "adviceCount": "plus {n} {n, plural, one {suggestion} other {suggestions}}",
@@ -1025,7 +1040,9 @@
           "fix": "Storage is S3 but no bucket is set; uploading and reading results fail."
         }
       },
-      "healthLink": "Site health: {bad} failing, {warn} need attention → see and fix"
+      "healthLink": "Site health: {bad} failing, {warn} need attention → see and fix",
+      "modeMock": "Simulated checkout (no money moves)",
+      "modeOenTest": "Oen testing environment (not taking real payments)"
     },
     "rv": {
       "search": "Search name or publisher",
@@ -1264,9 +1281,13 @@
       "local": "local, no key needed",
       "getKey": "Get an API key",
       "moreVendors": "More vendors you can connect",
-      "moreVendorsHelp": "These vendors have no key and no priced models yet. Put a key in Settings › Model and tool API keys, then press “Sync from providers”; their models appear above.",
+      "moreVendorsHelp": "These vendors have no key and no priced models yet. Click a name below to add its key on the Services page, then press “Sync from providers”; their models appear above.",
       "fillKeys": "Fill in keys →",
-      "serviceLink": "Service page"
+      "serviceLink": "Service page",
+      "fixAt": "Fix on the service page",
+      "reviewFirst": "Review the first one",
+      "seeNodes": "See nodes",
+      "nodesNoKey": "served by nodes, no key needed"
     },
     "pl": {
       "close": "Close",
@@ -1425,7 +1446,7 @@
       }
     },
     "locutus": {
-      "off": "Locutus supply is off (Settings → locutus.enabled); nodes cannot link.",
+      "off": "Locutus supply is off, so nodes cannot link. Turn it on under Services › Locutus.",
       "hubDown": "Cannot reach the Locutus hub: {error}. Node status is unavailable; check that swarm started the hub.",
       "pending": "Waiting for approval",
       "pendingHelp": "These nodes proved their address with their own key but are not registered. Once approved they link within about a minute.",
@@ -1529,7 +1550,9 @@
       "revertAsk": "Put the settings of this change back to what they were before?",
       "reverted": "{n} reverted, {skipped} skipped",
       "jump": "Jump to a group…",
-      "count": "{n} settings"
+      "count": "{n} settings",
+      "sourceSwarm": "Filled in by swarm (can override)",
+      "sourceSwarmTip": "npm run swarm filled in {env}; a value set here overrides it"
     },
     "health": {
       "title": "Site health",
@@ -1586,6 +1609,10 @@
         "locutusHub": {
           "title": "The Locutus hub does not answer",
           "fix": "{error}; check that swarm started the hub."
+        },
+        "dailyCap": {
+          "title": "{vendor} reached today's spend cap",
+          "fix": "NT${spent} of NT${limit} today: its models stop until 00:00 UTC; raise the cap if needed."
         }
       },
       "draftsTitle": "Changes not applied ({n})",
@@ -1656,7 +1683,15 @@
       "testing": "Testing…",
       "testOk": "Connected: {n} models listed ({at})",
       "testFail": "Connection failed: {error}",
-      "pick": "Choose a service"
+      "pick": "Choose a service",
+      "spend": "Spent today {spent} (no cap)",
+      "spendCap": "Spent today {spent} / cap {limit}",
+      "capReached": "cap reached, paused until 00:00 UTC",
+      "capFromEnv": "This vendor's cap is set to {limit} by the environment variable {env}; the field below does not apply to it."
+    },
+    "navBadge": {
+      "fix": "{n} to fix",
+      "todo": "{n} waiting"
     }
   },
   "hubApi": {

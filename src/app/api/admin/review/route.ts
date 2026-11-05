@@ -14,8 +14,8 @@ export const POST = handle(async (req: Request) => {
     .object({ versionId: z.string(), decision: z.enum(["approve", "reject", "revoke"]), note: z.string().max(1000).optional(), acknowledged: z.boolean().optional() })
     .parse(await req.json());
   const v = await db.skillVersion.findUnique({ where: { id: b.versionId }, select: { scanFindings: true, status: true } });
-  if (!v) throw new HttpError(404, "version not found");
-  if (b.decision === "revoke" && v.status !== "APPROVED") throw new HttpError(400, "only an approved version can be revoked; reject a pending one");
+  if (!v) throw new HttpError(404, { zh: "找不到這個版本", en: "version not found" });
+  if (b.decision === "revoke" && v.status !== "APPROVED") throw new HttpError(400, { zh: "只有已核准的版本能撤銷；待審版本請改用退回", en: "only an approved version can be revoked; reject a pending one" });
   assertReviewInput({ findings: (v.scanFindings as unknown[]).length }, b.decision, b.note, b.acknowledged);
   await reviewVersion(admin, b.versionId, b.decision, b.note?.trim() || undefined);
   await audit(admin.id, `skill.${b.decision}`, { type: "skillVersion", id: b.versionId }, { note: b.note ?? null });

@@ -41,7 +41,7 @@ const pulls = (g.__sbOllamaPulls ??= new Map<string, Pull>());
 
 async function api<T>(path: string, init?: RequestInit, timeoutMs = 10_000): Promise<T> {
   const base = ollamaBase();
-  if (!base) throw new HttpError(503, "Ollama is not configured (OLLAMA_URL in .env, or /admin → Settings → Ollama URL)");
+  if (!base) throw new HttpError(503, { zh: "尚未設定 Ollama：到「服務 › Ollama」填入 Ollama 網址", en: "Ollama is not configured (OLLAMA_URL in .env, or /admin → Settings → Ollama URL)" });
   const r = await fetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const text = await r.text();
   if (!r.ok) throw new HttpError(502, `Ollama ${r.status}: ${text.slice(0, 200)}`);
@@ -67,8 +67,8 @@ export async function ollamaStatus() {
 /** Starts downloading a model into Ollama (POST /api/pull, streamed progress); refreshes the model lists when done */
 export function startPull(actorId: string, name: string) {
   const model = name.trim();
-  if (!NAME.test(model) || model.length > 120) throw new HttpError(400, "not an Ollama model name (e.g. qwen3.6:35b)");
-  if (!ollamaBase()) throw new HttpError(503, "Ollama is not configured");
+  if (!NAME.test(model) || model.length > 120) throw new HttpError(400, { zh: "不是 Ollama 模型名稱（例如 qwen3.6:35b）", en: "not an Ollama model name (e.g. qwen3.6:35b)" });
+  if (!ollamaBase()) throw new HttpError(503, { zh: "尚未設定 Ollama：到「服務 › Ollama」填入 Ollama 網址", en: "Ollama is not configured" });
   const running = pulls.get(model);
   if (running?.state === "running") return running;
   const job: Pull = { name: model, state: "running", status: "starting", completed: 0, total: 0, at: Date.now() };
@@ -115,7 +115,7 @@ export function startPull(actorId: string, name: string) {
 
 export async function deleteModel(actorId: string, name: string) {
   const model = name.trim();
-  if (!NAME.test(model)) throw new HttpError(400, "not an Ollama model name");
+  if (!NAME.test(model)) throw new HttpError(400, { zh: "不是 Ollama 模型名稱", en: "not an Ollama model name" });
   await api("/api/delete", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }) });
   await audit(actorId, "ai.ollama.delete", { type: "site", id: "ai" }, { model });
   const { syncCatalog } = await import("./ai-models");

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@/i18n/navigation";
 import { Icon } from "@/components/icon";
+import { RevealDetail } from "./reveal-detail";
 
 /** Small building blocks shared by the /admin pages (server components) */
 
@@ -72,7 +73,8 @@ export function Split({ list, detail }: { list: ReactNode; detail?: ReactNode })
 /** The detail panel: a title, a close link back to the list, then sections */
 export function DetailPanel({ title, sub, closeHref, closeLabel, children, id }: { title: ReactNode; sub?: ReactNode; closeHref: string; closeLabel: string; children: ReactNode; id?: string }) {
   return (
-    <aside className="card min-w-0 overflow-hidden xl:sticky xl:top-20" aria-labelledby={id ?? "detail-title"} id="detail">
+    <aside className="card min-w-0 scroll-mt-20 overflow-hidden xl:sticky xl:top-20" aria-labelledby={id ?? "detail-title"} id="detail">
+      <RevealDetail id="detail" k={typeof title === "string" ? title : String(id ?? "")} />
       <div className="flex items-start gap-2 border-b border-line px-5 py-4">
         <div className="min-w-0 flex-1">
           <h2 id={id ?? "detail-title"} className="h3 break-words">{title}</h2>

@@ -325,10 +325,12 @@ function checkRpm(userId: string, now: number) {
 }
 export const resetRpm = () => recent.clear();
 
-async function checkProvider(modelId: string, now: Date) {
-  const provider = modelId.split("/")[0];
+/**
+ * What a vendor has spent today (UTC day: settled today plus what is held now) against its daily cap (0 = none).
+ * Used by the circuit breaker below and shown on the vendor's service page and 站台健康.
+ */
+export async function providerSpendToday(provider: string, now = new Date()) {
   const limit = config.llm.dailyLimit(provider);
-  if (!limit) return;
   const start = new Date(now);
   start.setUTCHours(0, 0, 0, 0);
   const rows = await db.usageLedger.findMany({
@@ -336,6 +338,14 @@ async function checkProvider(modelId: string, now: Date) {
     select: { status: true, heldTwd: true, settledTwd: true, createdAt: true, settledAt: true },
   });
   const spent = rows.reduce((a, r) => a + amount(r), 0);
+  const override = Number(process.env[`LLM_DAILY_LIMIT_TWD_${provider.toUpperCase()}`]);
+  return { spent, limit, reached: limit > 0 && spent >= limit, fromEnv: Number.isFinite(override) && override > 0 ? `LLM_DAILY_LIMIT_TWD_${provider.toUpperCase()}` : null };
+}
+
+async function checkProvider(modelId: string, now: Date) {
+  const provider = modelId.split("/")[0];
+  if (!config.llm.dailyLimit(provider)) return;
+  const { spent, limit } = await providerSpendToday(provider, now);
   if (spent >= limit) {
     console.warn(`llm circuit breaker: ${provider} spent ${spent.toFixed(2)} / ${limit} TWD today`);
     throw new QuotaError("provider", `${provider} models are temporarily unavailable; try another model`);
@@ -617,7 +627,7 @@ export type ResetWindow = (typeof RESET_WINDOWS)[number];
  */
 export async function resetWindows(actorId: string, userId: string, which: ResetWindow, reason?: string, now = new Date()) {
   const u = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
-  if (!u) throw new HttpError(404, "user not found");
+  if (!u) throw new HttpError(404, { zh: "找不到這位用戶", en: "user not found" });
   return withUserLock(userId, async () => {
     const before = await windowUse(userId, now);
     await db.user.update({

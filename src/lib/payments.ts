@@ -45,7 +45,7 @@ function product(pay: { purpose: PaymentPurpose; planCode?: string | null; planN
 export function cleanBuyer(b: Buyer): Buyer {
   const name = b.name.trim().slice(0, 60);
   const email = b.email.trim().toLowerCase();
-  if (!name) throw new HttpError(400, "buyer name is required");
+  if (!name) throw new HttpError(400, { zh: "請填寫買受人名稱", en: "buyer name is required" });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "a valid email is required for the e-invoice");
   const inv = b.invoice;
   if (inv?.invoiceType === "company") {
@@ -53,11 +53,11 @@ export function cleanBuyer(b: Buyer): Buyer {
     return { name, email, invoice: { invoiceType: "company", buyerIdentifier: inv.buyerIdentifier, buyerName: inv.buyerName?.trim() || undefined, email } };
   }
   if (inv?.invoiceType === "cloud" && inv.carrierType === "3J0002") {
-    if (!/^\/[0-9A-Z.+-]{7}$/.test(inv.carrierId ?? "")) throw new HttpError(400, "mobile barcode must be / plus 7 characters");
+    if (!/^\/[0-9A-Z.+-]{7}$/.test(inv.carrierId ?? "")) throw new HttpError(400, { zh: "手機條碼格式應為 / 加 7 個字元", en: "mobile barcode must be / plus 7 characters" });
     return { name, email, invoice: { invoiceType: "cloud", carrierType: "3J0002", carrierId: inv.carrierId, email } };
   }
   if (inv?.invoiceType === "cloud" && inv.carrierType === "CQ0001") {
-    if (!/^[A-Z]{2}\d{14}$/.test(inv.carrierId ?? "")) throw new HttpError(400, "citizen certificate carrier must be 2 letters + 14 digits");
+    if (!/^[A-Z]{2}\d{14}$/.test(inv.carrierId ?? "")) throw new HttpError(400, { zh: "自然人憑證條碼格式應為 2 個英文字母加 14 個數字", en: "citizen certificate carrier must be 2 letters + 14 digits" });
     return { name, email, invoice: { invoiceType: "cloud", carrierType: "CQ0001", carrierId: inv.carrierId, email } };
   }
   return { name, email, invoice: { invoiceType: "cloud", carrierType: "", email } };
@@ -68,7 +68,7 @@ export function cleanBuyer(b: Buyer): Buyer {
  * still unknown: status PENDING); rejects with 402 when the card is declined.
  */
 export async function createPayment(p: { userId: string; purpose: PaymentPurpose; amountTwd: number; taskId?: string; planId?: string; buyer: Buyer; cardId: string; meta?: Record<string, string | number | boolean> }) {
-  if (!Number.isInteger(p.amountTwd) || p.amountTwd < 1) throw new HttpError(400, "amount must be a whole TWD amount");
+  if (!Number.isInteger(p.amountTwd) || p.amountTwd < 1) throw new HttpError(400, { zh: "金額必須是整數新台幣", en: "amount must be a whole TWD amount" });
   const buyer = cleanBuyer(p.buyer);
   const plan = p.planId ? await db.plan.findUnique({ where: { id: p.planId } }) : null;
   if (p.purpose === "SUBSCRIPTION") assertPlanBuyable(plan && { active: plan.active, feeTwd: Number(plan.feeTwd) });
@@ -148,7 +148,7 @@ function matches(pay: Payment, tx: OenTransaction) {
 export async function applyTransaction(pay: Payment, tx: OenTransaction): Promise<Payment> {
   if (!matches(pay, tx)) {
     await audit(null, "payment.mismatch", { type: "payment", id: pay.id }, { orderId: tx.orderId, amount: tx.amount, transactionId: tx.transactionId, expected: { amount: pay.amountTwd, oenId: pay.oenId } });
-    throw new HttpError(409, "transaction does not match this payment");
+    throw new HttpError(409, { zh: "交易與這筆付款不符", en: "transaction does not match this payment" });
   }
   const seen = { providerStatus: tx.status, ...(tx.transactionId && !pay.oenId ? { oenId: tx.transactionId } : {}), ...(tx.id && !pay.transactionHid ? { transactionHid: tx.id } : {}) };
   if (PAID.has(tx.status) || (REFUNDED.has(tx.status) && pay.status !== "CONFIRMED" && pay.status !== "REFUNDED")) {
@@ -204,7 +204,7 @@ async function grant(paymentId: string) {
 /** Re-read one payment from Oen (return page, webhook, admin "check now") */
 export async function syncPayment(paymentId: string): Promise<Payment> {
   const pay = await db.payment.findUnique({ where: { id: paymentId } });
-  if (!pay) throw new HttpError(404, "payment not found");
+  if (!pay) throw new HttpError(404, { zh: "找不到這筆付款", en: "payment not found" });
   if (pay.provider !== "OEN") return pay;
   if (pay.oenId) return applyTransaction(pay, await getTransaction(pay.oenId, pay.sandbox));
   // card token charges have no transaction id of their own: find the order's transaction
@@ -289,17 +289,17 @@ export async function refundable(pay: Payment): Promise<number> {
 
 export async function refundPayment(actorId: string, paymentId: string, opts: { amount?: number; reason?: string }) {
   const pay = await db.payment.findUnique({ where: { id: paymentId } });
-  if (!pay) throw new HttpError(404, "payment not found");
+  if (!pay) throw new HttpError(404, { zh: "找不到這筆付款", en: "payment not found" });
   if (pay.provider === "TWDC") throw new HttpError(400, "TWDC payments cannot be refunded here");
   const max = await refundable(pay);
-  if (max <= 0) throw new HttpError(400, pay.refundedTwd > 0 ? "this payment was already refunded (Oen allows one refund per transaction)" : "nothing left to refund");
+  if (max <= 0) throw new HttpError(400, pay.refundedTwd > 0 ? { zh: "這筆付款已退款過（Oen 每筆交易只能退款一次）", en: "this payment was already refunded (Oen allows one refund per transaction)" } : { zh: "已沒有可退款的金額", en: "nothing left to refund" });
   const amount = opts.amount ?? max;
   if (!Number.isInteger(amount) || amount < 1 || amount > max) throw new HttpError(400, `refund must be a whole amount between 1 and ${max} TWD`);
   // claim the refund first so two admins cannot both send one
   const claim = await db.payment.updateMany({ where: { id: pay.id, refundedTwd: 0, refundedAt: null, status: "CONFIRMED" }, data: { refundedAt: new Date(), refundReason: opts.reason ?? null } });
   if (claim.count !== 1) throw new HttpError(409, "a refund is already in progress");
   if (pay.provider === "OEN") {
-    if (!pay.transactionHid) throw new HttpError(400, "missing Oen transaction number");
+    if (!pay.transactionHid) throw new HttpError(400, { zh: "缺少 Oen 交易編號", en: "missing Oen transaction number" });
     const plan = pay.planId ? await db.plan.findUnique({ where: { id: pay.planId } }) : null;
     try {
       await refundTransaction(pay.transactionHid, { amount, reason: opts.reason, product: product({ purpose: pay.purpose, planCode: plan?.code, planName: plan?.name, days: plan?.days }, amount) }, pay.sandbox);

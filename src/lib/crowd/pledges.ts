@@ -57,13 +57,13 @@ export type PledgeArgs = Omit<z.infer<typeof PledgeInput>, "usePoints"> & { useP
 
 export async function pledge(userId: string, taskId: string, input: PledgeArgs) {
   const task = await db.task.findUnique({ where: { id: taskId } });
-  if (!task || !task.crowdfund || (!task.isPublic && task.userId !== userId)) throw new HttpError(404, "task not found");
+  if (!task || !task.crowdfund || (!task.isPublic && task.userId !== userId)) throw new HttpError(404, { zh: "找不到這個任務", en: "task not found" });
   // a self-funded task is paid by its proposer alone (they may still add a top-up)
-  if (task.selfFunded && task.userId !== userId) throw new HttpError(400, "this task is paid in full by its proposer");
-  if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, "this task is not taking pledges");
-  if (task.status === "FUNDING" && task.deadlineAt && task.deadlineAt <= new Date()) throw new HttpError(400, "crowdfunding has ended");
-  if (!(SHARE_OPTIONS as readonly number[]).includes(input.shares)) throw new HttpError(400, "shares must be 1, 5 or 20");
-  if (input.source !== "CARD" && input.source !== "POINTS") throw new HttpError(400, "pay with a card or platform points");
+  if (task.selfFunded && task.userId !== userId) throw new HttpError(400, { zh: "這個任務由提案者全額支付", en: "this task is paid in full by its proposer" });
+  if (!(OPEN as readonly string[]).includes(task.status)) throw new HttpError(400, { zh: "這個任務目前不接受贊助", en: "this task is not taking pledges" });
+  if (task.status === "FUNDING" && task.deadlineAt && task.deadlineAt <= new Date()) throw new HttpError(400, { zh: "眾籌已結束", en: "crowdfunding has ended" });
+  if (!(SHARE_OPTIONS as readonly number[]).includes(input.shares)) throw new HttpError(400, { zh: "份數只能是 1、5 或 20", en: "shares must be 1, 5 or 20" });
+  if (input.source !== "CARD" && input.source !== "POINTS") throw new HttpError(400, { zh: "請用卡片或平台點數支付", en: "pay with a card or platform points" });
   if (config.crowd.pledgeMinKyc > 0) {
     const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { kycLevel: true } });
     if ((u.kycLevel ?? 0) < config.crowd.pledgeMinKyc) throw new HttpError(403, `pledging needs CAFECA KYC level ${config.crowd.pledgeMinKyc} or higher`);
@@ -83,9 +83,9 @@ export async function pledge(userId: string, taskId: string, input: PledgeArgs) 
 
   if (source === "CARD") {
     const card = input.cardId ? await usableCard(userId, input.cardId) : await latestCard(userId);
-    if (!card) throw new HttpError(400, "save a card first");
+    if (!card) throw new HttpError(400, { zh: "請先儲存一張卡片", en: "save a card first" });
     cardId = card.id;
-    if (!input.buyer) throw new HttpError(400, "buyer name and email are required for the e-invoice");
+    if (!input.buyer) throw new HttpError(400, { zh: "開立電子發票需要買受人名稱與 Email", en: "buyer name and email are required for the e-invoice" });
     await db.user.update({ where: { id: userId }, data: { billing: cleanBuyer(input.buyer as Buyer) as Prisma.InputJsonValue } });
   }
 
@@ -145,9 +145,9 @@ export async function returnQuota(userId: string, amount: number, pledgeId: stri
 /** A backer withdraws a pledge while the campaign is still open (before any charge) */
 export async function cancelPledge(userId: string, pledgeId: string) {
   const p = await db.pledge.findUnique({ where: { id: pledgeId }, include: { task: true } });
-  if (!p || p.userId !== userId) throw new HttpError(404, "pledge not found");
+  if (!p || p.userId !== userId) throw new HttpError(404, { zh: "找不到這筆贊助", en: "pledge not found" });
   const openRound = p.task.status === "FUNDING" || (p.topup && p.task.status === "NEEDS_FUNDING" && !!p.task.topupGoalTwd);
-  if (!openRound || p.status !== "ACTIVE") throw new HttpError(400, "only pledges of an open campaign can be withdrawn");
+  if (!openRound || p.status !== "ACTIVE") throw new HttpError(400, { zh: "只有進行中眾籌的贊助能撤回", en: "only pledges of an open campaign can be withdrawn" });
   await releasePledge(p.id, "CANCELLED");
   await db.taskEvent.create({ data: { taskId: p.taskId, type: "pledge.cancelled", message: `${p.shares} share(s) withdrawn` } });
 }

@@ -12,9 +12,9 @@ export { EVAL_METHODS } from "@/lib/crowd/rules";
  */
 export async function closeTask(userId: string, taskId: string) {
   const t = await db.task.findUnique({ where: { id: taskId } });
-  if (!t || t.userId !== userId) throw new HttpError(404, "task not found");
+  if (!t || t.userId !== userId) throw new HttpError(404, { zh: "找不到這個任務", en: "task not found" });
   // backers paid for it, so only a drafted proposal can be dropped or an unfunded run closed
-  if (!t.crowdfund || !["DRAFT", "NEEDS_FUNDING"].includes(t.status)) throw new HttpError(400, "task cannot be closed in its current state");
+  if (!t.crowdfund || !["DRAFT", "NEEDS_FUNDING"].includes(t.status)) throw new HttpError(400, { zh: "任務目前的狀態不能關閉", en: "task cannot be closed in its current state" });
   const days = Math.max(config.crowd.resultsDays, await resultsRetentionDays(userId));
   const expires = addDays(new Date(), days);
   const status = t.status === "NEEDS_FUNDING" ? "COMPLETED" : "CANCELLED";
