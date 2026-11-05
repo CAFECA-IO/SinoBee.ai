@@ -598,7 +598,8 @@
       "review": "Content review",
       "crowd": "Crowdfunding",
       "models": "Models & pricing",
-      "health": "Site health"
+      "health": "Site health",
+      "services": "Services"
     },
     "st": {
       "enabled": "Enabled",
@@ -1264,7 +1265,8 @@
       "getKey": "Get an API key",
       "moreVendors": "More vendors you can connect",
       "moreVendorsHelp": "These vendors have no key and no priced models yet. Put a key in Settings › Model and tool API keys, then press “Sync from providers”; their models appear above.",
-      "fillKeys": "Fill in keys →"
+      "fillKeys": "Fill in keys →",
+      "serviceLink": "Service page"
     },
     "pl": {
       "close": "Close",
@@ -1610,6 +1612,48 @@
         "svcOff": "Off: results only in the mirror",
         "svcCafeca": "Sign-in"
       }
+    },
+    "svc": {
+      "title": "Services",
+      "sub": "Every external service in one layout: connection, what it provides, limits, activity, danger zone.",
+      "family": {
+        "payments": "Payments",
+        "vendors": "Model vendors",
+        "local": "Local models and nodes",
+        "storage": "Storage and chain",
+        "identity": "Sign-in and identity",
+        "tools": "Task container tools"
+      },
+      "name": {
+        "storage": "File storage",
+        "hub": "Skill Hub signing",
+        "tools": "Search tools"
+      },
+      "conn": "Connection",
+      "limits": "Limits and parameters",
+      "items": "What it provides",
+      "itemsLine": "{listed} models listed · {priced} priced · {offered} offered",
+      "manageModels": "Manage in Models & pricing",
+      "activity": "Activity",
+      "syncOk": "Model list synced ({n})",
+      "syncFail": "Model list sync failed: {error}",
+      "system": "system",
+      "actCleared": "cleared",
+      "actReplaced": "replaced",
+      "actSet": "set to {v}",
+      "noActivity": "Nothing yet.",
+      "danger": "Danger zone",
+      "dangerNote": "Settings that affect payments, data or users are marked “Dangerous” above; applying them asks you to confirm.",
+      "removeKey": "Remove key…",
+      "removeKeyNow": "Remove key",
+      "removeKeyLine": "After removing it, {n} offered model(s) stop working at once.",
+      "removeKeyConsequence": "{n} offered model(s) stop working at once",
+      "iUnderstand": "I understand: {text}",
+      "cancel": "Cancel",
+      "test": "Test connection",
+      "testing": "Testing…",
+      "testOk": "Connected: {n} models listed ({at})",
+      "testFail": "Connection failed: {error}"
     }
   },
   "hubApi": {

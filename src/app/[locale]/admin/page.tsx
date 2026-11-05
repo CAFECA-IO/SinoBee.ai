@@ -8,6 +8,7 @@ import { AdminNavSelect } from "@/components/admin/nav-select";
 import { adminCounts } from "@/lib/admin-overview";
 import { Overview } from "./_sections/overview";
 import { Health } from "./_sections/health";
+import { Services } from "./_sections/services";
 import { Review } from "./_sections/review";
 import { Reports } from "./_sections/reports";
 import { Crowd } from "./_sections/crowd";
@@ -28,7 +29,7 @@ const NAV = [
   { group: "", items: [{ id: "health", icon: "shield" }, { id: "overview", icon: "grid" }] },
   { group: "review", items: [{ id: "review", icon: "hub" }, { id: "reports", icon: "flag" }, { id: "crowd", icon: "users" }, { id: "checklist", icon: "list" }] },
   { group: "business", items: [{ id: "users", icon: "user" }, { id: "payments", icon: "card" }, { id: "plans", icon: "layers" }] },
-  { group: "models", items: [{ id: "models", icon: "brain" }] },
+  { group: "models", items: [{ id: "services", icon: "flow" }, { id: "models", icon: "brain" }] },
   { group: "system", items: [{ id: "settings", icon: "gear" }, { id: "audit", icon: "list" }, { id: "storage", icon: "database" }] },
 ] as const;
 const TABS = NAV.flatMap((g) => g.items.map((i) => i.id)) as string[];
@@ -82,6 +83,7 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   let body: React.ReactNode;
   if (tab === "health") body = <Health locale={locale} />;
   else if (tab === "overview") body = <Overview superAdmin={superAdmin} sp={sp} />;
+  else if (tab === "services") body = <Services sp={sp} superAdmin={superAdmin} locale={locale} />;
   else if (tab === "review") body = <Review sp={sp} />;
   else if (tab === "reports") body = <Reports />;
   else if (tab === "crowd") body = <Crowd />;

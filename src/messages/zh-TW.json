@@ -598,7 +598,8 @@
       "review": "內容審核",
       "crowd": "眾籌提案與爭議",
       "models": "模型與定價",
-      "health": "站台健康"
+      "health": "站台健康",
+      "services": "服務"
     },
     "st": {
       "enabled": "啟用",
@@ -1264,7 +1265,8 @@
       "getKey": "取得 API Key",
       "moreVendors": "其他可接上的供應商",
       "moreVendorsHelp": "這些供應商還沒有金鑰，也沒有定價的模型。取得金鑰後填入「系統設定 › 模型與工具 API 金鑰」，再按「從供應商同步」，它們的模型就會出現在上方。",
-      "fillKeys": "前往填入金鑰 →"
+      "fillKeys": "前往填入金鑰 →",
+      "serviceLink": "服務頁"
     },
     "pl": {
       "close": "關閉",
@@ -1610,6 +1612,48 @@
         "svcOff": "未啟用：成果只存在鏡像儲存",
         "svcCafeca": "登入服務"
       }
+    },
+    "svc": {
+      "title": "服務",
+      "sub": "每個外部服務用同一個版型：連線、提供項目、限制與參數、活動、危險區。",
+      "family": {
+        "payments": "金流",
+        "vendors": "模型供應商",
+        "local": "本機模型與節點",
+        "storage": "儲存與鏈",
+        "identity": "登入與身分",
+        "tools": "任務容器工具"
+      },
+      "name": {
+        "storage": "檔案儲存",
+        "hub": "Skill Hub 簽章",
+        "tools": "搜尋工具"
+      },
+      "conn": "連線",
+      "limits": "限制與參數",
+      "items": "提供項目",
+      "itemsLine": "供應商有 {listed} 個模型 · 已定價 {priced} · 提供中 {offered}",
+      "manageModels": "在模型與定價管理",
+      "activity": "活動",
+      "syncOk": "模型清單同步成功（{n} 個）",
+      "syncFail": "模型清單同步失敗：{error}",
+      "system": "系統",
+      "actCleared": "已清除",
+      "actReplaced": "已更換",
+      "actSet": "設為 {v}",
+      "noActivity": "還沒有紀錄。",
+      "danger": "危險區",
+      "dangerNote": "會影響金流、資料或用戶的設定在上方標有紅色「危險」，套用時都要先確認影響。",
+      "removeKey": "移除金鑰…",
+      "removeKeyNow": "移除金鑰",
+      "removeKeyLine": "移除後，{n} 個提供中的模型會立刻無法使用。",
+      "removeKeyConsequence": "{n} 個提供中的模型會立刻無法使用",
+      "iUnderstand": "我了解：{text}",
+      "cancel": "取消",
+      "test": "測試連線",
+      "testing": "測試中…",
+      "testOk": "連線正常：可列出 {n} 個模型（{at}）",
+      "testFail": "連線失敗：{error}"
     }
   },
   "hubApi": {

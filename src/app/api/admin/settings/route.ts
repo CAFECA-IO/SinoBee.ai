@@ -27,6 +27,12 @@ export const POST = handle(async (req: Request) => {
       errors[c.key] = e instanceof SettingError ? e.l : e instanceof HttpError ? { zh: e.message, en: e.message } : { zh: "無法儲存", en: "could not be saved" };
     }
   }
+  // a new key or API address: sync the model catalog now, so a rejected key or a new model list shows at once
+  const vendorChanged = changes.some((c) => !errors[c.key] && /^(apiKeys|llm\.base)\./.test(c.key));
+  if (vendorChanged) {
+    const { syncCatalog } = await import("@/lib/ai-models");
+    await Promise.race([syncCatalog(actor.id).catch(() => undefined), new Promise((r) => setTimeout(r, 8000))]);
+  }
   const failed = Object.keys(errors).length;
   if (failed && failed === changes.length && changes.length === 1) return json({ error: errors[changes[0].key].zh, errors }, 400);
   return json({ ok: failed === 0, saved: changes.length - failed, errors, batch });

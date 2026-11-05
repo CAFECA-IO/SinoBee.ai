@@ -63,21 +63,21 @@ export async function siteHealth() {
   const issueOf = (prefix: string) => issues.find((i) => i.id.startsWith(prefix));
   const services: Service[] = [];
   const oenSet = !!(config.oen.merchantId && config.oen.token);
-  services.push({ id: "oen", name: "Oen", level: !oenSet ? "bad" : config.oen.env === "production" ? "ok" : "warn", line: { key: !oenSet ? "svcOenNotSet" : config.oen.env === "production" ? "svcOenLive" : "svcOenTest" }, href: "/admin?tab=settings&group=payments" });
+  services.push({ id: "oen", name: "Oen", level: !oenSet ? "bad" : config.oen.env === "production" ? "ok" : "warn", line: { key: !oenSet ? "svcOenNotSet" : config.oen.env === "production" ? "svcOenLive" : "svcOenTest" }, href: "/admin?tab=services&id=oen" });
   for (const v of VENDORS) {
     const key = !!config.llm.providers[v.id]?.key;
     if (!key && !offered(v.id)) continue;
     const isPaused = paused.has(v.id);
     const bad = issueOf(`badKey:${v.id}`) || issueOf(`noKey:${v.id}`) || issueOf(`resume:${v.id}`);
-    services.push({ id: v.id, name: v.name, level: bad ? (isPaused ? "warn" : "bad") : isPaused ? "warn" : "ok", line: { key: isPaused ? "svcPaused" : bad ? "svcKeyProblem" : "svcModels", values: { n: offered(v.id) } }, href: `/admin?tab=models#vendor-${v.id}` });
+    services.push({ id: v.id, name: v.name, level: bad ? (isPaused ? "warn" : "bad") : isPaused ? "warn" : "ok", line: { key: isPaused ? "svcPaused" : bad ? "svcKeyProblem" : "svcModels", values: { n: offered(v.id) } }, href: `/admin?tab=services&id=${v.id}` });
   }
   const otherVendors = VENDORS.filter((v) => !config.llm.providers[v.id]?.key && !offered(v.id)).length;
-  if (otherVendors) services.push({ id: "moreVendors", name: "", level: "off", line: { key: "svcMoreVendors", values: { n: otherVendors } }, href: "/admin?tab=models#more-vendors" });
-  if (config.llm.providers.ollama?.key || offered("ollama")) services.push({ id: "ollama", name: "Ollama", level: issueOf("unserved:ollama") ? "bad" : "ok", line: { key: "svcModels", values: { n: offered("ollama") } }, href: "/admin?tab=models#vendor-ollama" });
-  if (config.llm.providers.locutus?.key) services.push({ id: "locutus", name: "Locutus", level: hub.error ? "bad" : waiting ? "warn" : hub.linked ? "ok" : "warn", line: { key: "svcLocutus", values: { linked: hub.linked, waiting } }, href: "/admin?tab=models#vendor-locutus" });
-  services.push({ id: "storage", name: "", level: issueOf("check:storage") ? "bad" : "ok", line: { key: config.storage.driver === "s3" ? "svcStorageS3" : "svcStorageLocal" }, href: "/admin?tab=settings&group=storage" });
-  services.push({ id: "boltchain", name: "Boltchain", level: config.boltchain.enabled ? "ok" : "off", line: { key: config.boltchain.enabled ? "svcOn" : "svcOff" }, href: "/admin?tab=storage" });
-  services.push({ id: "cafeca", name: "CAFECA", level: "ok", line: { key: "svcCafeca" }, href: "/admin?tab=settings&group=cafeca" });
+  if (otherVendors) services.push({ id: "moreVendors", name: "", level: "off", line: { key: "svcMoreVendors", values: { n: otherVendors } }, href: "/admin?tab=services&id=xai" });
+  if (config.llm.providers.ollama?.key || offered("ollama")) services.push({ id: "ollama", name: "Ollama", level: issueOf("unserved:ollama") ? "bad" : "ok", line: { key: "svcModels", values: { n: offered("ollama") } }, href: "/admin?tab=services&id=ollama" });
+  if (config.llm.providers.locutus?.key) services.push({ id: "locutus", name: "Locutus", level: hub.error ? "bad" : waiting ? "warn" : hub.linked ? "ok" : "warn", line: { key: "svcLocutus", values: { linked: hub.linked, waiting } }, href: "/admin?tab=services&id=locutus" });
+  services.push({ id: "storage", name: "", level: issueOf("check:storage") ? "bad" : "ok", line: { key: config.storage.driver === "s3" ? "svcStorageS3" : "svcStorageLocal" }, href: "/admin?tab=services&id=storage" });
+  services.push({ id: "boltchain", name: "Boltchain", level: config.boltchain.enabled ? "ok" : "off", line: { key: config.boltchain.enabled ? "svcOn" : "svcOff" }, href: "/admin?tab=services&id=boltchain" });
+  services.push({ id: "cafeca", name: "CAFECA", level: "ok", line: { key: "svcCafeca" }, href: "/admin?tab=services&id=cafeca" });
 
   const restart = pendingRestart().map((p) => ({ key: p.key, label: SETTING[p.key]?.label, group: SETTING[p.key]?.group }));
   return { issues, services, restart, at: new Date() };

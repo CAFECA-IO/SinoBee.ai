@@ -35,7 +35,7 @@ test("every setting is edited with one of the 16 controls and declares what the 
 });
 
 test("settings screens use only the controls kit (no inputs of their own) and every group is shown", () => {
-  const screens = ["src/components/admin-site-settings.tsx"];
+  const screens = ["src/components/admin-site-settings.tsx", "src/components/admin-connector.tsx", "src/app/[locale]/admin/_sections/services.tsx", "src/app/[locale]/admin/_sections/health.tsx", "src/components/admin-health.tsx"];
   for (const f of screens) {
     const src = readFileSync(f, "utf8");
     for (const tag of ["<input", "<select", "<textarea"]) assert.ok(!src.includes(tag), `${f} uses ${tag}; use src/components/settings-controls.tsx`);

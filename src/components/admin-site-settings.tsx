@@ -72,7 +72,7 @@ const lang = (l: L | string | undefined, zh: boolean) => (typeof l === "string" 
  * when it takes effect, and a sentence to tick for each dangerous one. The set is applied in one request and lands
  * in the change log, where it can be reverted.
  */
-export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, titles }: { sections: SettingsSection[]; items: SettingItem[]; canEdit: boolean; initial?: string; counts?: Record<string, number>; zh: boolean; titles: Record<string, string> }) {
+export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, titles, compact, parts }: { sections: SettingsSection[]; items: SettingItem[]; canEdit: boolean; initial?: string; counts?: Record<string, number>; zh: boolean; titles: Record<string, string>; compact?: boolean; parts?: { id: string; title: string; keys: string[]; extra?: ReactNode }[] }) {
   const t = useTranslations("admin.settings");
   const tc = useTranslations("admin.ctl");
   const router = useRouter();
@@ -199,6 +199,39 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
       window.history.replaceState(null, "", u);
     } catch {}
   };
+  const bar = canEdit && (changed.length > 0 || done) && (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-[#0b1528] text-white" role="region" aria-label={tc("changeBar")}>
+      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+        {changed.length > 0 ? (
+          <>
+            <span className="flex-1 text-sm">{tc("bar", { n: changed.length, danger: dangerous.length, restart: restart.length })}</span>
+            <button type="button" className="min-h-11 rounded-xl border border-[#c9d6dc] px-4 text-sm" onClick={async () => (await confirmDialog(tc("discardAsk", { n: changed.length }))) && (setDrafts({}), setErrors({}))}>{tc("discardAll")}</button>
+            <button type="button" className="min-h-11 rounded-xl bg-[#6fe3b0] px-4 text-sm font-semibold text-[#04201a]" onClick={openReview}>{tc("review")}</button>
+          </>
+        ) : done ? (
+          <span className="flex-1 text-sm">{done.failed ? tc("appliedSome", { n: done.n, failed: done.failed }) : tc("applied", { n: done.n })} · <a href={compact ? "#activity" : "#changes"} className="font-semibold text-[#6fe3b0] underline">{tc("seeLog")}</a></span>
+        ) : null}
+      </div>
+    </div>
+  );
+  const reviewPanel = review && <Review changed={changed} drafts={drafts} byKey={byKey} titles={titles} zh={zh} onClose={() => setReview(false)} onApply={apply} />;
+  // a connector's section: the rows only (its page draws the header), same drafts, change bar and review
+  if (compact)
+    return (
+      <div>
+        {(parts ?? [{ id: "all", title: "", keys: items.map((i) => i.key) }]).map((p) => (
+          <section key={p.id} id={`part-${p.id}`} className="scroll-mt-24 border-b border-line last:border-0" aria-label={p.title || undefined}>
+            {p.title && <h2 className="px-5 pb-1 pt-4 text-[15px] font-semibold text-muted">{p.title}</h2>}
+            {p.keys.map((k) => byKey.get(k)).filter((i): i is SettingItem => !!i).map((i) => (
+              <FieldRow key={i.key} item={i} draft={drafts[i.key]} error={errors[i.key]} canEdit={canEdit} zh={zh} focused={focus === i.key} onChange={(v) => setDraft(i.key, v)} onBlur={() => validate(i.key)} />
+            ))}
+            {p.extra && <div className="px-5 pb-4 pt-2">{p.extra}</div>}
+          </section>
+        ))}
+        {bar}
+        {reviewPanel}
+      </div>
+    );
   return (
     <div className="space-y-4 pb-24">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -249,22 +282,8 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
         </div>
       </div>
 
-      {canEdit && (changed.length > 0 || done) && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-[#0b1528] text-white" role="region" aria-label={tc("changeBar")}>
-          <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-            {changed.length > 0 ? (
-              <>
-                <span className="flex-1 text-sm">{tc("bar", { n: changed.length, danger: dangerous.length, restart: restart.length })}</span>
-                <button type="button" className="min-h-11 rounded-xl border border-[#c9d6dc] px-4 text-sm" onClick={async () => (await confirmDialog(tc("discardAsk", { n: changed.length }))) && (setDrafts({}), setErrors({}))}>{tc("discardAll")}</button>
-                <button type="button" className="min-h-11 rounded-xl bg-[#6fe3b0] px-4 text-sm font-semibold text-[#04201a]" onClick={openReview}>{tc("review")}</button>
-              </>
-            ) : done ? (
-              <span className="flex-1 text-sm">{done.failed ? tc("appliedSome", { n: done.n, failed: done.failed }) : tc("applied", { n: done.n })} · <a href="#changes" className="font-semibold text-[#6fe3b0] underline">{tc("seeLog")}</a></span>
-            ) : null}
-          </div>
-        </div>
-      )}
-      {review && <Review changed={changed} drafts={drafts} byKey={byKey} titles={titles} zh={zh} onClose={() => setReview(false)} onApply={apply} />}
+      {bar}
+      {reviewPanel}
     </div>
   );
 }
