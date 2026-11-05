@@ -7,13 +7,14 @@ import { audit } from "../roles";
 import { isSealed, keyFile, keyFingerprint, open, seal } from "./box";
 import { resolve, settingsCache } from "./cache";
 import { GROUPS, PAYMENT_PROVIDERS, SETTING, SETTINGS, type SettingDef } from "./registry";
+import { checkValue, controlOf, type Control, type Ui } from "./ui";
 
 const PREFIX = "cfg.";
 /** values earlier .env.example files shipped with; importing them would override better defaults */
 const STALE_EXAMPLE_VALUES: Record<string, string> = { LEGAL_ENTITY: "CAFECA", PAYMENT_MODE: "chain" };
 /** variables from earlier versions that nothing reads any more (TWDC payments, the old subscription, …) */
 const OBSOLETE = new Set(["TREASURY_ADDRESS", "TWDC_ADDRESS", "TWDC_DECIMALS", "MIN_TASK_BUDGET_TWDC", "MIN_TOPUP_TWDC", "USD_TWD_RATE", "SUBSCRIPTION_PRICE_TWDC", "SUBSCRIPTION_DAYS", "RUNNER_PASS_ENV", "MIN_TASK_BUDGET_TWD", "MIN_TOPUP_TWD"]);
-const g = globalThis as unknown as { __sbSettingsTimer?: NodeJS.Timeout };
+const g = globalThis as unknown as { __sbSettingsTimer?: NodeJS.Timeout; __sbSettingsBoot?: Map<string, string> };
 
 /** Read every stored setting into the in-memory cache (decrypting secrets). Safe to call repeatedly. */
 export async function loadSettings({ refreshEveryMs = 30_000 }: { refreshEveryMs?: number } = {}) {
@@ -31,6 +32,8 @@ export async function loadSettings({ refreshEveryMs = 30_000 }: { refreshEveryMs
   const c = settingsCache();
   c.values = values;
   c.loadedAt = Date.now();
+  // what the restart-only settings were when this process started (see pendingRestart)
+  g.__sbSettingsBoot ??= new Map(SETTINGS.filter((d) => d.restart).map((d) => [d.key, resolve(d.key).value]));
   if (refreshEveryMs > 0 && !g.__sbSettingsTimer) {
     g.__sbSettingsTimer = setInterval(() => void loadSettings({ refreshEveryMs: 0 }).catch(() => undefined), refreshEveryMs);
     g.__sbSettingsTimer.unref?.();
@@ -66,58 +69,54 @@ export async function generateMissing(log: (s: string) => void = console.log) {
   return made;
 }
 
-function validate(def: SettingDef, raw: string): string {
-  const v = raw.trim();
-  if (v === "") return "";
-  switch (def.type) {
-    case "number":
-      if (!Number.isFinite(Number(v))) throw new HttpError(400, `${def.key} must be a number`);
-      return String(Number(v));
-    case "bool":
-      return ["1", "true", "yes", "on"].includes(v.toLowerCase()) ? "1" : "0";
-    case "url":
-      try {
-        const u = new URL(v);
-        if (!(def.schemes ?? ["http:", "https:"]).includes(u.protocol)) throw new Error();
-      } catch {
-        throw new HttpError(400, `${def.key} must be a ${(def.schemes ?? ["http:", "https:"]).map((x) => x.slice(0, -1)).join("/")} URL`);
-      }
-      return v.replace(/\/$/, "");
-    case "select":
-      if (def.options && !def.options.includes(v)) throw new HttpError(400, `${def.key} must be one of ${def.options.join(", ")}`);
-      return v;
-    case "list": {
-      const items = v.split(/[\s,]+/).filter(Boolean);
-      if (def.options) for (const i of items) if (!def.options.includes(i)) throw new HttpError(400, `${def.key}: unknown value ${i}`);
-      return items.join(",");
-    }
-    case "secret":
-      if (v.length > 8192) throw new HttpError(400, `${def.key} is too long`);
-      return v;
-    default:
-      if (v.length > 2000) throw new HttpError(400, `${def.key} is too long`);
-      return v;
+/** A setting value that does not pass its control's check; carries the message in both languages */
+export class SettingError extends HttpError {
+  constructor(public l: { zh: string; en: string }) {
+    super(400, l.zh);
   }
 }
 
+function validate(def: SettingDef, raw: string): string {
+  const r = checkValue(def, raw);
+  if (!r.ok) throw new SettingError(r.error);
+  return r.value;
+}
+
 /** Save (or clear with "") one setting. Values set in the process environment cannot be changed here. */
-export async function saveSetting(actorId: string, key: string, raw: string) {
+export async function saveSetting(actorId: string, key: string, raw: string, opts: { batch?: string; confirmed?: boolean } = {}) {
   const def = SETTING[key];
   if (!def) throw new HttpError(404, `unknown setting ${key}`);
-  if (resolve(key).source === "env") throw new HttpError(409, `${key} is set by the environment variable ${def.env}; change it there`);
+  if (resolve(key).source === "env") throw new SettingError({ zh: `由環境變數 ${def.env} 設定，要在那裡修改`, en: `set by the environment variable ${def.env}; change it there` });
+  if (def.ui?.readOnly) throw new SettingError({ zh: "這個值不能在這裡修改", en: "this value cannot be changed here" });
   const value = validate(def, raw);
   if (key === "hub.signingKey" && value) {
     try {
       createPrivateKey({ key: Buffer.from(value, "base64"), format: "der", type: "pkcs8" });
     } catch {
-      throw new HttpError(400, "hub.signingKey must be a base64 PKCS8 DER ed25519 key");
+      throw new SettingError({ zh: "要是 base64 的 PKCS8 DER ed25519 私鑰", en: "must be a base64 PKCS8 DER ed25519 key" });
     }
   }
+  const before = resolve(key);
+  // a change whose consequence the review asks to confirm (a generated key, a payment or data switch) needs that confirmation
+  if (dangerous(def, value, before.value) && !opts.confirmed) throw new SettingError({ zh: "這項變更需要先在檢閱時確認影響", en: "this change needs its consequence confirmed in the review" });
   if (value === "") {
     await db.siteSetting.deleteMany({ where: { key: PREFIX + key } });
     settingsCache().values.delete(key);
   } else await write(key, value);
-  await audit(actorId, value === "" ? "settings.clear" : "settings.update", { type: "setting", id: key }, def.type === "secret" ? { secret: true } : { value });
+  const secret = def.type === "secret";
+  await audit(actorId, value === "" ? "settings.clear" : "settings.update", { type: "setting", id: key }, {
+    ...(secret ? { secret: true } : { value, previous: before.source === "db" ? before.value : null, previousSource: before.source }),
+    ...(opts.batch ? { batch: opts.batch } : {}),
+  });
+}
+
+/** Does changing `from` → `value` need the danger confirmation? (generated keys: any change) */
+export function dangerous(def: SettingDef, value: string, from: string) {
+  if (value === from) return false;
+  if (def.generate) return true;
+  const u = def.ui ?? {};
+  if (!u.danger) return false;
+  return !u.dangerWhen || u.dangerWhen.includes(value);
 }
 
 /** Rotate the skill signing key; the old public key stays published so existing signatures keep verifying */
@@ -222,9 +221,18 @@ export type SettingView = {
   derived?: string;
   required?: boolean;
   link?: SettingDef["link"];
+  schemes?: string[];
+  /** how it is edited (src/lib/settings/ui.ts) */
+  control: Control;
+  ui: Ui;
+  /** the default it falls back to when cleared */
+  defaultValue?: string;
+  /** a restart-only setting changed since this process started */
+  pendingRestart?: boolean;
 };
 
 export function settingsForAdmin(): { groups: typeof GROUPS; providers: typeof PAYMENT_PROVIDERS; items: SettingView[]; keyFile: string; fingerprint: string } {
+  const pending = new Set(pendingRestart().map((p) => p.key));
   const items = SETTINGS.map((d): SettingView => {
     const r = resolve(d.key);
     const secret = d.type === "secret";
@@ -233,6 +241,7 @@ export function settingsForAdmin(): { groups: typeof GROUPS; providers: typeof P
     if (d.key === "boltchain.walletKey" && /^0x[0-9a-fA-F]{64}$/.test(r.value)) derived = privateKeyToAccount(r.value as `0x${string}`).address;
     return {
       key: d.key, group: d.group, provider: d.provider, type: d.type, label: d.label, help: d.help, options: d.options, restart: d.restart, generated: !!d.generate, env: d.env, required: d.required, link: d.link,
+      schemes: d.schemes, control: controlOf(d), ui: d.ui ?? {}, defaultValue: d.default, pendingRestart: pending.has(d.key),
       source: r.source,
       value: secret ? "" : r.value,
       secretSet: secret ? !!r.value : undefined,
@@ -244,3 +253,68 @@ export function settingsForAdmin(): { groups: typeof GROUPS; providers: typeof P
 }
 
 export { isSealed };
+
+// ───────────── change log, revert, pending restarts ─────────────
+
+export type ChangeEntry = { key: string; cleared: boolean; secret: boolean; value: string | null; previous: string | null; previousSource: string | null };
+export type ChangeSet = { id: string; at: Date; actor: string | null; entries: ChangeEntry[]; reverts?: string };
+
+/** Applied change sets, newest first (one per batch; changes saved before batches existed stand alone) */
+export async function settingsHistory(limit = 30): Promise<ChangeSet[]> {
+  const rows = await db.adminAudit.findMany({
+    where: { action: { in: ["settings.update", "settings.clear"] } },
+    orderBy: { createdAt: "desc" },
+    take: limit * 8,
+    include: { actor: { select: { handle: true, account: true } } },
+  });
+  const sets = new Map<string, ChangeSet>();
+  for (const r of rows) {
+    const d = (r.detail ?? {}) as { value?: string; previous?: string | null; previousSource?: string; secret?: boolean; batch?: string; reverts?: string };
+    const id = d.batch ?? r.id;
+    let set = sets.get(id);
+    if (!set) {
+      if (sets.size >= limit) break;
+      set = { id, at: r.createdAt, actor: r.actor?.handle ?? r.actor?.account ?? null, entries: [], reverts: d.reverts };
+      sets.set(id, set);
+    }
+    set.entries.push({ key: r.targetId ?? "", cleared: r.action === "settings.clear", secret: !!d.secret, value: d.secret ? null : r.action === "settings.clear" ? "" : (d.value ?? null), previous: d.secret ? null : (d.previous ?? null), previousSource: d.previousSource ?? null });
+  }
+  return [...sets.values()];
+}
+
+/**
+ * Put a change set's settings back to what they were before it. Secrets cannot be put back (their values are not
+ * kept); a setting changed again since is left alone. Returns what was reverted and what was skipped.
+ */
+export async function revertChangeSet(actorId: string, id: string) {
+  const set = (await settingsHistory(200)).find((s) => s.id === id);
+  if (!set) throw new HttpError(404, "change set not found");
+  const batch = randomBytes(12).toString("hex");
+  const reverted: string[] = [];
+  const skipped: { key: string; why: "secret" | "changedSince" | "error"; error?: string }[] = [];
+  for (const e of set.entries) {
+    if (e.secret) {
+      skipped.push({ key: e.key, why: "secret" });
+      continue;
+    }
+    if ((resolve(e.key).value ?? "") !== (e.value ?? "") && !(e.cleared && resolve(e.key).source !== "db")) {
+      skipped.push({ key: e.key, why: "changedSince" });
+      continue;
+    }
+    try {
+      await saveSetting(actorId, e.key, e.previousSource === "db" ? (e.previous ?? "") : "", { batch, confirmed: true });
+      reverted.push(e.key);
+    } catch (err) {
+      skipped.push({ key: e.key, why: "error", error: (err as Error).message });
+    }
+  }
+  if (reverted.length) await audit(actorId, "settings.revert", { type: "site", id: "settings" }, { reverts: id, batch, keys: reverted });
+  return { reverted, skipped };
+}
+
+/** Restart-only settings changed since this process started: they take effect after swarm restarts */
+export function pendingRestart(): { key: string; now: string; before: string }[] {
+  const boot = g.__sbSettingsBoot;
+  if (!boot) return [];
+  return [...boot].filter(([k, v]) => resolve(k).value !== v).map(([key, before]) => ({ key, now: SETTING[key]?.type === "secret" ? "" : resolve(key).value, before: SETTING[key]?.type === "secret" ? "" : before }));
+}

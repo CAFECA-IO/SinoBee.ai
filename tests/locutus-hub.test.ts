@@ -372,7 +372,7 @@ test("the admin card: approving a waiting node registers it and offers its model
   // the link URL node operators copy is a WebSocket URL
   const store = await import("../src/lib/settings/store");
   await store.saveSetting(actor.id, "locutus.publicUrl", "wss://sinobee.test/locutus/link");
-  await assert.rejects(store.saveSetting(actor.id, "locutus.publicUrl", "https://sinobee.test/locutus/link"), /wss\/ws URL/);
+  await assert.rejects(store.saveSetting(actor.id, "locutus.publicUrl", "https://sinobee.test/locutus/link"), /wss:\/\//);
 });
 
 test("model warnings: Locutus models are checked against the linked nodes, not the synced catalog", async () => {

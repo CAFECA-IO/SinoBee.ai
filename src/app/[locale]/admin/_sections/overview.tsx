@@ -53,7 +53,7 @@ export async function Overview({ superAdmin, sp }: { superAdmin: boolean; sp: Ad
                   <div className="text-sm font-semibold">{t(`check.${c.id}.title`)}{c.detail && <span className="ml-2 font-mono text-xs text-muted">{c.detail}</span>}</div>
                   <div className="text-xs text-muted">{t(`check.${c.id}.fix`)}</div>
                 </div>
-                <Link className="btn-primary !px-3 !py-1.5 text-xs" href={`/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
+                <Link className="btn-primary !px-3 !py-1.5 text-xs" href={c.keys[0] ? `/admin?tab=settings&setting=${c.keys[0]}` : `/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
               </div>
             ))}
           </div>
@@ -73,7 +73,7 @@ export async function Overview({ superAdmin, sp }: { superAdmin: boolean; sp: Ad
                   <div className="font-medium">{t(`check.${c.id}.title`)}{c.detail && <span className="ml-2 font-mono text-xs text-muted">{c.detail}</span>}</div>
                   <div className="text-xs text-muted">{t(`check.${c.id}.fix`)}</div>
                 </div>
-                <Link className="btn-ghost !px-3 !py-1 text-xs" href={`/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
+                <Link className="btn-ghost !px-3 !py-1 text-xs" href={c.keys[0] ? `/admin?tab=settings&setting=${c.keys[0]}` : `/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
               </li>
             ))}
           </ul>

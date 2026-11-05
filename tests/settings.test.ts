@@ -67,15 +67,17 @@ test(".env values move into the database; the file keeps only bootstrap lines an
 test("environment wins and is locked; admin edits are validated and audited without secret values", async () => {
   process.env.LLM_RPM = "5";
   assert.equal(config.llm.rpm, 5);
-  await assert.rejects(store.saveSetting(adminId, "llm.rpm", "10"), /environment variable LLM_RPM/);
+  await assert.rejects(store.saveSetting(adminId, "llm.rpm", "10"), /環境變數 LLM_RPM/);
   delete process.env.LLM_RPM;
   await store.saveSetting(adminId, "llm.rpm", "10");
   assert.equal(config.llm.rpm, 10);
-  await assert.rejects(store.saveSetting(adminId, "oen.env", "staging"), /one of testing, production/);
-  await store.saveSetting(adminId, "site.testMode", "on");
+  await assert.rejects(store.saveSetting(adminId, "oen.env", "staging"), /只能選：測試環境、正式環境/);
+  // a dangerous change needs its consequence confirmed (the review's "我了解")
+  await assert.rejects(store.saveSetting(adminId, "site.testMode", "on"), /確認/);
+  await store.saveSetting(adminId, "site.testMode", "on", { confirmed: true });
   assert.equal(config.testMode, true, "test mode switch");
   assert.equal(config.oen.env, "testing", "test mode always uses Oen testing");
-  await store.saveSetting(adminId, "site.testMode", "0");
+  await store.saveSetting(adminId, "site.testMode", "0", { confirmed: true });
   assert.equal(config.testMode, false);
   await store.saveSetting(adminId, "oen.token", "new-secret-token");
   const a = await db.adminAudit.findFirstOrThrow({ where: { targetId: "oen.token" }, orderBy: { createdAt: "desc" } });
@@ -87,6 +89,33 @@ test("environment wins and is locked; admin edits are validated and audited with
   assert.equal(view.items.find((i) => i.key === "boltchain.walletKey")!.derived?.startsWith("0x"), true);
   await store.saveSetting(adminId, "llm.rpm", "");
   assert.equal(config.llm.rpm, 60, "cleared → default");
+  // generated keys: replacing one is dangerous too
+  await assert.rejects(store.saveSetting(adminId, "boltchain.masterKey", "0x" + "1".repeat(64)), /確認/);
+});
+
+test("a change set is logged as one entry and can be put back; restart-only changes wait for a restart", async () => {
+  await store.saveSetting(adminId, "llm.rpm", "20", { batch: "b1" });
+  await store.saveSetting(adminId, "crowd.reviewDays", "9", { batch: "b1" });
+  await store.saveSetting(adminId, "llm.rpm", "30", { batch: "b2" });
+  let log = await store.settingsHistory();
+  const b1 = log.find((s) => s.id === "b1")!;
+  assert.deepEqual(b1.entries.map((e) => [e.key, e.value]).sort(), [["crowd.reviewDays", "9"], ["llm.rpm", "20"]]);
+  // b1 again: llm.rpm was changed since (b2), so only crowd.reviewDays goes back
+  const r = await store.revertChangeSet(adminId, "b1");
+  assert.deepEqual(r.reverted, ["crowd.reviewDays"]);
+  assert.deepEqual(r.skipped.map((x) => [x.key, x.why]), [["llm.rpm", "changedSince"]]);
+  assert.equal(config.crowd.reviewDays, 7, "back to the default");
+  // b2: back to 20
+  await store.revertChangeSet(adminId, "b2");
+  assert.equal(config.llm.rpm, 20);
+  log = await store.settingsHistory();
+  assert.ok(log.length >= 3);
+  // restart-only: changed after start → pending
+  assert.deepEqual(store.pendingRestart().map((p) => p.key), []);
+  await store.saveSetting(adminId, "runner.mode", "docker");
+  await store.saveSetting(adminId, "locutus.hubPort", "10099");
+  assert.deepEqual(store.pendingRestart().map((p) => p.key), ["locutus.hubPort"]);
+  assert.equal(store.settingsForAdmin().items.find((i) => i.key === "locutus.hubPort")?.pendingRestart, true);
 });
 
 test("rotating the skill signing key keeps the old public key published", async () => {

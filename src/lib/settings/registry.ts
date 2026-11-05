@@ -8,6 +8,7 @@
  */
 
 import { VENDORS } from "../llm/vendors";
+import { UI, type Ui } from "./ui";
 
 export type SettingType = "text" | "url" | "number" | "secret" | "select" | "bool" | "list";
 
@@ -33,6 +34,8 @@ export type SettingDef = {
   restart?: boolean;
   /** should be filled before going live (shown as "needs attention" in /admin) */
   required?: boolean;
+  /** how it is edited: unit, range, option names, danger (src/lib/settings/ui.ts; filled from UI below) */
+  ui?: Ui;
 };
 
 export const GROUPS = ["site", "payments", "apiKeys", "llm", "cafeca", "legal", "pricing", "retention", "storage", "boltchain", "hub", "runner", "crowd"] as const;
@@ -84,7 +87,7 @@ export const SETTINGS: SettingDef[] = [
 
   // ───── CAFECA ─────
   { key: "cafeca.wallet", env: "CAFECA_WALLET", type: "url", group: "cafeca", default: "https://cafeca.io", label: L("CAFECA 錢包網址", "CAFECA wallet URL"), restart: true },
-  { key: "cafeca.rpcUrl", env: "CAFECA_RPC_URL", type: "url", group: "cafeca", label: L("CAFECA 鏈 RPC（選填）", "CAFECA chain RPC (optional)") },
+  { key: "cafeca.rpcUrl", env: "CAFECA_RPC_URL", type: "url", restart: true, group: "cafeca", label: L("CAFECA 鏈 RPC（選填）", "CAFECA chain RPC (optional)") },
   { key: "cafeca.notifyUrl", env: "CAFECA_NOTIFY_URL", type: "url", group: "cafeca", label: L("通知 Webhook", "Notification webhook") },
   { key: "cafeca.notifyToken", env: "CAFECA_NOTIFY_TOKEN", type: "secret", group: "cafeca", label: L("通知 Webhook Token", "Notification webhook token") },
   { key: "admins.initial", env: "ADMIN_ACCOUNTS", type: "list", group: "cafeca", label: L("首次登入即為管理者的帳號", "Accounts that start as admin") },
@@ -112,8 +115,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "subscription.graceDays", env: "SUBSCRIPTION_GRACE_DAYS", type: "number", group: "retention", default: "30", label: L("到期寬限天數", "Grace period (days)") },
 
   // ───── storage ─────
-  { key: "storage.driver", env: "STORAGE_DRIVER", type: "select", group: "storage", default: "local", options: ["local", "s3"], label: L("鏡像儲存", "Mirror storage"), restart: true },
-  { key: "storage.localDir", env: "STORAGE_LOCAL_DIR", type: "text", group: "storage", default: "./data/storage", label: L("本機目錄", "Local directory"), restart: true },
+  { key: "storage.driver", env: "STORAGE_DRIVER", type: "select", group: "storage", default: "local", options: ["local", "s3"], label: L("鏡像儲存", "Mirror storage") },
+  { key: "storage.localDir", env: "STORAGE_LOCAL_DIR", type: "text", group: "storage", default: "./data/storage", label: L("本機目錄", "Local directory") },
   { key: "storage.s3Bucket", env: "S3_BUCKET", type: "text", group: "storage", label: L("S3 Bucket", "S3 bucket") },
   { key: "storage.s3Region", env: "AWS_REGION", type: "text", group: "storage", default: "ap-northeast-1", label: L("AWS 區域", "AWS region"), restart: true },
   { key: "storage.s3AccessKeyId", env: "AWS_ACCESS_KEY_ID", type: "secret", group: "storage", label: L("AWS Access Key ID（留空用主機角色）", "AWS access key ID (empty = instance role)"), restart: true },
@@ -141,17 +144,17 @@ export const SETTINGS: SettingDef[] = [
   // ───── runner ─────
   { key: "runner.mode", env: "RUNNER_MODE", type: "select", group: "runner", default: "docker", options: ["docker", "mock"], label: L("執行方式", "Runner"), restart: true },
   { key: "runner.image", env: "SINOBEE_IMAGE", type: "text", group: "runner", default: "sinobee:latest", label: L("SinoBee 映像檔", "SinoBee image") },
-  { key: "runner.concurrency", env: "RUNNER_CONCURRENCY", type: "number", group: "runner", default: "2", label: L("同時執行任務數", "Concurrent tasks"), restart: true },
+  { key: "runner.concurrency", env: "RUNNER_CONCURRENCY", type: "number", group: "runner", default: "2", label: L("同時執行任務數", "Concurrent tasks") },
   { key: "runner.cpus", env: "RUNNER_CPUS", type: "number", group: "runner", default: "2", label: L("每任務 vCPU", "vCPU per task") },
   { key: "runner.memoryMb", env: "RUNNER_MEMORY_MB", type: "number", group: "runner", default: "4096", label: L("每任務記憶體（MB）", "Memory per task (MB)") },
   { key: "runner.network", env: "RUNNER_NETWORK", type: "text", group: "runner", label: L("容器網路", "Container network") },
-  { key: "runner.pollSeconds", env: "RUNNER_POLL_SECONDS", type: "number", group: "runner", default: "10", label: L("輪詢秒數", "Poll seconds"), restart: true },
+  { key: "runner.pollSeconds", env: "RUNNER_POLL_SECONDS", type: "number", group: "runner", default: "10", label: L("輪詢秒數", "Poll seconds") },
   { key: "runner.maxTaskHours", env: "RUNNER_MAX_TASK_HOURS", type: "number", group: "runner", default: "12", label: L("任務最長時數", "Max task hours") },
 
   // ───── crowdfunding ─────
   { key: "crowd.sharePrice", env: "CROWD_SHARE_PRICE_TWD", type: "number", group: "crowd", default: "30", label: L("每份金額（TWD）", "Share price (TWD)") },
   { key: "crowd.proposalFee", env: "CROWD_PROPOSAL_FEE_TWD", type: "number", group: "crowd", default: "30", label: L("眾籌提案費（TWD）", "Proposal fee (TWD)"), help: L("不可退還；換算為規格對話 token 與儲存空間額度", "Non-refundable; becomes credit for the spec dialogue and storage") },
-  { key: "crowd.feeRates", env: "CROWD_FEE_RATES", type: "text", group: "crowd", default: "7:0,30:0.03,90:0.06", label: L("眾籌期與服務費率", "Durations and service fee rates"), help: L("天數:費率，以逗號分隔", "days:rate, comma separated") },
+  { key: "crowd.feeRates", env: "CROWD_FEE_RATES", type: "text", group: "crowd", default: "7:0,30:0.03,90:0.06", label: L("眾籌期與服務費率", "Durations and service fee rates"), help: L("眾籌期越長、服務費率越高：每一列是「眾籌期達到幾天 → 收多少服務費」", "Longer campaigns pay a higher fee: each row is “campaigns of at least N days → fee”") },
   { key: "crowd.freeFileMb", env: "CROWD_FREE_FILE_MB", type: "number", group: "crowd", default: "50", label: L("免費參考檔案（MB）", "Free reference files (MB)") },
   { key: "crowd.blockMb", env: "CROWD_FILE_BLOCK_MB", type: "number", group: "crowd", default: "50", label: L("超額計費單位（MB）", "Extra space block (MB)"), help: L("每個單位扣 1 份提案額度", "Each block uses one share of proposal credit") },
   { key: "crowd.maxFileMb", env: "CROWD_MAX_FILE_MB", type: "number", group: "crowd", default: "500", label: L("參考檔案上限（MB）", "Reference files limit (MB)") },
@@ -169,5 +172,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "crowd.ogFontUrl", env: "OG_FONT_URL", type: "url", group: "crowd", default: "https://fonts.googleapis.com/css2?family=Noto+Sans+TC", label: L("預覽圖中文字型來源", "Preview image CJK font source"), help: L("Google Fonts 相容的 CSS 網址，只下載預覽圖用到的字；也可設 OG_FONT_PATH 指向本機 TTF/OTF", "A Google Fonts-style CSS URL (only the characters used are fetched); or set OG_FONT_PATH to a local TTF/OTF") },
   { key: "crowd.resultsDays", env: "CROWD_RESULTS_DAYS", type: "number", group: "crowd", default: "90", label: L("眾籌成果保存天數", "Crowdfunded results kept (days)") },
 ];
+
+for (const d of SETTINGS) d.ui = UI[d.key] ?? {};
 
 export const SETTING = Object.fromEntries(SETTINGS.map((d) => [d.key, d])) as Record<string, SettingDef>;

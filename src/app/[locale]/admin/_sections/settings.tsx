@@ -3,12 +3,14 @@ import { config } from "@/lib/config";
 import { Link } from "@/i18n/navigation";
 import { settingsForAdmin } from "@/lib/settings/store";
 import { settingsHealth } from "@/lib/admin-overview";
-import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type SettingsSection } from "@/components/admin-site-settings";
+import { ChangeLog, CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem, type SettingsSection } from "@/components/admin-site-settings";
+import { GROUPS as SETTING_GROUPS } from "@/lib/settings/registry";
 import { Icon } from "@/components/icon";
 import { PageHead } from "@/components/admin/kit";
 import type { AdminParams } from "../page";
 
-const GROUPS = ["site", "payments", "apiKeys", "llm", "legal", "cafeca", "pricing", "retention", "storage", "boltchain", "hub", "runner", "security"] as const;
+// one source for the groups (the registry), plus the encryption notes; a group added there shows up here
+const GROUPS = [...SETTING_GROUPS, "security"] as const;
 
 export async function SiteSettings({ superAdmin, locale, sp }: { superAdmin: boolean; locale: string; sp: AdminParams }) {
   const t = await getTranslations("admin.settings");
@@ -71,7 +73,7 @@ export async function SiteSettings({ superAdmin, locale, sp }: { superAdmin: boo
           <ol className="flex flex-wrap gap-2">
             {open.map((c, i) => (
               <li key={c.id}>
-                <Link href={`/admin?tab=settings&group=${c.group}`} className={`btn-ghost !px-3 !py-1.5 text-xs ${c.level === "error" ? "!border-err/50 !text-err" : ""}`} data-check={c.id}>
+                <Link href={c.keys[0] ? `/admin?tab=settings&setting=${c.keys[0]}` : `/admin?tab=settings&group=${c.group}`} className={`btn-ghost !px-3 !py-1.5 text-xs ${c.level === "error" ? "!border-err/50 !text-err" : ""}`} data-check={c.id}>
                   {i + 1}. {to(`check.${c.id}.title`)}
                 </Link>
               </li>
@@ -79,7 +81,8 @@ export async function SiteSettings({ superAdmin, locale, sp }: { superAdmin: boo
           </ol>
         </section>
       )}
-      <SettingsBoard key={initial} sections={sections} items={shown} canEdit={superAdmin} initial={initial} counts={counts} />
+      <SettingsBoard sections={sections} items={shown} canEdit={superAdmin} initial={initial} counts={counts} zh={zh} titles={Object.fromEntries(sections.map((s) => [s.id, s.title]))} />
+      <ChangeLog items={shown} titles={Object.fromEntries(sections.map((s) => [s.id, s.title]))} zh={zh} canEdit={superAdmin} />
       <p className="text-xs text-muted">{t("help")}</p>
     </div>
   );
