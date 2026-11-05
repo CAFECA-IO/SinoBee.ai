@@ -23,6 +23,8 @@ export type SettingItem = {
   secretSet?: boolean;
   hint?: string;
   derived?: string;
+  /** a page that helps fill it in, e.g. where to get an API key */
+  link?: { url: string; label: string };
 };
 
 export type SettingsSection = { id: string; title: string; description?: string; extra?: ReactNode };
@@ -251,6 +253,11 @@ function Field({ item, canEdit, value, error, onChange, onClear }: { item: Setti
           {need && <span className="badge bg-warn-soft text-warn">{t("needed")}</span>}
         </div>
         {item.help && <div className="mt-0.5 text-xs text-muted">{item.help}</div>}
+        {item.link && (
+          <a href={item.link.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-accent underline-offset-2 hover:underline">
+            {item.link.label} ↗
+          </a>
+        )}
         <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] empty:hidden">
           {locked ? (
             <span className="badge bg-warn-soft text-warn" data-tip={item.key}>{t("source.env", { env: item.env ?? "" })}</span>

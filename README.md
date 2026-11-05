@@ -97,6 +97,13 @@ A remote `BOLT_RPC_URL` (not localhost) uses that node instead of starting one.
 - A `DATABASE_URL` that points anywhere else is used as it is, and no container is started.
 - The port is published on 127.0.0.1 only. Task containers cannot reach the database.
 
+**Model vendors.** The relay calls these vendors with a platform API key: Anthropic, OpenAI, Google Gemini, DeepSeek, xAI Grok, Mistral AI, Qwen (Alibaba Cloud Model Studio), Moonshot Kimi, Z.ai GLM and OpenRouter. They are listed once in `src/lib/llm/vendors.ts` (name, format, default API address, where to get a key).
+
+- /admin → Settings → Model and tool API keys has each vendor's key with a 「取得 API Key」 link; Settings → Model relay has each vendor's API address (Qwen, Kimi and GLM keys from mainland China accounts need the mainland address given in the key's help).
+- After adding a key, press 「從供應商同步」 in /admin → 模型與定價 and offer the models you want. Vendors with no key and no priced model are listed under 「其他可接上的供應商」 there.
+- OpenRouter model ids keep the router's own path: `openrouter/anthropic/claude-…`.
+- The first copy of the default price table offers only the models of vendors that have a key then (all of them when none has one).
+
 **Ollama.** Ollama runs on the GPU when docker has an NVIDIA GPU (NVIDIA Container Toolkit), and on the CPU otherwise.
 
 - swarm writes `OLLAMA_URL=http://127.0.0.1:11434` to `.env`.

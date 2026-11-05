@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { VENDORS } from "./llm/vendors";
 import { config } from "./config";
 import { HttpError } from "./errors";
 import { audit } from "./roles";
@@ -169,7 +170,7 @@ export async function syncCatalog(actorId: string | null): Promise<Catalog> {
 // ───────────── prices looked up by AI ─────────────
 
 export type PriceGuess = { modelId: string; label: string; vendor: string; usd: Prices; note?: string };
-const VENDOR: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", gemini: "Google", deepseek: "DeepSeek", ollama: "Ollama", locutus: "Locutus" };
+const VENDOR: Record<string, string> = { ...Object.fromEntries(VENDORS.map((v) => [v.id, v.name])), gemini: "Google", ollama: "Ollama", locutus: "Locutus" };
 /** models without a vendor list price: local Ollama, and Borg Locutus nodes (the admin sets a cost-based price) */
 const UNPRICED = (id: string) => id.startsWith("ollama/") || id.startsWith("locutus/");
 

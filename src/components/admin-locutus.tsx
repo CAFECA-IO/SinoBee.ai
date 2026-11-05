@@ -164,7 +164,8 @@ type Act = (key: string, body: Record<string, unknown>, confirm?: string) => Pro
 function WaitingCard({ w, busy, act }: { w: Waiting; busy: string; act: Act }) {
   const t = useTranslations("admin.locutus");
   const [label, setLabel] = useState(() => suggest(w));
-  const [offer, setOffer] = useState(true);
+  // off by default: offering puts the models up at price 0 (free to users) until a price is set
+  const [offer, setOffer] = useState(false);
   const id = `wl-${w.address}`;
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-line bg-panel p-4 text-sm" data-waiting={w.address}>

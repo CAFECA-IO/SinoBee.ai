@@ -807,7 +807,7 @@
       "groupHelp": {
         "site": "Features the site opens to the public. Changes apply at once, no restart needed.",
         "payments": "Payment provider settings.",
-        "apiKeys": "Platform model and search keys, used by the relay and task containers.",
+        "apiKeys": "Model and search keys the platform uses, for the model relay and task containers. Each vendor has a “Get an API key” link; after filling one in, press “Sync from providers” in Models & pricing and offer the models you want.",
         "llm": "Relay limits for subscribers and upstream URLs.",
         "legal": "Shown in the Terms, Privacy and Refund policies.",
         "cafeca": "Sign-in, notifications and initial admins.",
@@ -1250,7 +1250,11 @@
       "withdrawConfirm": "Withdraw {model}? SinoBee switches to other models.",
       "formulaEdit": "Change FX rate and buffer",
       "bufferNote": "The buffer moves every plan's worst-case margin and the token price of crowdfunded tasks.",
-      "local": "local, no key needed"
+      "local": "local, no key needed",
+      "getKey": "Get an API key",
+      "moreVendors": "More vendors you can connect",
+      "moreVendorsHelp": "These vendors have no key and no priced models yet. Put a key in Settings › Model and tool API keys, then press “Sync from providers”; their models appear above.",
+      "fillKeys": "Fill in keys →"
     },
     "pl": {
       "close": "Close",
@@ -1422,7 +1426,7 @@
       "signature": "Signature",
       "signedOk": "✓ Signed by the address",
       "name": "Name",
-      "offerToo": "Also offer {models} (price 0, change it below)",
+      "offerToo": "Also offer {models} (price 0 = free to users; better leave it off and set a price below first)",
       "approve": "Approve",
       "ignore": "Ignore",
       "block": "Block",

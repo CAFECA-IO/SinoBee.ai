@@ -17,7 +17,7 @@ export async function SiteSettings({ superAdmin, locale, sp }: { superAdmin: boo
   const ta = await getTranslations("admin");
   const v = settingsForAdmin();
   const zh = locale.startsWith("zh");
-  const items: SettingItem[] = v.items.map((i) => ({ ...i, label: zh ? i.label.zh : i.label.en, help: i.help ? (zh ? i.help.zh : i.help.en) : undefined }));
+  const items: SettingItem[] = v.items.map((i) => ({ ...i, label: zh ? i.label.zh : i.label.en, help: i.help ? (zh ? i.help.zh : i.help.en) : undefined, link: i.link ? { url: i.link.url, label: zh ? i.link.label.zh : i.link.label.en } : undefined }));
   const provider = items.find((i) => i.key === "payments.provider")?.value ?? "oen";
   const shown = items.filter((i) => !i.provider || i.provider === provider);
   const webhook = `${config.origin}/api/payments/oen/webhook`;

@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { VENDOR_IDS } from "./llm/vendors";
 import { config } from "./config";
 import { hubPublicKeys } from "./skills/signing";
 import { resolve } from "./settings/cache";
@@ -28,7 +29,7 @@ export type HealthCheck = { id: string; ok: boolean; level: "error" | "warn"; gr
 /** Go-live checklist computed from the settings (no network calls) */
 export function settingsHealth(): HealthCheck[] {
   const set = (k: string) => !!resolve(k).value;
-  const providers = ["anthropic", "openai", "gemini", "deepseek"];
+  const providers = VENDOR_IDS;
   const keys = providers.filter((p) => set(`apiKeys.${p}`));
   const live = config.payments.mode !== "mock";
   const checks: HealthCheck[] = [

@@ -60,16 +60,24 @@ function view(r: Row): ModelPriceView {
   return { rowId: r.id, modelId: r.modelId, label: r.label, vendor: r.vendor, usd, fx, buffer, twd, enabled: r.enabled, sortOrder: r.sortOrder, effectiveAt: r.effectiveAt };
 }
 
-/** Copy DEFAULT_MODELS into an empty table (seed, fresh installs, tests) */
+/**
+ * Copy DEFAULT_MODELS into an empty table (seed, fresh installs, tests). When some vendors have an API key, only their
+ * models are offered and the others are added withdrawn, so a vendor the site never set up does not show models as
+ * offered (an admin offers them in /admin → 模型與定價 once its key is in). With no key at all (development, a fresh
+ * install before any key) every model is offered: crowd tasks and the development stand-in price against them.
+ */
 export async function ensureModelPrices() {
   if ((await db.modelPrice.count()) > 0) return;
   const { fx, buffer } = await pricingSettings();
+  const { config } = await import("./config");
+  const keyed = new Set(DEFAULT_MODELS.map((m) => m.id.split("/")[0]).filter((v) => !!config.llm.providers[v]?.key));
   const at = new Date(0);
   await db.modelPrice.createMany({
     data: DEFAULT_MODELS.map((m, i) => ({
       modelId: m.id, label: m.label, vendor: m.vendor,
       inputUsd: m.input, cacheReadUsd: m.cacheRead, cacheWriteUsd: m.cacheWrite, outputUsd: m.output,
       fxRate: fx, buffer, sortOrder: i * 10, effectiveAt: at,
+      enabled: keyed.size === 0 || keyed.has(m.id.split("/")[0]),
     })),
   });
 }
@@ -132,7 +140,8 @@ export async function offeredModel(modelId: string): Promise<ModelPriceView | un
 
 // ───────────── admin writes ─────────────
 
-const MODEL_ID = /^[a-z0-9][a-z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:-]*$/;
+// vendor/model, or vendor/org/model for routers (openrouter/anthropic/claude-…)
+const MODEL_ID = /^[a-z0-9][a-z0-9._-]*\/[a-zA-Z0-9][a-zA-Z0-9._:-]*(\/[a-zA-Z0-9][a-zA-Z0-9._:-]*)?$/;
 const usdOk = (n: number) => Number.isFinite(n) && n >= 0 && n <= 100_000;
 
 export type PriceInput = {

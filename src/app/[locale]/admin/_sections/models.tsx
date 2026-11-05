@@ -7,6 +7,7 @@ import { pauses } from "@/lib/llm/pause";
 import { LocalDate } from "@/components/date";
 import { CatalogSync, PriceLookup, TierEditor } from "@/components/admin-ai";
 import { OllamaAdmin } from "@/components/admin-ollama";
+import { vendorById } from "@/lib/llm/vendors";
 import { LocutusAdmin } from "@/components/admin-locutus";
 import { ModelPriceForm, PricingFormula, VendorPauseSwitch } from "@/components/admin/model-actions";
 import { Banner, DetailPanel, PageHead, PanelSection, Split, Tag, adminHref } from "@/components/admin/kit";
@@ -29,7 +30,10 @@ export async function Models({ sp }: { sp: AdminParams }) {
   const providers = Object.keys(config.llm.providers);
   const hasKey = (p: string) => p === "ollama" || !!config.llm.providers[p]?.key;
   const vendorOf = (id: string) => id.split("/")[0];
-  const vendors = [...new Set([...rows.map((m) => vendorOf(m.modelId)), ...providers])];
+  const all = [...new Set([...rows.map((m) => vendorOf(m.modelId)), ...providers])];
+  // a vendor with no key and no priced model is only listed, with where to get its key, not given a card
+  const idle = all.filter((v) => !hasKey(v) && !rows.some((m) => vendorOf(m.modelId) === v) && !!vendorById(v));
+  const vendors = all.filter((v) => !idle.includes(v));
   const unknown = new Set(problems.unknown.map((m) => m.modelId));
   const sched = new Map<string, ModelPriceView[]>();
   for (const r of scheduled) sched.set(r.modelId, [...(sched.get(r.modelId) ?? []), r]);
@@ -93,6 +97,7 @@ export async function Models({ sp }: { sp: AdminParams }) {
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 ${p?.since ? "bg-warn-soft/40" : "bg-panel-2/60"}`}>
               <span className="font-semibold">{vlabel}</span>
               {v === "ollama" ? <Tag tone="muted">{t("local")}</Tag> : hasKey(v) ? <Tag tone="ok">{t("keyOk")}</Tag> : <Link href="/admin?tab=settings&group=apiKeys"><Tag tone="err">{tai("noKey")}</Tag></Link>}
+              {!hasKey(v) && vendorById(v) && <a href={vendorById(v)!.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">{t("getKey")} ↗</a>}
               <span className="text-xs text-muted">{c ? tai("modelCount", { n: c.models.length }) + " · " : ""}{t("offeredN", { n: models.filter((m) => m.enabled).length, all: models.length })}</span>
               {c?.error && <span className="text-xs text-err">{c.error}</span>}
               <span className="flex-1" />
@@ -139,6 +144,21 @@ export async function Models({ sp }: { sp: AdminParams }) {
           </section>
         );
       })}
+      {idle.length > 0 && (
+        <section className="card space-y-2 p-4 text-sm" aria-labelledby="more-vendors">
+          <h3 id="more-vendors" className="font-semibold">{t("moreVendors")}</h3>
+          <p className="text-xs text-muted">{t("moreVendorsHelp")}</p>
+          <ul className="flex flex-wrap gap-2">
+            {idle.map((v) => (
+              <li key={v} className="inline-flex items-center gap-2 rounded-xl border border-line px-3 py-1.5" data-idle-vendor={v}>
+                <span className="font-semibold">{vendorById(v)!.name}</span>
+                <a href={vendorById(v)!.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">{t("getKey")} ↗</a>
+              </li>
+            ))}
+          </ul>
+          <Link href="/admin?tab=settings&group=apiKeys" className="text-xs font-semibold text-accent hover:underline">{t("fillKeys")}</Link>
+        </section>
+      )}
       <p className="text-xs text-muted">{t("unitNote")}</p>
     </div>
   );

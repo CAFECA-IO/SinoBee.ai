@@ -221,6 +221,7 @@ export type SettingView = {
   /** shown next to generated keys */
   derived?: string;
   required?: boolean;
+  link?: SettingDef["link"];
 };
 
 export function settingsForAdmin(): { groups: typeof GROUPS; providers: typeof PAYMENT_PROVIDERS; items: SettingView[]; keyFile: string; fingerprint: string } {
@@ -231,7 +232,7 @@ export function settingsForAdmin(): { groups: typeof GROUPS; providers: typeof P
     if (d.key === "hub.signingKey") derived = hubPublicKey() ?? undefined;
     if (d.key === "boltchain.walletKey" && /^0x[0-9a-fA-F]{64}$/.test(r.value)) derived = privateKeyToAccount(r.value as `0x${string}`).address;
     return {
-      key: d.key, group: d.group, provider: d.provider, type: d.type, label: d.label, help: d.help, options: d.options, restart: d.restart, generated: !!d.generate, env: d.env, required: d.required,
+      key: d.key, group: d.group, provider: d.provider, type: d.type, label: d.label, help: d.help, options: d.options, restart: d.restart, generated: !!d.generate, env: d.env, required: d.required, link: d.link,
       source: r.source,
       value: secret ? "" : r.value,
       secretSet: secret ? !!r.value : undefined,

@@ -197,3 +197,24 @@ test("plans: 30-day usage = fee × multiplier (0.8× = buffer 1.2 ÷ 1.5); L6 = 
   await assert.rejects(plans.savePlan(admin.id, { code: "high", name: "x", nameEn: "x", feeTwd: 1, multiplier: 2, concurrency: 1, active: true }), /exists/);
   assert.ok(await db.adminAudit.findFirst({ where: { action: "plan.update", targetId: low.id } }));
 });
+
+test("the first copy of the defaults offers only the vendors that have a key (all of them when none has one)", async () => {
+  await reset();
+  await db.modelPrice.deleteMany();
+  models.invalidateModelCache();
+  const { settingsCache } = await import("../src/lib/settings/cache");
+  const had = settingsCache().values.get("apiKeys.anthropic");
+  settingsCache().values.set("apiKeys.anthropic", "sk-test");
+  try {
+    await models.ensureModelPrices();
+    models.invalidateModelCache();
+    const all = await models.pricesAt();
+    assert.ok(all.filter((m) => m.modelId.startsWith("anthropic/")).every((m) => m.enabled));
+    assert.ok(all.filter((m) => m.modelId.startsWith("deepseek/")).every((m) => !m.enabled), "no DeepSeek key: added withdrawn");
+  } finally {
+    if (had === undefined) settingsCache().values.delete("apiKeys.anthropic");
+    else settingsCache().values.set("apiKeys.anthropic", had);
+    await db.modelPrice.deleteMany();
+    models.invalidateModelCache();
+  }
+});

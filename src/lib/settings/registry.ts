@@ -7,6 +7,8 @@
  * SWARM_PORT, BOLT_NODE_* (local node container) and optionally SECRETS_KEY.
  */
 
+import { VENDORS } from "../llm/vendors";
+
 export type SettingType = "text" | "url" | "number" | "secret" | "select" | "bool" | "list";
 
 export type SettingDef = {
@@ -19,6 +21,8 @@ export type SettingDef = {
   provider?: string;
   default?: string;
   options?: string[];
+  /** a page that helps fill it in (e.g. where to get an API key), shown next to the field */
+  link?: { url: string; label: { zh: string; en: string } };
   /** url: the schemes accepted (default http: and https:) */
   schemes?: string[];
   label: { zh: string; en: string };
@@ -54,11 +58,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "oen.checkoutBase", env: "OEN_CHECKOUT_BASE", type: "url", group: "payments", provider: "oen", label: L("結帳頁網址（留空用預設）", "Checkout URL (empty = default)") },
 
   // ───── platform API keys (relay + task containers) ─────
-  { key: "apiKeys.anthropic", env: "ANTHROPIC_API_KEY", type: "secret", group: "apiKeys", label: L("Anthropic", "Anthropic") },
-  { key: "apiKeys.openai", env: "OPENAI_API_KEY", type: "secret", group: "apiKeys", label: L("OpenAI", "OpenAI") },
-  { key: "apiKeys.gemini", env: "GEMINI_API_KEY", type: "secret", group: "apiKeys", label: L("Google Gemini", "Google Gemini") },
-  { key: "apiKeys.deepseek", env: "DEEPSEEK_API_KEY", type: "secret", group: "apiKeys", label: L("DeepSeek", "DeepSeek") },
-  { key: "apiKeys.openrouter", env: "OPENROUTER_API_KEY", type: "secret", group: "apiKeys", label: L("OpenRouter（任務容器）", "OpenRouter (task containers)") },
+  // one key and one API address per vendor (src/lib/llm/vendors.ts), with where to get the key
+  ...VENDORS.map((v): SettingDef => ({ key: `apiKeys.${v.id}`, env: v.env, type: "secret", group: "apiKeys", label: L(v.name, v.name), help: v.keyHelp, link: { url: v.keyUrl, label: L("取得 API Key", "Get an API key") } })),
   { key: "apiKeys.brave", env: "BRAVE_API_KEY", type: "secret", group: "apiKeys", label: L("Brave Search（任務容器）", "Brave Search (task containers)") },
   { key: "apiKeys.tavily", env: "TAVILY_API_KEY", type: "secret", group: "apiKeys", label: L("Tavily（任務容器）", "Tavily (task containers)") },
 
@@ -71,10 +72,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "llm.holdTimeoutS", env: "LLM_HOLD_TIMEOUT_S", type: "number", group: "llm", default: "600", label: L("預扣逾時（秒）", "Hold timeout (s)") },
   { key: "llm.dailyLimitTwd", env: "LLM_DAILY_LIMIT_TWD", type: "number", group: "llm", default: "0", label: L("每家供應商每日支出上限（TWD，0 = 不限）", "Daily spend cap per provider (TWD, 0 = off)") },
   { key: "llm.requireSignature", env: "LLM_REQUIRE_SIGNATURE", type: "bool", group: "llm", default: "0", label: L("要求裝置簽章", "Require device signatures"), help: L("開啟後只接受 SinoBee 以裝置金鑰簽章的請求（舊版用戶端需更新）", "Only accept requests signed with a device key (older clients must update)") },
-  { key: "llm.base.anthropic", env: "LLM_BASE_ANTHROPIC", type: "url", group: "llm", default: "https://api.anthropic.com", label: L("Anthropic API 網址", "Anthropic API URL") },
-  { key: "llm.base.openai", env: "LLM_BASE_OPENAI", type: "url", group: "llm", default: "https://api.openai.com/v1", label: L("OpenAI API 網址", "OpenAI API URL") },
-  { key: "llm.base.gemini", env: "LLM_BASE_GEMINI", type: "url", group: "llm", default: "https://generativelanguage.googleapis.com/v1beta/openai", label: L("Gemini API 網址", "Gemini API URL") },
-  { key: "llm.base.deepseek", env: "LLM_BASE_DEEPSEEK", type: "url", group: "llm", default: "https://api.deepseek.com/v1", label: L("DeepSeek API 網址", "DeepSeek API URL") },
+  ...VENDORS.map((v): SettingDef => ({ key: `llm.base.${v.id}`, env: `LLM_BASE_${v.id.toUpperCase()}`, type: "url", group: "llm", default: v.base, label: L(`${v.name} API 網址`, `${v.name} API URL`) })),
   { key: "llm.base.ollama", env: "LLM_BASE_OLLAMA", type: "url", group: "llm", label: L("Ollama 網址（選填）", "Ollama URL (optional)"), help: L("留空時使用 .env 的 OLLAMA_URL（npm run swarm 啟動的 Ollama 容器會自動寫入）", "Empty: OLLAMA_URL from .env (written by npm run swarm for its Ollama container)") },
   // Borg Locutus nodes as a model provider (scripts/locutus-hub.ts; Borg docs/spec/locutus-platform-link.md)
   { key: "locutus.enabled", env: "LOCUTUS_ENABLED", type: "bool", group: "llm", default: "0", restart: true, label: L("Locutus 節點供應模型", "Locutus nodes supply models"), help: L("開啟後 npm run swarm 啟動 Locutus 集線器：登錄的 Borg Locutus 節點連上後，它們的模型以 locutus/<模型> 出現在模型目錄，可在「模型與定價」加入並開放", "When on, npm run swarm starts the Locutus hub: registered Borg Locutus nodes link in and their models appear in the catalog as locutus/<model>, to add and offer in Model prices") },

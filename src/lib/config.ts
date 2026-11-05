@@ -1,4 +1,5 @@
 import { sv, svBool, svList, svNum } from "./settings/cache";
+import { VENDORS } from "./llm/vendors";
 
 /**
  * Central runtime configuration.
@@ -347,10 +348,10 @@ export const config = {
   /** Model relay for subscribers (/api/v1/llm/*); platform keys are settings (apiKeys.*) */
   llm: {
     providers: {
-      anthropic: { kind: "anthropic" as const, get base() { return sv("llm.base.anthropic"); }, get key() { return sv("apiKeys.anthropic"); } },
-      openai: { kind: "openai" as const, get base() { return sv("llm.base.openai"); }, get key() { return sv("apiKeys.openai"); } },
-      gemini: { kind: "openai" as const, get base() { return sv("llm.base.gemini"); }, get key() { return sv("apiKeys.gemini"); } },
-      deepseek: { kind: "openai" as const, get base() { return sv("llm.base.deepseek"); }, get key() { return sv("apiKeys.deepseek"); } },
+      // platform-key vendors (src/lib/llm/vendors.ts): apiKeys.<id> and llm.base.<id>
+      ...Object.fromEntries(
+        VENDORS.map((v) => [v.id, { kind: v.kind, get base() { return sv(`llm.base.${v.id}`); }, get key() { return sv(`apiKeys.${v.id}`); } }]),
+      ),
       // local open models: Ollama's OpenAI-compatible API; no API key (a placeholder marks it as usable once a URL is set)
       ollama: { kind: "openai" as const, get base() { return ollamaBase() ? `${ollamaBase()}/v1` : ""; }, get key() { return ollamaBase() ? "ollama" : ""; } },
       // Borg Locutus nodes behind the local hub (scripts/locutus-hub.ts): an OpenAI-compatible upstream on 127.0.0.1
@@ -417,8 +418,8 @@ export const config = {
     },
     /** API keys passed into user containers: env name → value (only the ones that are set) */
     get containerEnv(): [string, string][] {
-      const keys = ["anthropic", "openai", "gemini", "deepseek", "openrouter", "brave", "tavily"];
-      const env: Record<string, string> = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY", deepseek: "DEEPSEEK_API_KEY", openrouter: "OPENROUTER_API_KEY", brave: "BRAVE_API_KEY", tavily: "TAVILY_API_KEY" };
+      const env: Record<string, string> = { ...Object.fromEntries(VENDORS.map((v) => [v.id, v.env])), brave: "BRAVE_API_KEY", tavily: "TAVILY_API_KEY" };
+      const keys = Object.keys(env);
       const keyed = keys.map((k) => [env[k], sv(`apiKeys.${k}`)] as [string, string]).filter(([, v]) => !!v);
       const { ollama, comfyui } = taskServices();
       return [
