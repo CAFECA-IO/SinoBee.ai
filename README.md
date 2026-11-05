@@ -138,6 +138,7 @@ Borg Locutus nodes (`locutusd` in the Borg repo) can supply models to the subscr
 
 - **Nodes dial in.** A node keeps a WebSocket open to the **Locutus hub** (`npm run locutus-hub`), so it needs no open port. Swarm starts the hub on `locutus.hubPort` (default 10026) when `locutus.enabled` is on.
 - **Registered nodes only.** A node proves its address by signing the hub's challenge (EIP-191, checked with viem). Only addresses listed in `locutus.nodes` are accepted, written `0x…=name`. Node operators see users' prompts, so register only machines the platform trusts.
+- **Approving nodes.** A node that signs correctly but is not registered is refused and listed under 「等待核准」 on the Locutus card in /admin → 模型定價, with its IP, software and declared models. 「核准」 registers it (and can offer its models at price 0); 「忽略」 hides it until the hub restarts; 「封鎖」 adds it to `locutus.blocked`. The same card prices and offers each Locutus model, shows which nodes serve it, and registers or removes nodes. Changes reach the hub at once (`POST /reload`).
 - **To the relay the hub is one more upstream.** It is the provider `locutus`, an OpenAI-compatible server on 127.0.0.1 guarded by `locutus.hubSecret` (generated). Holds, settlement, resumable streams and parameter compatibility work as for any vendor.
 - **Billing.** Each answer ends with a receipt the node signs (request hash, model, tokens). The hub checks it and logs it. The user is charged from the usage the relay parses, as for any vendor.
 - **Setting it up:**
@@ -149,8 +150,8 @@ Borg Locutus nodes (`locutusd` in the Borg repo) can supply models to the subscr
      ```
 
   3. Set `locutus.publicUrl` to the resulting address, e.g. `wss://sinobee.ai/locutus/link`, for node operators.
-  4. On the node, run `locutusd init` to get its address, add it to `locutus.nodes`, and add a `[platform]` section to `locutus.toml` with `url` set to that address.
-  5. In /admin → 模型與定價, sync the catalog. The node's models appear as `locutus/<model>`; add them, set a cost-based price (they have no list price), and offer them.
+  4. On the node, add a `[platform]` section to `locutus.toml` with `url` set to that address, and start it.
+  5. In /admin → 模型定價, approve the node on the Locutus card, then set a cost-based price for its models (they have no list price) and offer them. Only models a linked node serves are allocated by `/route`.
 - If the hub does not run on the same host as the web server, set `LOCUTUS_HUB_URL` (default `http://127.0.0.1:<hubPort>`) and `LOCUTUS_HUB_HOST`.
 
 Objects stored before Boltchain was turned on can be moved later: `npm run storage-migrate -- --anchor-skills --run`.

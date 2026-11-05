@@ -78,9 +78,9 @@ function validate(def: SettingDef, raw: string): string {
     case "url":
       try {
         const u = new URL(v);
-        if (!["http:", "https:"].includes(u.protocol)) throw new Error();
+        if (!(def.schemes ?? ["http:", "https:"]).includes(u.protocol)) throw new Error();
       } catch {
-        throw new HttpError(400, `${def.key} must be an http(s) URL`);
+        throw new HttpError(400, `${def.key} must be a ${(def.schemes ?? ["http:", "https:"]).map((x) => x.slice(0, -1)).join("/")} URL`);
       }
       return v.replace(/\/$/, "");
     case "select":

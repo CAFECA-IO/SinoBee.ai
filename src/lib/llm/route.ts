@@ -98,24 +98,30 @@ function sees(model: string) {
   return /claude|gpt-4o|gpt-4\.1|gpt-5|gemini|vision|vl\b|llava/i.test(model);
 }
 
-// Locutus nodes declare whether a model reads images; the hub's model list carries it (cached for a minute).
-const lv = globalThis as unknown as { __sbLocutusVision?: { at: number; ids: Set<string> } };
-async function locutusVision(): Promise<Set<string>> {
-  const c = lv.__sbLocutusVision;
-  if (c && Date.now() - c.at < 60_000) return c.ids;
+// The Locutus models some linked node serves now, and which of them read images (the node declares it); from the
+// hub's model list, cached for a minute. A Locutus model no node serves is left out (its call would fail).
+const lv = globalThis as unknown as { __sbLocutusServed?: { at: number; all: Set<string>; vision: Set<string> } };
+async function locutusServed(): Promise<{ all: Set<string>; vision: Set<string> }> {
+  const c = lv.__sbLocutusServed;
+  if (c && Date.now() - c.at < 60_000) return c;
   const p = config.llm.providers.locutus;
-  const ids = new Set<string>();
+  const all = new Set<string>();
+  const vision = new Set<string>();
   if (p?.base && p.key) {
     try {
       const r = await fetch(`${p.base}/models`, { headers: { authorization: `Bearer ${p.key}` }, signal: AbortSignal.timeout(3000) });
       const j = (await r.json()) as { data?: { id: string; vision?: boolean }[] };
-      for (const m of j.data ?? []) if (m.vision) ids.add(`locutus/${m.id}`.toLowerCase());
+      for (const m of j.data ?? []) {
+        const id = `locutus/${m.id}`.toLowerCase();
+        all.add(id);
+        if (m.vision) vision.add(id);
+      }
     } catch {
-      /* hub down: no Locutus model counts as seeing */
+      /* hub down: no Locutus model is served */
     }
   }
-  lv.__sbLocutusVision = { at: Date.now(), ids };
-  return ids;
+  lv.__sbLocutusServed = { at: Date.now(), all, vision };
+  return lv.__sbLocutusServed;
 }
 
 async function evalFacts(models: string[], skill?: string | null) {
@@ -179,10 +185,9 @@ export async function rank(req: RouteRequest, userId?: string): Promise<{ ranked
   const catalog = await relayModels(role === "embed");
   const byId = new Map((await currentModels()).map((m) => [m.modelId.toLowerCase(), m]));
   let models = own ? [...new Set(req.candidates!.map((c) => norm(String(c))).filter(Boolean))].slice(0, 30) : catalog.map((m) => m.modelId.toLowerCase());
-  if (req.needs?.vision) {
-    const loc = models.some((m) => m.startsWith("locutus/")) ? await locutusVision() : new Set<string>();
-    models = models.filter((m) => (m.startsWith("locutus/") ? loc.has(m) : sees(m)));
-  }
+  const loc = !own && models.some((m) => m.startsWith("locutus/")) ? await locutusServed() : null;
+  if (loc) models = models.filter((m) => !m.startsWith("locutus/") || loc.all.has(m));
+  if (req.needs?.vision) models = models.filter((m) => (m.startsWith("locutus/") ? !!loc?.vision.has(m) : sees(m)));
   if (Array.isArray(req.exclude) && req.exclude.length) {
     const ex = new Set(req.exclude.map((x) => norm(String(x))));
     models = models.filter((m) => !ex.has(m));

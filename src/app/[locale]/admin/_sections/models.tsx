@@ -7,6 +7,7 @@ import { pauses } from "@/lib/llm/pause";
 import { LocalDate } from "@/components/date";
 import { CatalogSync, PriceLookup, TierEditor } from "@/components/admin-ai";
 import { OllamaAdmin } from "@/components/admin-ollama";
+import { LocutusAdmin } from "@/components/admin-locutus";
 import { ModelPriceForm, PricingFormula, VendorPauseSwitch } from "@/components/admin/model-actions";
 import { Banner, DetailPanel, PageHead, PanelSection, Split, Tag, adminHref } from "@/components/admin/kit";
 import { modelProblems } from "./warnings";
@@ -97,7 +98,9 @@ export async function Models({ sp }: { sp: AdminParams }) {
               <span className="flex-1" />
               {models.length > 0 && <VendorPauseSwitch vendor={v} label={vlabel} paused={!!p?.since} offered={models.filter((m) => m.enabled).length} />}
             </div>
-            {models.length === 0 ? (
+            {v === "locutus" ? (
+              <LocutusAdmin />
+            ) : models.length === 0 ? (
               <p className="px-4 py-3 text-sm text-muted">{v === "ollama" ? t("ollamaNone") : t("noModels")}</p>
             ) : (
               <div className="overflow-x-auto">

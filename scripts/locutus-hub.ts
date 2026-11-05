@@ -24,6 +24,8 @@ async function main() {
     enabled: () => svBool("locutus.enabled"),
     secret: () => sv("locutus.hubSecret"),
     nodes: () => parseNodes(svList("locutus.nodes")),
+    blocked: () => new Set(svList("locutus.blocked").map((a) => a.toLowerCase())),
+    reload: async () => void (await store.loadSettings({ refreshEveryMs: 0 })),
     log,
   });
   const server = http.createServer(hub.http);

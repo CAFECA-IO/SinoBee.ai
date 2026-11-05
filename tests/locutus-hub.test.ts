@@ -29,6 +29,8 @@ let hub: InstanceType<typeof import("../src/lib/locutus/hub").LocutusHub>;
 let server: http.Server;
 let base = "";
 let enabled = true;
+let registered = [`${node.address}=test-node`];
+let blockedList: string[] = [];
 const receipts: { ok: boolean; node: string; prompt: number; output: number }[] = [];
 
 before(async () => {
@@ -37,7 +39,9 @@ before(async () => {
     name: "sinobee.test",
     enabled: () => enabled,
     secret: () => SECRET,
-    nodes: () => hubMod.parseNodes([`${node.address}=test-node`]),
+    nodes: () => hubMod.parseNodes(registered),
+    blocked: () => new Set(blockedList),
+    reload: async () => undefined,
     log: () => undefined,
     pingMs: 60_000,
     headMs: 2_000,
@@ -55,6 +59,8 @@ after(() => {
 });
 beforeEach(() => {
   enabled = true;
+  registered = [`${node.address}=test-node`];
+  blockedList = [];
   receipts.length = 0;
 });
 
@@ -260,7 +266,7 @@ test("through the relay: provider locutus, held and settled from the node's usag
   await waitFor(() => hub.status().length === 0);
 });
 
-test("route: a free Locutus model gets a real score, and reads images only when its node says so", async () => {
+test("route: only Locutus models a linked node serves; a free one gets a real score; images only when its node says so", async () => {
   const { db } = await import("../src/lib/db");
   const models = await import("../src/lib/models");
   const { rank } = await import("../src/lib/llm/route");
@@ -272,18 +278,99 @@ test("route: a free Locutus model gets a real score, and reads images only when 
   await models.savePrice(admin.id, { modelId: "locutus/gemma-eyes", label: "Gemma eyes", vendor: "Locutus", usd: zero, enabled: true });
   models.invalidateModelCache();
 
-  const r = await rank({ role: "main", preference: "balanced", task_kind: "chat", needs: { tools: true } });
-  assert.deepEqual(r.ranked.map((x) => x.model).sort(), ["locutus/gemma-eyes", "locutus/qwen-free"]);
-  for (const x of r.ranked) assert.ok(Number.isFinite(x.score), `score of ${x.model}: ${x.score}`);
+  const reset = () => ((globalThis as { __sbLocutusServed?: unknown }).__sbLocutusServed = undefined);
+  reset();
+  await assert.rejects(rank({ role: "main", preference: "balanced", task_kind: "chat" }), /no model fits/, "offered, but no node serves them");
 
   const n = new FakeNode(node, [
     { id: "qwen-free", sha256: "a1", formats: ["openai"], context: 65536 },
     { id: "gemma-eyes", sha256: "b2", formats: ["openai"], context: 65536, vision: true } as never,
   ]);
   await n.link();
-  (globalThis as { __sbLocutusVision?: unknown }).__sbLocutusVision = undefined;
+  reset();
+  const r = await rank({ role: "main", preference: "balanced", task_kind: "chat", needs: { tools: true } });
+  assert.deepEqual(r.ranked.map((x) => x.model).sort(), ["locutus/gemma-eyes", "locutus/qwen-free"]);
+  for (const x of r.ranked) assert.ok(Number.isFinite(x.score), `score of ${x.model}: ${x.score}`);
+
   const v = await rank({ role: "main", preference: "balanced", task_kind: "chat", needs: { vision: true } });
   assert.deepEqual(v.ranked.map((x) => x.model), ["locutus/gemma-eyes"], "only the model its node declared as seeing");
   n.ws.close();
   await waitFor(() => hub.status().length === 0);
+});
+
+test("an unregistered node that proves its address waits for approval; approval, removal and blocking take effect", async () => {
+  // refused, but listed with what it declared (only after a valid signature)
+  const s = new FakeNode(stranger, [{ id: "gemma-eyes", sha256: "b2", formats: ["openai"], context: 32768, vision: true } as never]);
+  assert.match(await s.link(), /not registered on this platform yet/);
+  assert.match(await new FakeNode(stranger, undefined, node).link(), /signature/);
+  let st = (await (await call("/status", null)).json()) as { pending: { address: string; models: { id: string; vision: boolean }[]; attempts: number }[] };
+  assert.equal(st.pending.length, 1, "a bad signature is not listed");
+  assert.equal(st.pending[0].address, stranger.address.toLowerCase());
+  assert.deepEqual(st.pending[0].models.map((m) => [m.id, m.vision]), [["gemma-eyes", true]]);
+
+  // ignored: gone from the list, and stays gone when it retries
+  assert.equal((await call("/ignore", { address: stranger.address })).status, 200);
+  await new FakeNode(stranger).link();
+  st = await (await call("/status", null)).json();
+  assert.equal(st.pending.length, 0);
+
+  // approved (registered): links; removed: dropped at the next reload
+  registered = [`${node.address}=test-node`, `${stranger.address}=eyes`];
+  const n2 = new FakeNode(stranger);
+  assert.equal(await n2.link(), "welcome");
+  registered = [`${node.address}=test-node`];
+  assert.equal((await call("/reload", {})).status, 200);
+  await waitFor(() => n2.closed);
+  assert.match(n2.refused, /no longer registered/);
+
+  // blocked: refused outright, never listed
+  blockedList = [node.address.toLowerCase()];
+  assert.match(await new FakeNode(node).link(), /blocked/);
+  st = await (await call("/status", null)).json();
+  assert.equal(st.pending.length, 0);
+  await waitFor(() => hub.status().length === 0);
+});
+
+test("the admin card: approving a waiting node registers it and offers its models; prices and offering from the card", async () => {
+  const { db } = await import("../src/lib/db");
+  const models = await import("../src/lib/models");
+  const admin = await import("../src/lib/locutus/admin");
+  const { svList } = await import("../src/lib/settings/cache");
+  const third = privateKeyToAccount(("0x" + "33".repeat(32)) as `0x${string}`); // test 6 ignored `stranger` in this hub
+  const actor = (await db.user.findFirst({ where: { isAdmin: true } })) ?? (await db.user.create({ data: { account: "0x" + "c".repeat(40), role: "ADMIN", isAdmin: true } }));
+
+  const s = new FakeNode(third, [{ id: "gemma-eyes2", sha256: "b2", formats: ["openai"], context: 32768, vision: true } as never]);
+  await s.link();
+  let o = await admin.locutusOverview();
+  const w = o.pending.find((p) => p.address === third.address.toLowerCase());
+  assert.ok(w, "the waiting node is on the card");
+
+  await assert.rejects(admin.registerNode(actor.id, third.address, "bad name"), /name/);
+  const r = await admin.registerNode(actor.id, third.address, "149-eyes", true);
+  assert.deepEqual(r.offered, ["locutus/gemma-eyes2"]);
+  assert.ok(svList("locutus.nodes").includes(`${third.address.toLowerCase()}=149-eyes`));
+  models.invalidateModelCache();
+  const row = (await models.currentModels()).find((m) => m.modelId === "locutus/gemma-eyes2");
+  assert.equal(row?.enabled, true);
+  assert.equal(row?.usd.input, 0);
+
+  // the card sets a price and withdraws it
+  await admin.setModel(actor.id, { modelId: "locutus/gemma-eyes2", input: 0.05, output: 0.2, enabled: false });
+  models.invalidateModelCache();
+  o = await admin.locutusOverview();
+  const m = o.models.find((x) => x.modelId === "locutus/gemma-eyes2");
+  assert.deepEqual([m?.enabled, m?.usd.input, m?.usd.output], [false, 0.05, 0.2]);
+  await assert.rejects(admin.setModel(actor.id, { modelId: "openai/gpt-x", input: 0, output: 0, enabled: true }), /not a Locutus model/);
+
+  // block: unregistered and listed as blocked; unblock
+  await admin.blockNode(actor.id, third.address);
+  assert.ok(!svList("locutus.nodes").some((x) => x.startsWith(third.address.toLowerCase())));
+  assert.ok(svList("locutus.blocked").includes(third.address.toLowerCase()));
+  await admin.unblockNode(actor.id, third.address);
+  assert.equal(svList("locutus.blocked").length, 0);
+
+  // the link URL node operators copy is a WebSocket URL
+  const store = await import("../src/lib/settings/store");
+  await store.saveSetting(actor.id, "locutus.publicUrl", "wss://sinobee.test/locutus/link");
+  await assert.rejects(store.saveSetting(actor.id, "locutus.publicUrl", "https://sinobee.test/locutus/link"), /wss\/ws URL/);
 });

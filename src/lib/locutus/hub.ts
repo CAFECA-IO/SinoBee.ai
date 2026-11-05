@@ -10,7 +10,9 @@
  *   GET  /openai/models             models the connected nodes serve
  *   POST /openai/chat/completions   dispatched to a node; the node's answer is streamed back unchanged
  *   POST /openai/messages           the same for the Anthropic format
- *   GET  /status                    connected nodes (for /admin)
+ *   GET  /status                    connected nodes and nodes waiting for approval (for /admin)
+ *   POST /reload                    re-read the settings now (an admin approved or removed a node)
+ *   POST /ignore {address}          stop listing a waiting node until the hub restarts
  * all with `Authorization: Bearer <locutus.hubSecret>`. Holds, settlement, resumable streams and parameter
  * compatibility stay in the relay; the hub only finds a node and moves bytes.
  *
@@ -66,7 +68,16 @@ export type HubOptions = {
   /** a job must get its first byte (head) within this many ms (a cold model loads first) */
   headMs?: number;
   onReceipt?: (r: Receipt, ok: boolean, node: string) => void;
+  /** addresses refused outright and never listed as waiting (lowercase) */
+  blocked?: () => Set<string>;
+  /** re-read the settings (POST /reload) */
+  reload?: () => Promise<void>;
 };
+
+/** A node that proved its address but is not registered yet: an admin approves it in /admin */
+export type Waiting = { address: string; ip: string; agent: string; slots: number; models: NodeModel[]; first: string; last: string; attempts: number };
+/** at most this many waiting nodes are kept (the oldest drop out) */
+const MAX_WAITING = 50;
 
 type Node = { ws: WebSocket; address: string; label: string; models: NodeModel[]; slots: number; agent: string; since: Date; jobs: Set<string>; served: number; badReceipts: number; alive: boolean };
 type Job = { id: string; node: Node; res: http.ServerResponse; requestHash: string; model: string; head: boolean; timer?: NodeJS.Timeout };
@@ -77,10 +88,13 @@ export class LocutusHub {
   private wss = new WebSocketServer({ noServer: true, maxPayload: 32 << 20 });
   private log: (...a: unknown[]) => void;
   private pinger: NodeJS.Timeout;
+  readonly waiting = new Map<string, Waiting>();
+  private ignored = new Set<string>();
 
   constructor(private o: HubOptions) {
     this.log = o.log ?? ((...a) => console.log(new Date().toISOString(), "[locutus]", ...a));
     this.pinger = setInterval(() => {
+      this.sync();
       for (const n of this.nodes.values()) {
         if (!n.alive) {
           n.ws.terminate();
@@ -105,10 +119,48 @@ export class LocutusHub {
   upgrade = (req: http.IncomingMessage, socket: Duplex, head: Buffer) => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     if (!path.endsWith("/link")) return socket.destroy();
-    this.wss.handleUpgrade(req, socket, head, (ws) => this.link(ws));
+    const fwd = String(req.headers["cf-connecting-ip"] ?? req.headers["x-forwarded-for"] ?? "").split(",")[0].trim();
+    const ip = (fwd || req.socket.remoteAddress || "").replace(/^::ffff:/, "").slice(0, 64);
+    this.wss.handleUpgrade(req, socket, head, (ws) => this.link(ws, ip));
   };
 
-  private link(ws: WebSocket) {
+  /** Settings changed: linked nodes that are no longer registered go, renamed ones take the new name */
+  sync() {
+    const reg = this.o.nodes();
+    const blocked = this.o.blocked?.() ?? new Set<string>();
+    for (const n of [...this.nodes.values()]) {
+      const label = reg.get(n.address);
+      if (!label || blocked.has(n.address)) {
+        n.ws.send(JSON.stringify({ t: "error", message: "no longer registered on this platform" }));
+        this.drop(n, "no longer registered");
+      } else n.label = label;
+    }
+    for (const a of this.waiting.keys()) if (reg.has(a) || blocked.has(a)) this.waiting.delete(a);
+  }
+
+  /** The waiting nodes, newest attempt first */
+  pending(): Waiting[] {
+    return [...this.waiting.values()].sort((a, b) => b.last.localeCompare(a.last));
+  }
+
+  ignore(address: string) {
+    const a = address.toLowerCase();
+    this.ignored.add(a);
+    this.waiting.delete(a);
+  }
+
+  private note(address: string, ip: string, h: { agent?: string; slots?: number }, models: NodeModel[]) {
+    if (this.ignored.has(address)) return;
+    const now = new Date().toISOString();
+    const w = this.waiting.get(address);
+    this.waiting.set(address, { address, ip, agent: String(h.agent ?? "").slice(0, 80), slots: Math.max(1, Math.min(64, Number(h.slots) || 1)), models: models.slice(0, 16), first: w?.first ?? now, last: now, attempts: (w?.attempts ?? 0) + 1 });
+    if (this.waiting.size > MAX_WAITING) {
+      const oldest = [...this.waiting.values()].sort((a, b) => a.last.localeCompare(b.last))[0];
+      this.waiting.delete(oldest.address);
+    }
+  }
+
+  private link(ws: WebSocket, ip = "") {
     const nonce = randomBytes(32).toString("hex");
     const refuse = (message: string) => {
       ws.send(JSON.stringify({ t: "error", message }));
@@ -127,12 +179,20 @@ export class LocutusHub {
       }
       const address = String(h.address ?? "").toLowerCase();
       if (h.t !== "hello" || h.v !== 1 || !/^0x[0-9a-f]{40}$/.test(address)) return refuse("bad hello");
-      const label = this.o.nodes().get(address);
-      if (!label) return refuse(`address ${address} is not registered on this platform`);
+      if (this.o.blocked?.().has(address)) return refuse(`address ${address} is blocked on this platform`);
       if (Math.abs(Date.now() / 1000 - Number(h.ts)) > 120) return refuse("clock differs from the platform's by more than 120 s");
       const ok = await verifyMessage({ address: address as Address, message: helloMessage(this.o.name, nonce, address, Number(h.ts)), signature: String(h.sig) as Hex }).catch(() => false);
       if (!ok) return refuse("signature does not match the address");
-      const models = (Array.isArray(h.models) ? h.models : []).filter((m) => m && typeof m.id === "string" && Array.isArray(m.formats));
+      const models = (Array.isArray(h.models) ? h.models : [])
+        .filter((m) => m && typeof m.id === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$/.test(m.id) && Array.isArray(m.formats))
+        .map((m) => ({ id: m.id, sha256: String(m.sha256 ?? "").slice(0, 200), vision: !!m.vision, formats: m.formats.map(String).slice(0, 4), context: Number(m.context) || undefined }));
+      const label = this.o.nodes().get(address);
+      // signed but not registered: listed for an admin to approve (only proven addresses, so nobody can fill the list with others')
+      if (!label) {
+        this.note(address, ip, h, models);
+        return refuse(`address ${address} is not registered on this platform yet; an admin can approve it in /admin`);
+      }
+      this.waiting.delete(address);
       // one link per node: a new one replaces the old (a restarted node should not wait for the old link to time out)
       const old = this.nodes.get(address);
       if (old) {
@@ -252,7 +312,27 @@ export class LocutusHub {
     if (!this.authorized(req)) return json(401, { error: { message: "invalid hub key", type: "authentication_error" } });
     if (req.method === "GET" && path === "/openai/models")
       return json(200, { object: "list", data: this.models().map((m) => ({ id: m.id, object: "model", owned_by: "locutus", context_length: m.context ?? null, vision: !!m.vision })) });
-    if (req.method === "GET" && path === "/status") return json(200, { enabled: this.o.enabled(), nodes: this.status() });
+    if (req.method === "GET" && path === "/status") return json(200, { enabled: this.o.enabled(), nodes: this.status(), pending: this.pending() });
+    if (req.method === "POST" && path === "/reload") {
+      void (this.o.reload?.() ?? Promise.resolve()).then(
+        () => (this.sync(), json(200, { enabled: this.o.enabled(), nodes: this.status(), pending: this.pending() })),
+        (e) => json(500, { error: { message: (e as Error).message, type: "server_error" } }),
+      );
+      return;
+    }
+    if (req.method === "POST" && path === "/ignore") {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        try {
+          this.ignore(String(JSON.parse(Buffer.concat(chunks).toString("utf8")).address ?? ""));
+          json(200, { ok: true });
+        } catch {
+          json(400, { error: { message: "JSON body required", type: "invalid_request_error" } });
+        }
+      });
+      return;
+    }
     const route = PATHS[path];
     if (req.method !== "POST" || !route) return json(404, { error: { message: `no route ${req.method} ${path}`, type: "invalid_request_error" } });
     const chunks: Buffer[] = [];
