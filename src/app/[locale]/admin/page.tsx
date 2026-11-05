@@ -7,6 +7,7 @@ import { Icon } from "@/components/icon";
 import { AdminNavSelect } from "@/components/admin/nav-select";
 import { adminCounts } from "@/lib/admin-overview";
 import { Overview } from "./_sections/overview";
+import { Health } from "./_sections/health";
 import { Review } from "./_sections/review";
 import { Reports } from "./_sections/reports";
 import { Crowd } from "./_sections/crowd";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 
 /** 5 groups, 12 sections (admin rework 2026-10-21: related pages merged, every queue in the overview inbox) */
 const NAV = [
-  { group: "", items: [{ id: "overview", icon: "grid" }] },
+  { group: "", items: [{ id: "health", icon: "shield" }, { id: "overview", icon: "grid" }] },
   { group: "review", items: [{ id: "review", icon: "hub" }, { id: "reports", icon: "flag" }, { id: "crowd", icon: "users" }, { id: "checklist", icon: "list" }] },
   { group: "business", items: [{ id: "users", icon: "user" }, { id: "payments", icon: "card" }, { id: "plans", icon: "layers" }] },
   { group: "models", items: [{ id: "models", icon: "brain" }] },
@@ -51,17 +52,18 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   const me = await currentUser();
   if (!me || !isAdminRole(me.role)) notFound();
   const sp = await searchParams;
-  const raw = sp.tab ?? "overview";
+  const raw = sp.tab ?? "health";
   if (LEGACY[raw]) {
     const { tab: _drop, ...rest } = sp;
     redirect({ href: `/admin?${new URLSearchParams({ ...(rest as Record<string, string>), ...LEGACY[raw] })}`, locale });
   }
-  const tab = TABS.includes(raw) ? raw : "overview";
+  const tab = TABS.includes(raw) ? raw : "health";
   const t = await getTranslations("admin");
   const counts = await adminCounts();
   const warn = await navWarnings();
   const superAdmin = me.role === "SUPERADMIN";
   const badge: Record<string, { n: number; tone: "accent" | "warn" } | undefined> = {
+    health: counts.settings + warn.models ? { n: counts.settings + warn.models, tone: "warn" } : undefined,
     overview: { n: counts.pending + counts.tools + counts.reports + counts.payments + counts.disputes + counts.screening, tone: "accent" },
     review: { n: counts.pending + counts.tools, tone: "accent" },
     reports: { n: counts.reports, tone: "accent" },
@@ -74,11 +76,12 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   const groups = NAV.map((g) => ({
     group: g.group,
     label: g.group ? t(`nav.${g.group}`) : "",
-    items: g.items.map((i) => ({ ...i, label: t(`tab.${i.id}`), href: i.id === "overview" ? "/admin" : `/admin?tab=${i.id}`, badge: badge[i.id] })),
+    items: g.items.map((i) => ({ ...i, label: t(`tab.${i.id}`), href: i.id === "health" ? "/admin" : `/admin?tab=${i.id}`, badge: badge[i.id] })),
   }));
 
   let body: React.ReactNode;
-  if (tab === "overview") body = <Overview superAdmin={superAdmin} sp={sp} />;
+  if (tab === "health") body = <Health locale={locale} />;
+  else if (tab === "overview") body = <Overview superAdmin={superAdmin} sp={sp} />;
   else if (tab === "review") body = <Review sp={sp} />;
   else if (tab === "reports") body = <Reports />;
   else if (tab === "crowd") body = <Crowd />;

@@ -597,7 +597,8 @@
       "checklist": "Screening checklist",
       "review": "Content review",
       "crowd": "Crowdfunding",
-      "models": "Models & pricing"
+      "models": "Models & pricing",
+      "health": "Site health"
     },
     "st": {
       "enabled": "Enabled",
@@ -1013,8 +1014,17 @@
         "signatures": {
           "title": "Require device signatures",
           "fix": "Turn on once users have updated SinoBee; the relay then takes signed requests only."
+        },
+        "paymentsMock": {
+          "title": "The live site is set to fake checkout",
+          "fix": "Fake checkout only works in development; the live site still uses Oen. Set the mode back to Oen."
+        },
+        "storage": {
+          "title": "S3 storage has no bucket",
+          "fix": "Storage is S3 but no bucket is set; uploading and reading results fail."
         }
-      }
+      },
+      "healthLink": "Site health: {bad} failing, {warn} need attention → see and fix"
     },
     "rv": {
       "search": "Search name or publisher",
@@ -1516,6 +1526,90 @@
       "revert": "Revert this",
       "revertAsk": "Put the settings of this change back to what they were before?",
       "reverted": "{n} reverted, {skipped} skipped"
+    },
+    "health": {
+      "title": "Site health",
+      "summary": "{bad} failing · {warn} need attention · {restart} waiting for a restart",
+      "checkedAt": "Checked",
+      "recheck": "Check again",
+      "issues": "Needs attention",
+      "allGood": "Nothing needs attention.",
+      "fix": "Fix it",
+      "settings": "Settings",
+      "state": {
+        "ok": "OK",
+        "warn": "Attention",
+        "bad": "Failing",
+        "off": "Not set up"
+      },
+      "issue": {
+        "badKey": {
+          "title": "{vendor} rejected the platform's API key",
+          "fix": "{n} offered model(s) would fail; put in a new key, it is checked again on save."
+        },
+        "noKey": {
+          "title": "{vendor} has no API key",
+          "fix": "{n} offered model(s) would fail; add a key or withdraw them."
+        },
+        "unknown": {
+          "title": "{n} offered model(s) are not in the vendor's list",
+          "fix": "Calls fail (404): {models}. Fix the id or withdraw them."
+        },
+        "unserved": {
+          "title": "{n} Locutus model(s) have no linked node",
+          "fix": "Allocation skips them and direct calls fail; check the nodes or withdraw them."
+        },
+        "ollamaDown": {
+          "title": "Ollama does not answer; {n} local model(s) cannot be used",
+          "fix": "Check that Ollama runs and its URL, or withdraw them."
+        },
+        "resumeNoKey": {
+          "title": "{vendor} is paused and has no API key",
+          "fix": "Users are not affected now; add a key before resuming it."
+        },
+        "resumeBadKey": {
+          "title": "{vendor} is paused and its API key was rejected",
+          "fix": "Users are not affected now; put in a new key before resuming it."
+        },
+        "plansLoss": {
+          "title": "{n} plan(s) lose money",
+          "fix": "At full use the cost is above the price; change the price or the multiplier."
+        },
+        "locutusWaiting": {
+          "title": "{n} Locutus node(s) waiting for approval",
+          "fix": "They take platform requests once approved."
+        },
+        "locutusHub": {
+          "title": "The Locutus hub does not answer",
+          "fix": "{error}; check that swarm started the hub."
+        }
+      },
+      "draftsTitle": "Changes not applied ({n})",
+      "draftsNone": "No changes waiting.",
+      "draftsReview": "Review and apply",
+      "restartTitle": "Waiting for a restart ({n})",
+      "restartNone": "No settings wait for a restart.",
+      "restartHow": "These are applied and take effect after swarm restarts:",
+      "services": "Services",
+      "svcName": {
+        "storage": "File storage",
+        "moreVendors": "More model vendors"
+      },
+      "line": {
+        "svcOenNotSet": "Not set up; payments cannot be taken",
+        "svcOenLive": "Production",
+        "svcOenTest": "Testing: payments are not real",
+        "svcPaused": "Paused",
+        "svcKeyProblem": "Key problem",
+        "svcModels": "{n} model(s) offered",
+        "svcMoreVendors": "{n} not connected",
+        "svcLocutus": "{linked} node(s) linked · {waiting} waiting",
+        "svcStorageS3": "S3-compatible",
+        "svcStorageLocal": "Local disk",
+        "svcOn": "On",
+        "svcOff": "Off: results only in the mirror",
+        "svcCafeca": "Sign-in"
+      }
     }
   },
   "hubApi": {

@@ -93,7 +93,7 @@ export async function Models({ sp }: { sp: AdminParams }) {
         const p = paused[v];
         const vlabel = models[0]?.vendor || (v === "ollama" ? "Ollama" : v);
         return (
-          <section key={v} className="card overflow-hidden" data-vendor={v}>
+          <section key={v} id={`vendor-${v}`} className="card scroll-mt-24 overflow-hidden" data-vendor={v}>
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 ${p?.since ? "bg-warn-soft/40" : "bg-panel-2/60"}`}>
               <span className="font-semibold">{vlabel}</span>
               {v === "ollama" ? <Tag tone="muted">{t("local")}</Tag> : hasKey(v) ? <Tag tone="ok">{t("keyOk")}</Tag> : <Link href="/admin?tab=settings&group=apiKeys"><Tag tone="err">{tai("noKey")}</Tag></Link>}

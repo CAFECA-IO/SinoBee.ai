@@ -597,7 +597,8 @@
       "checklist": "審核清單",
       "review": "內容審核",
       "crowd": "眾籌提案與爭議",
-      "models": "模型與定價"
+      "models": "模型與定價",
+      "health": "站台健康"
     },
     "st": {
       "enabled": "啟用",
@@ -1013,8 +1014,17 @@
         "signatures": {
           "title": "要求裝置簽章",
           "fix": "用戶都更新 SinoBee 後開啟，模型轉接只接受簽章請求。"
+        },
+        "paymentsMock": {
+          "title": "正式站設為模擬結帳",
+          "fix": "模擬結帳只在開發環境有效，正式站仍會走 Oen；請把模式改回 Oen 金流。"
+        },
+        "storage": {
+          "title": "S3 儲存沒有填 bucket",
+          "fix": "儲存方式是 S3 卻沒有 bucket，上傳與讀取成果都會失敗。"
         }
-      }
+      },
+      "healthLink": "站台健康：{bad} 項故障、{warn} 項注意 → 查看並修正"
     },
     "rv": {
       "search": "搜尋名稱或發布者",
@@ -1516,6 +1526,90 @@
       "revert": "回復這筆",
       "revertAsk": "把這筆變更的設定回復到套用前的值？",
       "reverted": "已回復 {n} 項，略過 {skipped} 項"
+    },
+    "health": {
+      "title": "站台健康",
+      "summary": "{bad} 項故障 · {warn} 項注意 · {restart} 項待重新啟動",
+      "checkedAt": "檢查於",
+      "recheck": "重新檢查",
+      "issues": "需要處理",
+      "allGood": "目前沒有需要處理的問題。",
+      "fix": "前往修正",
+      "settings": "系統設定",
+      "state": {
+        "ok": "正常",
+        "warn": "注意",
+        "bad": "故障",
+        "off": "未設定"
+      },
+      "issue": {
+        "badKey": {
+          "title": "{vendor} 拒絕了平台的 API 金鑰",
+          "fix": "{n} 個提供中的模型會失敗；換一把新金鑰，儲存後會自動重新檢查。"
+        },
+        "noKey": {
+          "title": "{vendor} 沒有 API 金鑰",
+          "fix": "{n} 個提供中的模型會失敗；填入金鑰，或把這些模型下架。"
+        },
+        "unknown": {
+          "title": "{n} 個提供中的模型不在供應商清單裡",
+          "fix": "呼叫會失敗（404）：{models}。請更正代號或下架。"
+        },
+        "unserved": {
+          "title": "{n} 個 Locutus 模型目前沒有節點供應",
+          "fix": "分配時會略過，直接呼叫會失敗；確認節點是否連線，或先下架。"
+        },
+        "ollamaDown": {
+          "title": "Ollama 連不上，{n} 個本機模型無法使用",
+          "fix": "確認 Ollama 有在執行、網址正確，或把這些模型下架。"
+        },
+        "resumeNoKey": {
+          "title": "{vendor} 暫停中，但沒有 API 金鑰",
+          "fix": "目前不影響用戶；恢復前要先填入金鑰。"
+        },
+        "resumeBadKey": {
+          "title": "{vendor} 暫停中，API 金鑰被拒絕",
+          "fix": "目前不影響用戶；恢復前要先換一把新金鑰。"
+        },
+        "plansLoss": {
+          "title": "{n} 個訂閱方案會虧損",
+          "fix": "用滿額度時成本高於售價；調整方案價格或倍數。"
+        },
+        "locutusWaiting": {
+          "title": "{n} 個 Locutus 節點在等待核准",
+          "fix": "核准後才會接平台的請求。"
+        },
+        "locutusHub": {
+          "title": "連不到 Locutus 集線器",
+          "fix": "{error}；確認 swarm 有啟動集線器。"
+        }
+      },
+      "draftsTitle": "未套用的變更（{n}）",
+      "draftsNone": "沒有未套用的變更。",
+      "draftsReview": "檢閱並套用",
+      "restartTitle": "待重新啟動（{n}）",
+      "restartNone": "沒有等待重新啟動的設定。",
+      "restartHow": "這些設定已套用，重新啟動 swarm 後生效：",
+      "services": "服務",
+      "svcName": {
+        "storage": "檔案儲存",
+        "moreVendors": "其他模型供應商"
+      },
+      "line": {
+        "svcOenNotSet": "還沒有設定，無法收款",
+        "svcOenLive": "正式環境",
+        "svcOenTest": "測試環境：款項沒有正式入帳",
+        "svcPaused": "暫停中",
+        "svcKeyProblem": "金鑰有問題",
+        "svcModels": "{n} 個模型提供中",
+        "svcMoreVendors": "{n} 家尚未連接",
+        "svcLocutus": "{linked} 個節點連線 · {waiting} 個待核准",
+        "svcStorageS3": "S3 相容儲存",
+        "svcStorageLocal": "本機磁碟",
+        "svcOn": "已啟用",
+        "svcOff": "未啟用：成果只存在鏡像儲存",
+        "svcCafeca": "登入服務"
+      }
     }
   },
   "hubApi": {

@@ -40,44 +40,12 @@ export async function Overview({ superAdmin, sp }: { superAdmin: boolean; sp: Ad
         </Link>
       </PageHead>
 
-      {blocking.length > 0 && (
-        <section className="card space-y-3 border-err/40 bg-err-soft/30 p-4" aria-labelledby="blocking">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 id="blocking" className="font-semibold text-err">{t("blocking", { n: blocking.length })}</h2>
-            {advice.length > 0 && <span className="text-sm text-muted">{t("adviceCount", { n: advice.length })}</span>}
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {blocking.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 rounded-xl border border-err/30 bg-panel px-3 py-2.5" data-check={c.id}>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">{t(`check.${c.id}.title`)}{c.detail && <span className="ml-2 font-mono text-xs text-muted">{c.detail}</span>}</div>
-                  <div className="text-xs text-muted">{t(`check.${c.id}.fix`)}</div>
-                </div>
-                <Link className="btn-primary !px-3 !py-1.5 text-xs" href={c.keys[0] ? `/admin?tab=settings&setting=${c.keys[0]}` : `/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {advice.length > 0 && (
-        <details className="card group" open={blocking.length === 0}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm">
-            <Icon name="alert" className="h-4 w-4 text-warn" />
-            <span className="flex-1 font-semibold">{t("advice", { n: advice.length })}</span>
-            <span className="text-xs text-muted">{t("show")}</span>
-          </summary>
-          <ul className="divide-y divide-line border-t border-line">
-            {advice.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm" data-check={c.id}>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">{t(`check.${c.id}.title`)}{c.detail && <span className="ml-2 font-mono text-xs text-muted">{c.detail}</span>}</div>
-                  <div className="text-xs text-muted">{t(`check.${c.id}.fix`)}</div>
-                </div>
-                <Link className="btn-ghost !px-3 !py-1 text-xs" href={c.keys[0] ? `/admin?tab=settings&setting=${c.keys[0]}` : `/admin?tab=settings&group=${c.group}`}>{t("fixIt")}</Link>
-              </li>
-            ))}
-          </ul>
-        </details>
+      {blocking.length + advice.length > 0 && (
+        <Link href="/admin" className={`card flex flex-wrap items-center gap-3 p-4 text-sm hover:border-accent ${blocking.length ? "border-err/40 bg-err-soft/30" : ""}`} data-health-link>
+          <Icon name="alert" className={`h-4 w-4 ${blocking.length ? "text-err" : "text-warn"}`} />
+          <span className="flex-1 font-semibold">{t("healthLink", { bad: blocking.length, warn: advice.length })}</span>
+          <span className="text-accent">→</span>
+        </Link>
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("metrics")}>
@@ -98,7 +66,7 @@ export async function Overview({ superAdmin, sp }: { superAdmin: boolean; sp: Ad
           <span className="text-xs text-muted">{t("inboxSort")}</span>
           <span className="flex-1" />
           {FILTERS.map((x) => (
-            <FilterLink key={x} href={x === "all" ? "/admin" : `/admin?f=${x}`} on={f === x}>{t(`filter.${x}`)} {count(x)}</FilterLink>
+            <FilterLink key={x} href={x === "all" ? "/admin?tab=overview" : `/admin?tab=overview&f=${x}`} on={f === x}>{t(`filter.${x}`)} {count(x)}</FilterLink>
           ))}
         </div>
         {rows.length === 0 ? (

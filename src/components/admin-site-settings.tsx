@@ -43,6 +43,24 @@ async function post(url: string, body: unknown) {
   return j;
 }
 
+// drafts survive leaving the page (this browser only; secrets are never kept), and 站台健康 lists them
+const STORE = "sb-admin-settings-drafts";
+export type StoredDraft = { key: string; value: string; where: string };
+export function readDrafts(): StoredDraft[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(STORE) ?? "[]");
+    return Array.isArray(v) ? v.filter((d) => d && typeof d.key === "string" && typeof d.value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function writeDrafts(list: StoredDraft[]) {
+  try {
+    if (list.length) localStorage.setItem(STORE, JSON.stringify(list));
+    else localStorage.removeItem(STORE);
+  } catch {}
+}
+
 /** an item still needs a value before going live */
 const missing = (i: SettingItem) => !!i.required && (i.type === "secret" ? !i.secretSet : !i.value);
 const lang = (l: L | string | undefined, zh: boolean) => (typeof l === "string" ? l : l ? (zh ? l.zh : l.en) : "");
@@ -74,6 +92,25 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
   });
   const restart = changed.filter((k) => byKey.get(k)!.restart);
 
+  // restore drafts kept from an earlier visit; keep them in step from then on
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    const kept = readDrafts().filter((d) => {
+      const it = byKey.get(d.key);
+      return it && it.type !== "secret" && !it.generated && it.source !== "env" && d.value !== it.value;
+    });
+    if (kept.length) setDrafts((cur) => ({ ...Object.fromEntries(kept.map((d) => [d.key, d.value])), ...cur }));
+    setRestored(true);
+  }, [byKey]);
+  useEffect(() => {
+    if (!restored) return;
+    writeDrafts(
+      Object.entries(drafts)
+        .filter(([k]) => byKey.get(k) && byKey.get(k)!.type !== "secret" && !byKey.get(k)!.generated)
+        .map(([key, value]) => ({ key, value, where: `${titles[byKey.get(key)!.group] ?? byKey.get(key)!.group} › ${byKey.get(key)!.label}` })),
+    );
+  }, [drafts, restored, byKey, titles]);
+
   // ?setting=<key>: open its group, scroll to it and mark it (links from 站台健康 and warnings)
   useEffect(() => {
     const key = new URL(window.location.href).searchParams.get("setting");
@@ -83,13 +120,14 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
     setFocus(it.key);
     setTimeout(() => document.querySelector(`[data-setting="${CSS.escape(it.key)}"]`)?.scrollIntoView({ block: "center" }), 50);
   }, [byKey]);
-  // leaving with drafts asks first
+  // leaving with a typed secret asks first (other drafts are kept in this browser)
+  const volatile = changed.filter((k) => byKey.get(k)!.type === "secret" || byKey.get(k)!.generated).length;
   useEffect(() => {
-    if (!changed.length) return;
+    if (!volatile) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [changed.length]);
+  }, [volatile]);
 
   const setDraft = useCallback(
     (key: string, v: string | undefined) => {

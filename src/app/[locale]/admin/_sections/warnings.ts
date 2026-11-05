@@ -25,6 +25,13 @@ export async function modelProblems() {
   const loc = offered.filter((m) => vendorOf(m.modelId) === "locutus");
   const served = loc.length && config.llm.providers.locutus?.key ? (await locutusServed()).all : null;
   const unserved = served ? loc.filter((m) => !served.has(m.modelId.toLowerCase())) : [];
+  // local Ollama models: offered while Ollama is not set up or not answering (audit 1-2)
+  const oll = offered.filter((m) => vendorOf(m.modelId) === "ollama");
+  if (oll.length) {
+    const { ollamaStatus } = await import("@/lib/ollama");
+    const st = await ollamaStatus().catch(() => ({ configured: true, ok: false }));
+    if (!st.configured || !("ok" in st) || !st.ok) unserved.push(...oll);
+  }
   const unknownOf = (list: typeof rows) =>
     list.filter((m) => {
       const [p, ...rest] = m.modelId.split("/");

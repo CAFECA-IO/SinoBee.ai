@@ -1,8 +1,10 @@
 import { db } from "./db";
 import { VENDOR_IDS } from "./llm/vendors";
-import { config } from "./config";
+import { config, ollamaBase } from "./config";
 import { hubPublicKeys } from "./skills/signing";
-import { resolve } from "./settings/cache";
+import { resolve, svBool } from "./settings/cache";
+import { mockAllowed } from "./payment-mode";
+
 import { SETTINGS } from "./settings/registry";
 import { reportTargets } from "./admin/reports";
 
@@ -31,11 +33,17 @@ export function settingsHealth(): HealthCheck[] {
   const set = (k: string) => !!resolve(k).value;
   const providers = VENDOR_IDS;
   const keys = providers.filter((p) => set(`apiKeys.${p}`));
-  const live = config.payments.mode !== "mock";
+  // mock checkout only works in development: on the live site it still goes to Oen (audit 1-1)
+  const live = !mockAllowed();
+  const prodMock = config.payments.mode === "mock" && process.env.NODE_ENV === "production";
+  const local = !!ollamaBase() || svBool("locutus.enabled");
   const checks: HealthCheck[] = [
+    { id: "paymentsMock", ok: !prodMock, level: "error", group: "payments", keys: ["payments.mode"] },
     { id: "payments", ok: !live || (set("oen.merchantId") && set("oen.token")), level: "error", group: "payments", keys: ["oen.merchantId", "oen.token"], detail: live ? config.oen.env : "mock" },
     { id: "paymentsLive", ok: !live || config.oen.env === "production", level: "warn", group: "payments", keys: ["oen.env"], detail: config.oen.env },
-    { id: "modelKeys", ok: keys.length > 0, level: "error", group: "apiKeys", keys: providers.map((p) => `apiKeys.${p}`), detail: `${keys.length}/${providers.length}` },
+    // a site that serves models only from Ollama or Locutus nodes needs no vendor key (audit 1-7)
+    { id: "modelKeys", ok: keys.length > 0 || local, level: "error", group: "apiKeys", keys: providers.map((p) => `apiKeys.${p}`), detail: `${keys.length}/${providers.length}` },
+    { id: "storage", ok: config.storage.driver !== "s3" || set("storage.s3Bucket"), level: "error", group: "storage", keys: ["storage.s3Bucket"] },
     { id: "legal", ok: SETTINGS.filter((d) => d.group === "legal" && d.required).every((d) => set(d.key)), level: "warn", group: "legal", keys: SETTINGS.filter((d) => d.group === "legal" && d.required).map((d) => d.key) },
     { id: "hubKey", ok: hubPublicKeys().length > 0, level: "error", group: "hub", keys: ["hub.signingKey"] },
     { id: "boltchain", ok: config.boltchain.enabled, level: "warn", group: "boltchain", keys: ["boltchain.rpcUrl"] },
