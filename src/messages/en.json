@@ -1527,7 +1527,9 @@
       "secretChanged": "replaced (secret not shown)",
       "revert": "Revert this",
       "revertAsk": "Put the settings of this change back to what they were before?",
-      "reverted": "{n} reverted, {skipped} skipped"
+      "reverted": "{n} reverted, {skipped} skipped",
+      "jump": "Jump to a group…",
+      "count": "{n} settings"
     },
     "health": {
       "title": "Site health",
@@ -1653,7 +1655,8 @@
       "test": "Test connection",
       "testing": "Testing…",
       "testOk": "Connected: {n} models listed ({at})",
-      "testFail": "Connection failed: {error}"
+      "testFail": "Connection failed: {error}",
+      "pick": "Choose a service"
     }
   },
   "hubApi": {

@@ -1527,7 +1527,9 @@
       "secretChanged": "已更換（機密值不顯示）",
       "revert": "回復這筆",
       "revertAsk": "把這筆變更的設定回復到套用前的值？",
-      "reverted": "已回復 {n} 項，略過 {skipped} 項"
+      "reverted": "已回復 {n} 項，略過 {skipped} 項",
+      "jump": "跳到分組…",
+      "count": "{n} 項"
     },
     "health": {
       "title": "站台健康",
@@ -1653,7 +1655,8 @@
       "test": "測試連線",
       "testing": "測試中…",
       "testOk": "連線正常：可列出 {n} 個模型（{at}）",
-      "testFail": "連線失敗：{error}"
+      "testFail": "連線失敗：{error}",
+      "pick": "選擇服務"
     }
   },
   "hubApi": {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { Action, DangerConfirm } from "./settings-controls";
+import { Action, DangerConfirm, Select } from "./settings-controls";
 
 async function post(url: string, body: unknown) {
   const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -60,4 +60,10 @@ export function RemoveKey({ settingKey, consequence, disabled }: { settingKey: s
       {err && <span className="text-sm text-err" role="alert">{err}</span>}
     </span>
   );
+}
+
+/** 服務 → which service (design: 選單方案 3 — a picker instead of a second menu column) */
+export function ServicePicker({ current, options, label }: { current: string; options: { value: string; label: string; note?: string }[]; label: string }) {
+  const router = useRouter();
+  return <Select value={current} options={options} label={label} onChange={(v) => router.push(`/admin?tab=services&id=${v}`)} />;
 }

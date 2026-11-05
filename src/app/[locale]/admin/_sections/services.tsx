@@ -13,7 +13,7 @@ import { LocalDate } from "@/components/date";
 import { PageHead } from "@/components/admin/kit";
 import { VendorPauseSwitch } from "@/components/admin/model-actions";
 import { CopyText, OenCheck, RotateHubKey, SettingsBoard, type SettingItem } from "@/components/admin-site-settings";
-import { RemoveKey, TestConnection } from "@/components/admin-connector";
+import { RemoveKey, ServicePicker, TestConnection } from "@/components/admin-connector";
 import { OllamaAdmin } from "@/components/admin-ollama";
 import { LocutusAdmin } from "@/components/admin-locutus";
 import { siteHealth, type Level } from "./health-data";
@@ -45,7 +45,6 @@ function connectors(): Connector[] {
   ];
 }
 
-const FAMILIES = ["payments", "vendors", "local", "storage", "identity", "tools"] as const;
 
 /**
  * 服務 (design: 建議組合 / B's connector): every external service in one layout — header with its state, 連線 (its
@@ -109,25 +108,17 @@ export async function Services({ sp, superAdmin, locale }: { sp: AdminParams; su
   return (
     <div className="space-y-4">
       <PageHead title={t("title")} sub={t("sub")} />
+      {/* which service: a picker and the services that need attention, instead of a second menu column */}
+      <div className="card flex flex-wrap items-center gap-3 p-2.5">
+        <span className="min-w-[14rem] flex-[1_1_18rem]">
+          <ServicePicker current={current.id} label={t("pick")}
+            options={all.map((c) => ({ value: c.id, label: `${t(`family.${c.family}`)} › ${nameOf(c)}`, note: `${MARK[stateOf(c.id)]} ${th(`state.${stateOf(c.id)}`)}` }))} />
+        </span>
+        {all.filter((c) => c.id !== current.id && (stateOf(c.id) === "bad" || stateOf(c.id) === "warn")).map((c) => (
+          <Link key={c.id} href={`/admin?tab=services&id=${c.id}`} className={`badge min-h-8 font-semibold ${PILL[stateOf(c.id)]}`}>{MARK[stateOf(c.id)]} {nameOf(c)}</Link>
+        ))}
+      </div>
       <div className="flex flex-wrap items-start gap-4">
-        <nav aria-label={t("title")} className="card flex min-w-0 flex-[1_1_240px] flex-col gap-3 p-3 lg:max-w-[280px]">
-          {FAMILIES.map((f) => (
-            <div key={f} className="flex flex-col gap-0.5">
-              <span className="px-2 text-xs font-semibold text-muted">{t(`family.${f}`)}</span>
-              {all.filter((c) => c.family === f).map((c) => {
-                const l = stateOf(c.id);
-                return (
-                  <Link key={c.id} href={`/admin?tab=services&id=${c.id}`} aria-current={c.id === current.id ? "page" : undefined}
-                    className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-2 text-sm ${c.id === current.id ? "bg-accent-soft font-semibold" : "hover:bg-panel-2"}`}>
-                    <span>{nameOf(c)}</span>
-                    <span className={`text-xs ${l === "ok" ? "text-ok" : l === "bad" ? "text-err" : l === "warn" ? "text-warn" : "text-muted"}`} title={th(`state.${l}`)}>{MARK[l]}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
         <main className="card min-w-0 flex-[999_1_560px] overflow-hidden pb-2" data-connector={current.id}>
           <header className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-[#0b1528] px-5 py-4 text-white">
             <h2 className="text-xl font-semibold">{nameOf(current)}</h2>

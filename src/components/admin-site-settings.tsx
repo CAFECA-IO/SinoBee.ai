@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Icon } from "./icon";
 import { confirmDialog } from "./confirm";
-import { Action, DangerConfirm, Field, SettingControl, Toggle, displayValue, type ControlState } from "./settings-controls";
+import { Action, DangerConfirm, Field, Select, SettingControl, Toggle, displayValue, type ControlState } from "./settings-controls";
 import { checkValue, isDanger, type Control, type L, type Ui } from "@/lib/settings/ui";
 
 export type SettingItem = {
@@ -78,7 +78,9 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
   const router = useRouter();
   const [q, setQ] = useState("");
   const [onlyTodo, setOnlyTodo] = useState(false);
-  const [group, setGroup] = useState(() => (sections.some((s) => s.id === initial) ? initial! : sections[0]?.id));
+  // open sections: the one asked for, those that need something, those with drafts (added as drafts appear)
+  const [open, setOpen] = useState<Set<string>>(() => new Set([...(initial && sections.some((s) => s.id === initial) ? [initial] : []), ...sections.filter((s) => (counts?.[s.id] ?? 0) > 0).map((s) => s.id)]));
+  const setGroup = (id: string) => setOpen((o) => (o.has(id) ? o : new Set(o).add(id)));
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, L>>({});
   const [review, setReview] = useState(false);
@@ -99,7 +101,10 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
       const it = byKey.get(d.key);
       return it && it.type !== "secret" && !it.generated && it.source !== "env" && d.value !== it.value;
     });
-    if (kept.length) setDrafts((cur) => ({ ...Object.fromEntries(kept.map((d) => [d.key, d.value])), ...cur }));
+    if (kept.length) {
+      setDrafts((cur) => ({ ...Object.fromEntries(kept.map((d) => [d.key, d.value])), ...cur }));
+      setOpen((o) => new Set([...o, ...kept.map((d) => byKey.get(d.key)!.group)]));
+    }
     setRestored(true);
   }, [byKey]);
   useEffect(() => {
@@ -188,17 +193,6 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
   };
   const todo = items.filter(missing).length;
   const across = !!q.trim() || onlyTodo;
-  const pick = (id: string) => {
-    setGroup(id);
-    setQ("");
-    setOnlyTodo(false);
-    try {
-      const u = new URL(window.location.href);
-      u.searchParams.set("group", id);
-      u.searchParams.delete("setting");
-      window.history.replaceState(null, "", u);
-    } catch {}
-  };
   const bar = canEdit && (changed.length > 0 || done) && (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-[#0b1528] text-white" role="region" aria-label={tc("changeBar")}>
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
@@ -232,55 +226,76 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
         {reviewPanel}
       </div>
     );
+  // one column: every group is a folding section with a one-line summary (design: 選單方案 3) — no group menu
+  const summary = (gid: string) =>
+    items
+      .filter((i) => i.group === gid && i.type !== "secret" && !i.generated && i.value !== "" && i.control !== "list" && i.control !== "pairs")
+      .slice(0, 2)
+      .map((i) => `${i.label}：${displayValue(i, i.value, zh)}`)
+      .join(" · ");
+  const jump = (id: string) => {
+    setOpen((o) => new Set(o).add(id));
+    setQ("");
+    setOnlyTodo(false);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("group", id);
+      u.searchParams.delete("setting");
+      window.history.replaceState(null, "", u);
+    } catch {}
+    setTimeout(() => document.getElementById(`set-${id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+  };
   return (
-    <div className="space-y-4 pb-24">
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label={t("sections")}>
-          <ul className="card flex gap-1 overflow-x-auto p-1.5 text-sm lg:flex-col lg:overflow-visible">
-            {sections.map((s) => {
-              const n = counts?.[s.id] ?? items.filter((i) => i.group === s.id && missing(i)).length;
+    <div className="space-y-3 pb-24">
+      <div className="card z-20 flex flex-wrap items-center gap-3 p-2.5 sm:sticky sm:top-16">
+        <span className="pl-1 text-muted"><Icon name="search" /></span>
+        <SearchBox value={q} onChange={setQ} label={t("search")} />
+        <span className="min-w-[12rem] flex-[1_1_14rem]">
+          <Select value="" label={tc("jump")} onChange={(v) => v && jump(v)}
+            options={[{ value: "", label: tc("jump") }, ...sections.map((s) => {
+              const n = counts?.[s.id] ?? 0;
               const d = changed.filter((k) => byKey.get(k)!.group === s.id).length;
-              const on = !across && group === s.id;
-              return (
-                <li key={s.id}>
-                  <button type="button" onClick={() => pick(s.id)} aria-current={on ? "true" : undefined} data-group-link={s.id}
-                    className={`flex min-h-10 w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-left ${on ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}>
-                    <span className="flex-1">{s.title}</span>
-                    {d > 0 && <span className="rounded-full bg-[#fff1dc] px-1.5 text-[11px] font-semibold text-[#7a4300]" title={tc("draftN", { n: d })}>{tc("draftShort", { n: d })}</span>}
-                    {n > 0 && <span className="rounded-full bg-warn-soft px-1.5 text-[11px] font-semibold text-warn" title={tc("todoN", { n })}>{n}</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-        <div className="min-w-0 space-y-4">
-          <div className="card flex flex-wrap items-center gap-3 p-2.5">
-            <span className="pl-1 text-muted"><Icon name="search" /></span>
-            <SearchBox value={q} onChange={setQ} label={t("search")} />
-            <OnlyTodo on={onlyTodo} onChange={setOnlyTodo} label={t("onlyTodo", { n: todo })} zh={zh} />
-          </div>
-          {sections.map((s) => {
-            if (!across && s.id !== group) return null;
-            const its = items.filter((i) => i.group === s.id && match(i));
-            if (!its.length && across) return null;
-            return (
-              <section key={s.id} id={`set-${s.id}`} className="card scroll-mt-24" data-group={s.id}>
-                <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-4">
-                  <h2 className="h3">{s.title}</h2>
-                  {s.description && <p className="text-xs text-muted">{s.description}</p>}
-                </header>
+              return { value: s.id, label: s.title, note: [n ? tc("todoN", { n }) : "", d ? tc("draftN", { n: d }) : ""].filter(Boolean).join("、") || undefined };
+            })]} />
+        </span>
+        <OnlyTodo on={onlyTodo} onChange={setOnlyTodo} label={t("onlyTodo", { n: todo })} zh={zh} />
+      </div>
+      {sections.map((s) => {
+        const its = items.filter((i) => i.group === s.id && match(i));
+        if (!its.length && across) return null;
+        const n = counts?.[s.id] ?? items.filter((i) => i.group === s.id && missing(i)).length;
+        const d = changed.filter((k) => byKey.get(k)!.group === s.id).length;
+        const isOpen = across || open.has(s.id);
+        const all = items.filter((i) => i.group === s.id).length;
+        return (
+          <section key={s.id} id={`set-${s.id}`} className="card scroll-mt-36 overflow-hidden" data-group={s.id}>
+            <h2>
+              <button type="button" aria-expanded={isOpen} aria-controls={`set-${s.id}-body`} data-group-link={s.id}
+                onClick={() => setOpen((o) => { const x = new Set(o); if (x.has(s.id)) x.delete(s.id); else x.add(s.id); return x; })}
+                className="flex min-h-[52px] w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-left hover:bg-panel-2/60">
+                <span aria-hidden className="w-3 text-muted">{isOpen ? "▾" : "▸"}</span>
+                <span className="text-base font-semibold">{s.title}</span>
+                <span className="text-xs font-normal text-muted">{tc("count", { n: all })}</span>
+                {n > 0 && <span className="rounded-full bg-warn-soft px-2 text-[11px] font-semibold text-warn">{tc("todoN", { n })}</span>}
+                {d > 0 && <span className="rounded-full bg-[#fff1dc] px-2 text-[11px] font-semibold text-[#7a4300]">{tc("draftN", { n: d })}</span>}
+                <span className="flex-1" />
+                {!isOpen && <span className="max-w-full truncate text-xs font-normal text-muted sm:max-w-[50%]">{summary(s.id)}</span>}
+              </button>
+            </h2>
+            {isOpen && (
+              <div id={`set-${s.id}-body`}>
+                {s.description && <p className="border-t border-line px-4 py-2 text-xs text-muted">{s.description}</p>}
                 {s.extra}
                 {its.map((i) => (
                   <FieldRow key={i.key} item={i} draft={drafts[i.key]} error={errors[i.key]} canEdit={canEdit} zh={zh} focused={focus === i.key}
                     onChange={(v) => setDraft(i.key, v)} onBlur={() => validate(i.key)} />
                 ))}
-              </section>
-            );
-          })}
-          {across && !items.some(match) && <p className="text-sm text-muted">{t("noMatch")}</p>}
-        </div>
-      </div>
+              </div>
+            )}
+          </section>
+        );
+      })}
+      {across && !items.some(match) && <p className="text-sm text-muted">{t("noMatch")}</p>}
 
       {bar}
       {reviewPanel}
@@ -290,7 +305,7 @@ export function SettingsBoard({ sections, items, canEdit, initial, counts, zh, t
 
 function SearchBox({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
   return (
-    <span className="min-w-0 flex-1">
+    <span className="min-w-[12rem] flex-[2_1_16rem]">
       <ControlText value={value} onChange={onChange} label={label} />
     </span>
   );

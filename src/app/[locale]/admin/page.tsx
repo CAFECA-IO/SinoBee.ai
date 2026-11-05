@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 
 /** 5 groups, 12 sections (admin rework 2026-10-21: related pages merged, every queue in the overview inbox) */
 const NAV = [
-  { group: "", items: [{ id: "health", icon: "shield" }, { id: "overview", icon: "grid" }] },
+  { group: "", items: [{ id: "health", icon: "check" }, { id: "overview", icon: "grid" }] },
   { group: "review", items: [{ id: "review", icon: "hub" }, { id: "reports", icon: "flag" }, { id: "crowd", icon: "users" }, { id: "checklist", icon: "list" }] },
   { group: "business", items: [{ id: "users", icon: "user" }, { id: "payments", icon: "card" }, { id: "plans", icon: "layers" }] },
   { group: "models", items: [{ id: "services", icon: "flow" }, { id: "models", icon: "brain" }] },
@@ -97,18 +97,20 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
   else body = <Audit sp={sp} />;
 
   return (
-    <div className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+    <div className="mx-auto grid w-full max-w-[1440px] grid-cols-1 gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[64px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="min-w-0 space-y-3 lg:sticky lg:top-20 lg:self-start">
-        <div className="flex items-center gap-2 px-1">
+        {/* 1024–1279px: the menu is an icon rail (labels as tooltips, counts as dots) so pages keep their width */}
+        <div className="flex items-center gap-2 px-1 lg:justify-center xl:justify-start" title={t("title")}>
           <Icon name="shield" />
-          <span className="font-bold">{t("title")}</span>
-          <span className="badge bg-panel-2 text-muted">{t(`users.role.${me.role}`)}</span>
+          <span className="font-bold lg:hidden xl:inline">{t("title")}</span>
+          <span className="badge bg-panel-2 text-muted lg:hidden xl:inline">{t(`users.role.${me.role}`)}</span>
         </div>
         <AdminNavSelect current={tab} label={t("title")} groups={groups.map((g) => ({ label: g.label, items: g.items.map((i) => ({ id: i.id, label: i.label, href: i.href, count: i.badge?.n })) }))} />
         <nav aria-label={t("title")} className="hidden space-y-4 lg:block">
           {groups.map((g) => (
             <div key={g.group || "start"}>
-              {g.label && <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">{g.label}</div>}
+              {g.label && <div className="mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wider text-muted xl:block">{g.label}</div>}
+              {g.label && <div className="mx-2 mb-2 border-t border-line xl:hidden" aria-hidden />}
               <ul className="space-y-0.5">
                 {g.items.map((i) => {
                   const active = tab === i.id;
@@ -117,12 +119,17 @@ export default async function AdminPage({ params, searchParams }: { params: Prom
                       <Link
                         href={i.href}
                         aria-current={active ? "page" : undefined}
-                        className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm ${active ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
+                        aria-label={i.badge && i.badge.n > 0 ? `${i.label} (${i.badge.n})` : i.label}
+                        title={i.label}
+                        className={`relative flex min-h-11 items-center gap-2.5 rounded-lg py-2 text-sm lg:justify-center lg:px-0 xl:justify-start xl:px-3 ${active ? "bg-accent-soft font-semibold text-ink" : "text-muted hover:bg-panel-2 hover:text-ink"}`}
                       >
                         <Icon name={i.icon} className="h-4 w-4" />
-                        <span className="flex-1">{i.label}</span>
+                        <span className="flex-1 lg:hidden xl:inline">{i.label}</span>
                         {i.badge && i.badge.n > 0 && (
-                          <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold ${i.badge.tone === "warn" ? "bg-warn-soft text-warn" : "bg-accent text-accent-ink"}`}>{i.badge.n}</span>
+                          <>
+                            <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold lg:hidden xl:inline ${i.badge.tone === "warn" ? "bg-warn-soft text-warn" : "bg-accent text-accent-ink"}`}>{i.badge.n}</span>
+                            <span aria-hidden className={`absolute right-2 top-2 hidden h-2 w-2 rounded-full lg:block xl:hidden ${i.badge.tone === "warn" ? "bg-warn" : "bg-accent"}`} />
+                          </>
                         )}
                       </Link>
                     </li>
